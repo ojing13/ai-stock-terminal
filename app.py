@@ -223,10 +223,8 @@ def safe_info(info, keys, default='N/A'):
     return default
 
 def augment_korean_fundamentals(ticker, info):
-    """한국 주식의 경우 네이버 금융을 크롤링하여 N/A 데이터를 보충하는 강력한 함수"""
     if not (ticker.endswith('.KS') or ticker.endswith('.KQ')):
         return info
-    
     try:
         code = ticker.split('.')[0]
         url = f"https://finance.naver.com/item/main.naver?code={code}"
@@ -284,14 +282,11 @@ def augment_korean_fundamentals(ticker, info):
                         info['currentRatio'] = recent_val / 100.0
     except:
         pass 
-        
     return info
 
 def augment_us_fundamentals(ticker, info):
-    """미국 주식 N/A 보충을 위해 Finviz 사이트를 크롤링하는 함수"""
     if ticker.endswith('.KS') or ticker.endswith('.KQ'):
         return info
-        
     try:
         url = f"https://finviz.com/quote.ashx?t={ticker}"
         headers = {
@@ -356,7 +351,6 @@ def augment_us_fundamentals(ticker, info):
                 info['quickRatio'] = parse_finviz_val(data_dict.get('Quick Ratio', '-'))
     except:
         pass
-        
     return info
 
 # ====================== 메인 ======================
@@ -381,7 +375,7 @@ if user_input:
         
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
        
-        # 재무 데이터 로드 (에러 방지)
+        # 재무 데이터 로드
         try: fin_df = stock.financials
         except: fin_df = pd.DataFrame()
         try: bs_df = stock.balance_sheet
@@ -419,7 +413,6 @@ if user_input:
                 pass
         news_context = "\n- ".join([item["title"] for item in news_list]) if news_list else "수집된 실시간 뉴스가 없습니다."
         
-        # === 각종 비율 및 지표 추출 (N/A 개선 + nan 개선) ===
         def fmt_pct(v, is_dividend=False):
             if v == 'N/A' or v is None: return 'N/A'
             try: 
@@ -454,7 +447,6 @@ if user_input:
         roa = safe_info(info, ['returnOnAssets', 'roa'])
         roic = safe_info(info, ['returnOnCapitalEmployed', 'roic'])
 
-        # ROIC 무적의 수동 계산 로직
         if roic == 'N/A' or roic is None:
             try:
                 op_inc = None
@@ -501,7 +493,7 @@ if user_input:
         except:
             interest_cov = 'N/A'
         
-        # === 재무제표 항목 추출 ===
+        # 재무제표 항목 추출
         v_rev = safe_get_fin(fin_df, ['Total Revenue'])
         v_cogs = safe_get_fin(fin_df, ['Cost Of Revenue'])
         v_gp = safe_get_fin(fin_df, ['Gross Profit'])
@@ -557,7 +549,6 @@ if user_input:
             ideal_start_date = max_date - timedelta(days=365*10)
             default_start = ideal_start_date if ideal_start_date > min_date else min_date
             
-            # 여기서 고유 key를 부여하여 버그 해결!
             selected_start, selected_end = st.slider(
                 "조회 기간 설정",
                 min_value=min_date,
@@ -579,7 +570,6 @@ if user_input:
                 min_idx = filtered_history['Low'].idxmin()
                 max_idx = filtered_history['High'].idxmax()
                 
-                # ====== 이동평균선 동적 설정 ======
                 if interval_option == "일봉":
                     ma_settings = [(5, "MA1(5일)", "#00b0ff"), (20, "MA2(20일)", "#ff9100"), (60, "MA3(60일)", "#ff4081"), (120, "MA4(120일)", "#aa00ff")]
                 elif interval_option == "주봉":
@@ -592,7 +582,6 @@ if user_input:
 
                 filtered_history = history.loc[mask].copy()
                 
-                # AI 프롬프트용 텍스트 생성
                 ma_last_vals_str = []
                 for w, name, color in ma_settings:
                     val = filtered_history[f'MA_{w}'].iloc[-1]
@@ -612,7 +601,6 @@ if user_input:
                     name="가격"
                 ))
 
-                # 이동평균선 루프를 돌며 차트에 추가 (두께를 아주 얇게 1.0으로 유지)
                 for w, name, color in ma_settings:
                     fig.add_trace(go.Scatter(
                         x=filtered_history.index, 
@@ -655,7 +643,7 @@ if user_input:
             
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 차트 추세 분석 실행"):
-                with st.spinner("순수 기술적 관점에서 종목의 사이클을 파악하여 브리핑 중입니다..."):
+                with st.spinner("순수 기술적 관점에서 종목의 사이클 파악하여 브리핑 중입니다..."):
                     df_close = filtered_history[['Close']].copy()
                     df_close.index = df_close.index.strftime('%Y-%m-%d')
                     df_close['Close'] = df_close['Close'].round(2)
@@ -792,9 +780,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 3. 기업의 수익성 및 미래 성장 가능성
 
 🚨 [최고급 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
-- [지표의 상호 연결]: 단일 지표에 얽매이지 마세요. 부채비율이나 자본잠식이 표면적으로 나빠 보여도, 강력한 '영업활동현금흐름'과 '이자보상배율'이 뒷받침된다면 재무적 위험이 아닌 훌륭한 레버리지 활용 및 공격적인 주주환원(자사주 매입 등)의 결과로 해석하세요.
-- [기계적 해석 금지]: PBR, PER 등의 수치가 비정상적(음수, 과도한 고평가 등)일 때 교과서적인 잣대를 기계적으로 들이대지 마세요. 대규모 스핀오프, 일회성 비용, 혹은 강력한 미래 성장 기대감 등 시장의 실질적인 맥락을 먼저 유추하여 평가하세요.
-- [뉴스 직접 인용 절대 금지]: 제공된 뉴스 동향에서는 '현재 기업이 처한 업황이나 핵심 모멘텀'에 대한 정보만 추출하여 분석의 근거로 쓰세요. 작성 시 "최신 뉴스에 따르면~", "기사 제목에서 알 수 있듯이~" 같은 촌스러운 표현이나 기사 제목 자체를 절대 적지 마세요. 마치 당신이 처음부터 그 시장 상황을 꿰뚫어 보고 있었던 애널리스트처럼 자연스럽게 현 상황(예: "현재 AI 메모리 수요 폭발로 인해~")을 서술하세요.
+- [입체적 재무 해석]: 부채비율이 높거나 자본잠식 상태일 때, 이를 무조건 '주주환원(자사주 매입)에 의한 착한 부채'로 포장하거나 반대로 '단순 파산 위기'로 깎아내리지 마세요. '이자보상배율', '영업활동현금흐름', 그리고 '최신 뉴스'를 교차 검증하여 현재의 부채가 성장을 위한 건전한 레버리지인지, 아니면 시장이 우려하는 실질적 리스크(예: 과도한 CapEx, 인수합병 부담, 이자 비용 증가 등)인지 냉철하게 판단하세요.
+- [시장 우려 및 하락 원인 직시]: 주가가 고점 대비 크게 하락했거나 부정적인 지표가 있다면, 뉴스 맥락을 파악해 실제 시장이 무엇을 두려워하는지(예: 실적 둔화, 매크로 이슈, 부채 부담 등) 리포트에 명확히 지적하세요. 무조건적인 장밋빛 전망은 배제하세요.
+- [뉴스 직접 인용 절대 금지]: "최신 뉴스에 따르면~", "기사 제목에서 알 수 있듯이~" 같은 촌스러운 표현을 절대 쓰지 마세요. 마치 당신이 처음부터 그 시장 상황을 꿰뚫어 보고 있었던 애널리스트처럼 자연스럽게 현 상황을 서술하세요.
 - 마크다운 렌더링 오류를 막기 위해 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
 """
                     response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
@@ -858,7 +846,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가 - 기술적 지표, 재무, 뉴스를 융합하여 논리적 근거와 함께 구체적으로 제시할 것)
                         
                         🚨 [최고급 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
-                        - [지표의 상호 연결]: 자본잠식(마이너스 자본)이나 마이너스 PBR을 표면적으로 보고 '심각한 재무 위험'이나 '복잡한 재무 구조'라고 호들갑 떨지 마세요. 대형 우량주의 경우 대규모 자사주 매입, 스핀오프, 배당 등 과격한 주주환원의 결과로 장부상 자본이 마이너스가 되는 경우가 매우 흔합니다. '영업활동현금흐름'과 '영업이익'이 탄탄하다면 이를 훌륭한 레버리지 활용 및 주주 친화 정책의 결과로 긍정적으로 해석하세요.
+                        - [입체적 재무 해석]: 부채비율이 높거나 자본잠식 상태일 때, 이를 무조건 '주주환원(자사주 매입)에 의한 착한 부채'로 포장하거나 반대로 '단순 파산 위기'로 깎아내리지 마세요. '이자보상배율', '영업활동현금흐름', 그리고 '최신 뉴스'를 교차 검증하여 현재의 부채가 성장을 위한 건전한 레버리지인지, 아니면 시장이 우려하는 실질적 리스크(예: 과도한 CapEx, 인수합병 부담, 이자 비용 증가 등)인지 냉철하게 판단하세요.
+                        - [시장 우려 및 하락 원인 직시]: 주가가 고점 대비 크게 하락했거나 부정적인 지표가 있다면, 뉴스 맥락을 파악해 실제 시장이 무엇을 두려워하는지(예: 실적 둔화, 매크로 이슈, 부채 부담 등) 리포트에 명확히 지적하세요. 무조건적인 장밋빛 전망은 배제하세요.
                         - [뉴스 직접 인용 절대 금지]: "최신 뉴스에 따르면", "뉴스 동향과의 연관성", "기사 제목에서 알 수 있듯이" 같은 촌스러운 표현이나 기사 제목 자체를 리포트에 절대 쓰지 마세요. 제공된 뉴스에서는 '현재 기업이 처한 업황이나 핵심 모멘텀' 정보만 쏙 빼서, 마치 당신이 처음부터 시장 상황을 꿰뚫어 보고 있었던 애널리스트처럼 자연스럽게 펀더멘털 분석과 향후 흐름 예상에 녹여내세요.
                         - [기계적 해석 금지]: PER, PEG 등의 수치가 비정상적일 때 교과서적인 잣대를 들이대지 마세요. 시장의 실질적인 맥락을 유추하여 평가하세요.
                         - 마크다운 렌더링 오류를 막기 위해 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
@@ -869,3 +858,4 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
+
