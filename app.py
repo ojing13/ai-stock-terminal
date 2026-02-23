@@ -801,7 +801,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.markdown("**📌 참고한 실시간 뉴스 원문 (클릭해서 바로 이동)**")
                         if news_list:
                             for item in news_list:
-                                st.markdown(f"• [{item['title']}]({item['link']})")
+                                st.markdown(f"• <a href='{item['link']}' target='_blank'>{item['title']}</a>", unsafe_allow_html=True)
                         else:
                             st.write("뉴스 링크를 불러올 수 없습니다.")
           
@@ -849,4 +849,5 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
+
 
