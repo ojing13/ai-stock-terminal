@@ -571,8 +571,12 @@ if user_input:
             interval = "1d" if interval_option == "일봉" else "1wk" if interval_option == "주봉" else "1mo"
             history = stock.history(period="max", interval=interval)
             
-            min_date = history.index.min().to_pydatetime().date()
-            max_date = history.index.max().to_pydatetime().date()
+            # --- [수정된 부분 시작] ---
+            # 주기를 변경할 때 슬라이더의 min/max 경계값이 엇갈려 에러가 나는 것을 방지
+            raw_min_date = history.index.min().to_pydatetime().date()
+            min_date = raw_min_date.replace(day=1)  # 어떤 주기든 항상 해당 월의 1일로 넉넉하게 고정
+            max_date = datetime.now().date()        # 최대 날짜는 무조건 오늘로 고정
+            
             ideal_start_date = max_date - timedelta(days=365*10)
             default_start = ideal_start_date if ideal_start_date > min_date else min_date
             
@@ -583,8 +587,9 @@ if user_input:
                 value=(default_start, max_date),
                 format="YYYY-MM-DD",
                 label_visibility="collapsed",
-                key=f"slider_{ticker}_{interval_option}"
+                key=f"slider_{ticker}" # 핵심: interval_option을 제거해서 주기가 바뀌어도 키(기억) 유지
             )
+            # --- [수정된 부분 끝] ---
             
             mask = (history.index.date >= selected_start) & (history.index.date <= selected_end)
             filtered_history = history.loc[mask].copy()
@@ -886,3 +891,4 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
+
