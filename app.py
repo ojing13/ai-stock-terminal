@@ -556,13 +556,16 @@ if user_input:
             max_date = history.index.max().to_pydatetime().date()
             ideal_start_date = max_date - timedelta(days=365*10)
             default_start = ideal_start_date if ideal_start_date > min_date else min_date
+            
+            # 여기서 고유 key를 부여하여 버그 해결!
             selected_start, selected_end = st.slider(
                 "조회 기간 설정",
                 min_value=min_date,
                 max_value=max_date,
                 value=(default_start, max_date),
                 format="YYYY-MM-DD",
-                label_visibility="collapsed"
+                label_visibility="collapsed",
+                key=f"slider_{ticker}_{interval_option}"
             )
             
             mask = (history.index.date >= selected_start) & (history.index.date <= selected_end)
@@ -609,13 +612,13 @@ if user_input:
                     name="가격"
                 ))
 
-                # 이동평균선 루프를 돌며 차트에 추가 (두께를 아주 얇게 0.5으로 유지)
+                # 이동평균선 루프를 돌며 차트에 추가 (두께를 아주 얇게 1.0으로 유지)
                 for w, name, color in ma_settings:
                     fig.add_trace(go.Scatter(
                         x=filtered_history.index, 
                         y=filtered_history[f'MA_{w}'], 
                         name=name,
-                        line=dict(color=color, width=0.5)
+                        line=dict(color=color, width=1.0)
                     ))
                 
                 fig.add_annotation(
@@ -652,7 +655,7 @@ if user_input:
             
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 차트 추세 분석 실행"):
-                with st.spinner("순수 기술적 관점에서 종목의 사이클 파악하여 브리핑 중입니다..."):
+                with st.spinner("순수 기술적 관점에서 종목의 사이클을 파악하여 브리핑 중입니다..."):
                     df_close = filtered_history[['Close']].copy()
                     df_close.index = df_close.index.strftime('%Y-%m-%d')
                     df_close['Close'] = df_close['Close'].round(2)
@@ -852,7 +855,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         1. 재무 상황 종합 평가
                         2. 향후 주가 흐름 예상
                         3. 상황별 대응 전략 (현재 보유자 / 신규 매수 대기자 / 매도 고려자)
-                        4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가 - 기술적 지표, 재무, 뉴스를 융합하여 논리적 근거와 함께 구체적으로 제시할 일 것)
+                        4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가 - 기술적 지표, 재무, 뉴스를 융합하여 논리적 근거와 함께 구체적으로 제시할 것)
                         
                         🚨 [최고급 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
                         - [지표의 상호 연결]: 자본잠식(마이너스 자본)이나 마이너스 PBR을 표면적으로 보고 '심각한 재무 위험'이나 '복잡한 재무 구조'라고 호들갑 떨지 마세요. 대형 우량주의 경우 대규모 자사주 매입, 스핀오프, 배당 등 과격한 주주환원의 결과로 장부상 자본이 마이너스가 되는 경우가 매우 흔합니다. '영업활동현금흐름'과 '영업이익'이 탄탄하다면 이를 훌륭한 레버리지 활용 및 주주 친화 정책의 결과로 긍정적으로 해석하세요.
