@@ -124,7 +124,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 💡 API 키를 Streamlit 비밀 금고(Secrets)에서 안전하게 불러오기
+# API 키를 Streamlit 비밀 금고(Secrets)에서 안전하게 불러오기
 try:
     MY_API_KEY = st.secrets["GEMINI_API_KEY"]
 except:
@@ -420,12 +420,10 @@ if user_input:
         news_context = "\n- ".join([item["title"] for item in news_list]) if news_list else "수집된 실시간 뉴스가 없습니다."
         
         # === 각종 비율 및 지표 추출 (N/A 개선 + nan 개선) ===
-        # 💡 핵심 로직 추가: is_dividend 인자를 추가해 소수점 버그 방어
         def fmt_pct(v, is_dividend=False):
             if v == 'N/A' or v is None: return 'N/A'
             try: 
                 val = float(v)
-                # yfinance 버그 방지: 배당수익률이 1.0(100%) 이상이면 원본이 100으로 안 나눠졌다고 판단하고 보정
                 if is_dividend and val >= 1.0:
                     val = val / 100.0
                 return f"{val*100:.2f}%"
@@ -443,10 +441,8 @@ if user_input:
         high_52 = info.get('fiftyTwoWeekHigh', 0)
         low_52 = info.get('fiftyTwoWeekLow', 0)
         
-        # 52주 최저가 0 버그 완전 해결
         high_52, low_52 = get_52w_high_low(stock, high_52, low_52)
         
-        # 지표 N/A 대폭 개선
         trailing_pe = safe_info(info, ['trailingPE', 'trailingPe', 'PE'])
         forward_pe = safe_info(info, ['forwardPE', 'forwardPe'])
         pb = safe_info(info, ['priceToBook', 'pbr', 'priceBook'])
@@ -458,9 +454,7 @@ if user_input:
         roa = safe_info(info, ['returnOnAssets', 'roa'])
         roic = safe_info(info, ['returnOnCapitalEmployed', 'roic'])
 
-        # =========================================================
         # ROIC 무적의 수동 계산 로직
-        # =========================================================
         if roic == 'N/A' or roic is None:
             try:
                 op_inc = None
@@ -486,7 +480,6 @@ if user_input:
                         roic = nopat / invested_capital
             except:
                 pass
-        # =========================================================
 
         gross_margin = safe_info(info, ['grossMargins', 'grossMargin'])
         net_margin = safe_info(info, ['profitMargins', 'netMargin'])
@@ -498,7 +491,6 @@ if user_input:
         current_ratio = safe_info(info, ['currentRatio'])
         quick_ratio = safe_info(info, ['quickRatio'])
         
-        # 이자보상배율 'nan' 안 뜨게 안전하게 수학 계산
         try:
             op_inc_val = fin_df.loc['Operating Income'].iloc[0]
             int_exp_val = fin_df.loc['Interest Expense'].iloc[0]
@@ -640,15 +632,14 @@ if user_input:
                 fig.update_layout(
                     title=dict(text=f"{user_input} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                     template="plotly_dark",
-                    dragmode=False, # 💡 모바일 차트 드래그 및 줌 완전 방지
-                    xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True), # 💡 x축 고정
-                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True), # 💡 y축 고정
+                    dragmode=False,
+                    xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
+                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True),
                     height=520,
                     margin=dict(l=0, r=0, t=40, b=0),
                     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
                     hovermode="x unified"
                 )
-                # 💡 displayModeBar=False 로 모바일 상단 지저분한 툴바까지 숨겼어요.
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
             else:
                 st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더를 조절해 주세요!")
@@ -669,7 +660,7 @@ if user_input:
                     위의 '전체 데이터'를 통째로 분석하여 오직 '기술적 분석(Technical Analysis)' 관점에서만 차트 흐름을 브리핑해주세요. 기업의 가치, 성장성 등 기본적 분석(Fundamental)은 100% 배제하세요.
                     
                     [🚨 절대 엄수할 핵심 지시사항 🚨]
-                    1. 마크다운 수식 오류 방지: 가격 범위나 기간 표시 시 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. (금액은 반드시 '{currency}'로 표기할 것)
+                    1. 마크다운 수식 오류 방지: 가격 범위나 기간 표시 시 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'로 표기할 것)
                     2. 기계적인 기간 설정 금지: 장기 추세를 분석할 때 스스로 의미 있는 기간을 정의하세요.
                     
                     [출력 형식]
@@ -700,7 +691,6 @@ if user_input:
             c3.metric("영업이익률", fmt_pct(op_margin))
             c3.metric("순이익률", fmt_pct(net_margin))
             c3.metric("매출 성장률", fmt_pct(rev_growth))
-            # 💡 여기에도 is_dividend=True 인자를 넣어서 버그를 원천 차단했어요.
             c3.metric("배당 수익률", fmt_pct(div_yield, is_dividend=True))
             
             c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
@@ -766,7 +756,7 @@ if user_input:
             
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 재무 건전성 평가 실행"):
-                with st.spinner("실시간 동향과 재무적 지표를 종합하여 분석 중입니다..."):
+                with st.spinner("재무적 지표를 바탕으로 입체적인 분석을 진행 중입니다..."):
                     prompt = f"""종목 {ticker}의 상세 재무 데이터 및 최신 뉴스 동향입니다.
 
 [최신 뉴스 동향]
@@ -792,14 +782,15 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 2. 기업의 재무적 안전성
 3. 기업의 수익성 및 미래 성장 가능성
 
-🚨 [핵심 지시사항]
-- 제공된 '최신 뉴스 동향'의 맥락을 바탕으로 재무 지표가 의미하는 바를 입체적으로 분석하세요.
-- 단, 뉴스 기사 내용 자체를 단순 나열하거나 직접적으로 언급하는 것은 피하고, 재무 상황이나 향후 성장성을 논리적으로 설명하는 데 '반드시 필요한 경우'에만 뉴스 내용을 자연스럽게 녹여내세요.
-- 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 '{currency}'으로 표기하세요.)
+🚨 [최고급 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
+- [지표의 상호 연결]: 단일 지표에 얽매이지 마세요. 부채비율이나 자본잠식이 표면적으로 나빠 보여도, 강력한 '영업활동현금흐름'과 '이자보상배율'이 뒷받침된다면 재무적 위험이 아닌 훌륭한 레버리지 활용 및 공격적인 주주환원(자사주 매입 등)의 결과로 해석하세요.
+- [기계적 해석 금지]: PBR, PER 등의 수치가 비정상적(음수, 과도한 고평가 등)일 때 교과서적인 잣대를 기계적으로 들이대지 마세요. 대규모 스핀오프, 일회성 비용, 혹은 강력한 미래 성장 기대감 등 시장의 실질적인 맥락을 먼저 유추하여 평가하세요.
+- [정성·정량의 융합]: 제공된 최신 뉴스(모멘텀, 업황 동향)가 기업의 재무 지표(수익성, 마진 성장)를 어떻게 논리적으로 뒷받침하는지 연결하여 설명하세요. 단, 뉴스를 맹목적으로 나열하지 말고 분석의 타당한 근거로만 자연스럽게 녹여내세요.
+- 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
 """
                     response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                     st.info(response.text)
-                    
+
         # --- [탭 3: 최신 동향] ---
         with tab3:
             st.subheader("실시간 동향 및 투심 분석")
@@ -809,7 +800,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news1:
                 if st.button("AI 최신 뉴스 브리핑"):
                     with st.spinner("뉴스를 수집하여 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 뉴스 헤드라인입니다.\n\n- {news_context}\n\n위 뉴스 내용들을 한국어로 완벽하게 번역하여, 현재 이 기업에 일어나고 있는 가장 중요한 핵심 이슈를 3가지로 요약해서 브리핑해주세요. (주의: 물결표 및 달러($) 기호 절대 사용 금지)"
+                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 뉴스 헤드라인입니다.\n\n- {news_context}\n\n위 뉴스 내용들을 한국어로 완벽하게 번역하여, 현재 이 기업에 일어나고 있는 가장 중요한 핵심 이슈를 3가지로 요약해서 브리핑해주세요. (주의: 물결표 및 달러 기호 절대 사용 금지)"
                         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         st.info(response.text)
                         st.markdown("---")
@@ -823,7 +814,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news2:
                 if st.button("AI 뉴스 투심 분석 실행"):
                     with st.spinner("시장 반응을 분석 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 실시간 뉴스 헤드라인입니다.\n\n- {news_context}\n\n이 실시간 뉴스를 바탕으로 현재 시장의 투자 심리(호재/악재)를 한국어로 명확히 분석하고, 향후 주가에 미칠 영향을 예측해주세요. (주의: 물결표 및 달러($) 기호 절대 사용 금지)"
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 실시간 뉴스 헤드라인입니다.\n\n- {news_context}\n\n이 실시간 뉴스를 바탕으로 현재 시장의 투자 심리(호재/악재)를 한국어로 명확히 분석하고, 향후 주가에 미칠 영향을 예측해주세요. (주의: 물결표 및 달러 기호 절대 사용 금지)"
                         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         st.info(response.text)
 
@@ -851,7 +842,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         \n{news_context}
                         
                         반드시 다음 4가지 항목을 포함하여 전문가처럼 한국어로 명확하게 작성해주세요.
-                        🚨 주의: 렌더링 오류를 막기 위해 모든 내용에 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. (금액은 '{currency}'으로 표기할 것)
+                        🚨 주의: 렌더링 오류를 막기 위해 모든 내용에 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 '{currency}'으로 표기할 것)
                         
                         1. 재무 상황 종합 평가
                         2. 향후 주가 흐름 예상 (제공된 [기술적 지표(이평선/차트위치)], [재무 펀더멘털], [실시간 뉴스 모멘텀] 3가지를 모두 종합하여 분석하되, 리포트 내용에 기사 제목은 직접 언급하지 말고 핵심 내용만 자연스럽게 녹여내세요.)
@@ -865,5 +856,3 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
-
-
