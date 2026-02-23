@@ -23,6 +23,11 @@ st.markdown("""
     }
     h1, h2, h3 { font-weight: 700; letter-spacing: -0.5px; }
    
+    /* 모바일 환경 폰트 사이즈 조절 (타이틀 한 줄 표시) */
+    @media (max-width: 768px) {
+        h1 { font-size: 1.5rem !important; word-break: keep-all; }
+    }
+
     /* 탭(항목) 기본 디자인 - 두 줄 방지 */
     .stTabs [data-baseweb="tab-list"] { gap: 30px; border-bottom: 1px solid #e0e0e0; }
     .stTabs [data-baseweb="tab"] {
@@ -119,7 +124,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 💡 [핵심 수정] 주인님의 API 키를 Streamlit 비밀 금고(Secrets)에서 안전하게 불러오기
+# 💡 API 키를 Streamlit 비밀 금고(Secrets)에서 안전하게 불러오기
 try:
     MY_API_KEY = st.secrets["GEMINI_API_KEY"]
 except:
@@ -383,7 +388,7 @@ if user_input:
         except: bs_df = pd.DataFrame()
         try: cf_df = stock.cashflow
         except: cf_df = pd.DataFrame()
-      
+       
         # 뉴스 수집
         news_list = []
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
@@ -419,7 +424,7 @@ if user_input:
             if v == 'N/A' or v is None: return 'N/A'
             try: return f"{float(v)*100:.2f}%"
             except: return 'N/A'
-           
+            
         def fmt_flt(v):
             if v is None or pd.isna(v): return 'N/A'
             try: 
@@ -448,7 +453,7 @@ if user_input:
         roic = safe_info(info, ['returnOnCapitalEmployed', 'roic'])
 
         # =========================================================
-        # 💡 [핵심 추가] ROIC 무적의 수동 계산 로직
+        # ROIC 무적의 수동 계산 로직
         # =========================================================
         if roic == 'N/A' or roic is None:
             try:
@@ -487,7 +492,7 @@ if user_input:
         current_ratio = safe_info(info, ['currentRatio'])
         quick_ratio = safe_info(info, ['quickRatio'])
         
-        # 💡 이자보상배율 'nan' 안 뜨게 안전하게 수학 계산
+        # 이자보상배율 'nan' 안 뜨게 안전하게 수학 계산
         try:
             op_inc_val = fin_df.loc['Operating Income'].iloc[0]
             int_exp_val = fin_df.loc['Interest Expense'].iloc[0]
@@ -507,7 +512,7 @@ if user_input:
         v_pretax = safe_get_fin(fin_df, ['Pretax Income'])
         v_net = safe_get_fin(fin_df, ['Net Income'])
         v_oci = safe_get_fin(fin_df, ['Other Comprehensive Income'])
-       
+        
         v_tot_assets = safe_get_fin(bs_df, ['Total Assets'])
         v_cur_assets = safe_get_fin(bs_df, ['Current Assets'])
         v_ncur_assets = safe_get_fin(bs_df, ['Total Non Current Assets'])
@@ -515,19 +520,19 @@ if user_input:
         v_cur_liab = safe_get_fin(bs_df, ['Current Liabilities'])
         v_ncur_liab = safe_get_fin(bs_df, ['Total Non Current Liabilities Net Minority Interest'])
         v_tot_eq = safe_get_fin(bs_df, ['Stockholders Equity', 'Total Equity Gross Minority Interest'])
-       
+        
         v_cash = safe_get_fin(bs_df, ['Cash And Cash Equivalents', 'Cash'])
         v_receiv = safe_get_fin(bs_df, ['Accounts Receivable', 'Net Receivables'])
         v_inv = safe_get_fin(bs_df, ['Inventory'])
         v_tangible = safe_get_fin(bs_df, ['Net PPE'])
         v_intangible = safe_get_fin(bs_df, ['Total Intangible Assets', 'Goodwill And Other Intangible Assets'])
-       
+        
         v_s_debt = safe_get_fin(bs_df, ['Current Debt', 'Current Debt And Capital Lease Obligation'])
         v_l_debt = safe_get_fin(bs_df, ['Long Term Debt', 'Long Term Debt And Capital Lease Obligation'])
         v_cap_stock = safe_get_fin(bs_df, ['Capital Stock', 'Common Stock'])
         v_cap_surplus = safe_get_fin(bs_df, ['Additional Paid In Capital'])
         v_retained = safe_get_fin(bs_df, ['Retained Earnings'])
-       
+        
         v_cf_op = safe_get_fin(cf_df, ['Operating Cash Flow'])
         v_cf_inv = safe_get_fin(cf_df, ['Investing Cash Flow'])
         v_cf_fin = safe_get_fin(cf_df, ['Financing Cash Flow'])
@@ -536,7 +541,7 @@ if user_input:
         v_dividend = safe_get_fin(cf_df, ['Cash Dividends Paid', 'Dividends Paid'])
 
         tab1, tab2, tab3, tab4 = st.tabs(["차트 분석", "상세 재무", "최신 동향", "종합 리포트"])
-      
+        
         # --- [탭 1: 차트 분석] ---
         with tab1:
             col_price, col_interval = st.columns([3, 1])
@@ -545,10 +550,10 @@ if user_input:
             
             with col_interval:
                 interval_option = st.selectbox("차트 주기", ("일봉", "주봉", "월봉"), index=0)
-           
+            
             interval = "1d" if interval_option == "일봉" else "1wk" if interval_option == "주봉" else "1mo"
             history = stock.history(period="max", interval=interval)
-           
+            
             min_date = history.index.min().to_pydatetime().date()
             max_date = history.index.max().to_pydatetime().date()
             ideal_start_date = max_date - timedelta(days=365*10)
@@ -561,10 +566,10 @@ if user_input:
                 format="YYYY-MM-DD",
                 label_visibility="collapsed"
             )
-           
+            
             mask = (history.index.date >= selected_start) & (history.index.date <= selected_end)
             filtered_history = history.loc[mask].copy()
-           
+            
             if not filtered_history.empty:
                 price_min = filtered_history['Low'].min()
                 price_max = filtered_history['High'].max()
@@ -629,18 +634,19 @@ if user_input:
                 fig.update_layout(
                     title=dict(text=f"{user_input} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                     template="plotly_dark",
-                    # 💡 [여기 수정됨] 마우스 호버 시 YYYY-MM-DD 전체 날짜가 표시되도록 설정!
-                    xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d"),
-                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=False),
+                    dragmode=False, # 💡 모바일 차트 드래그 및 줌 완전 방지
+                    xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True), # 💡 x축 고정
+                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True), # 💡 y축 고정
                     height=520,
                     margin=dict(l=0, r=0, t=40, b=0),
                     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
                     hovermode="x unified"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                # 💡 displayModeBar=False 로 모바일 상단 지저분한 툴바까지 숨겼어요.
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
             else:
                 st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더를 조절해 주세요!")
-           
+            
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 차트 추세 분석 실행"):
                 with st.spinner("순수 기술적 관점에서 종목의 사이클을 파악하여 브리핑 중입니다..."):
@@ -648,18 +654,18 @@ if user_input:
                     df_close.index = df_close.index.strftime('%Y-%m-%d')
                     df_close['Close'] = df_close['Close'].round(2)
                     full_data_csv = df_close.to_csv(header=True)
-                   
+                    
                     prompt = f"""종목 {ticker}의 전체 가격 데이터입니다. (차트 주기: {interval_option})
-                   
+                    
                     [전체 가격 데이터 내역 (날짜, 종가)]
                     {full_data_csv}
-                   
+                    
                     위의 '전체 데이터'를 통째로 분석하여 오직 '기술적 분석(Technical Analysis)' 관점에서만 차트 흐름을 브리핑해주세요. 기업의 가치, 성장성 등 기본적 분석(Fundamental)은 100% 배제하세요.
-                   
+                    
                     [🚨 절대 엄수할 핵심 지시사항 🚨]
                     1. 마크다운 수식 오류 방지: 가격 범위나 기간 표시 시 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. (금액은 반드시 '{currency}'로 표기할 것)
                     2. 기계적인 기간 설정 금지: 장기 추세를 분석할 때 스스로 의미 있는 기간을 정의하세요.
-                   
+                    
                     [출력 형식]
                     1. 단기적인 추세 (Short-term trend): ...
                     2. 장기적인 추세 (Long-term trend): ...
@@ -677,19 +683,19 @@ if user_input:
             c1.metric("Forward PER", fmt_flt(forward_pe))
             c1.metric("PBR", fmt_flt(pb))
             c1.metric("PSR", fmt_flt(psr))
-           
+            
             c2.metric("PEG", fmt_flt(peg))
             c2.metric("EV/EBITDA", fmt_flt(ev_ebitda))
             c2.metric("ROE", fmt_pct(roe))
             c2.metric("ROA", fmt_pct(roa))
             c2.metric("ROIC", fmt_pct(roic))
-           
+            
             c3.metric("매출총이익률", fmt_pct(gross_margin))
             c3.metric("영업이익률", fmt_pct(op_margin))
             c3.metric("순이익률", fmt_pct(net_margin))
             c3.metric("매출 성장률", fmt_pct(rev_growth))
             c3.metric("배당 수익률", fmt_pct(div_yield))
-           
+            
             c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
             c4.metric("유동비율", fmt_flt(current_ratio))
             c4.metric("당좌비율", fmt_flt(quick_ratio))
@@ -697,9 +703,10 @@ if user_input:
             c4.metric("52주 최고/최저", f"{high_52:{price_fmt}} {currency} / {low_52:{price_fmt}} {currency}")
             
             st.markdown("---")
-            st.subheader("2. 주요 재무제표 요약 (최근 결산 기준)")
+            # 💡 요청하신 대로 텍스트 수정 완료
+            st.subheader("2. 재무제표 요약 (최근 결산)")
             fc1, fc2, fc3 = st.columns(3)
-           
+            
             with fc1:
                 st.markdown("**손익계산서**")
                 st.markdown(f"""
@@ -714,7 +721,7 @@ if user_input:
                     <tr><td>기타포괄손익</td><td>{v_oci}</td></tr>
                 </table>
                 """, unsafe_allow_html=True)
-               
+                
             with fc2:
                 st.markdown("**재무상태표**")
                 st.markdown(f"""
@@ -809,27 +816,27 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
         with tab4:
             st.subheader("AI 퀀트 애널리스트 최종 브리핑")
             if st.button("원클릭 종합 분석 리포트 생성"):
-                with st.spinner('지표와 실시간 뉴스를 종합하여 리포트를 작성 중입니다...'):
+                with st.spinner('지표와 실시간 뉴호를 종합하여 리포트를 작성 중입니다...'):
                     try:
                         prompt = f"""
                         오늘은 {today_date}입니다. {ticker} 종목을 종합적으로 분석해주세요.
-                       
+                        
                         [1. 현재 가격 및 기술적 지표]
                         - 현재가: {current_price:{price_fmt}} {currency}
                         - 52주 최고/최저: {high_52:{price_fmt}} {currency} / {low_52:{price_fmt}} {currency}
                         - 단기/중기/장기 이동평균선 최근값: {ma_short_str} / {ma_mid_str} / {ma_long_str}
-                       
+                        
                         [2. 주요 재무 및 펀더멘털 지표]
                         - 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
                         - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt}%
                         - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}, 영업활동현금흐름: {v_cf_op}
-                       
+                        
                         [3. 실시간 최신 뉴스 (모멘텀)]
                         \n{news_context}
-                       
+                        
                         반드시 다음 4가지 항목을 포함하여 전문가처럼 한국어로 명확하게 작성해주세요.
                         🚨 주의: 렌더링 오류를 막기 위해 모든 내용에 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. (금액은 '{currency}'으로 표기할 것)
-                       
+                        
                         1. 재무 상황 종합 평가
                         2. 향후 주가 흐름 예상 (제공된 [기술적 지표(이평선/차트위치)], [재무 펀더멘털], [실시간 뉴스 모멘텀] 3가지를 모두 종합하여 분석하되, 리포트 내용에 기사 제목은 직접 언급하지 말고 핵심 내용만 자연스럽게 녹여내세요.)
                         3. 상황별 대응 전략 (현재 보유자 / 신규 매수 대기자 / 매도 고려자) - 각 주체별 전략 역시 [기술적 분석], [재무상황], [최신 뉴스]를 모두 완벽히 융합하여 구체적인 행동 지침을 제시해주세요.
