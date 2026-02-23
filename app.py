@@ -420,9 +420,15 @@ if user_input:
         news_context = "\n- ".join([item["title"] for item in news_list]) if news_list else "수집된 실시간 뉴스가 없습니다."
         
         # === 각종 비율 및 지표 추출 (N/A 개선 + nan 개선) ===
-        def fmt_pct(v):
+        # 💡 핵심 로직 추가: is_dividend 인자를 추가해 소수점 버그 방어
+        def fmt_pct(v, is_dividend=False):
             if v == 'N/A' or v is None: return 'N/A'
-            try: return f"{float(v)*100:.2f}%"
+            try: 
+                val = float(v)
+                # yfinance 버그 방지: 배당수익률이 1.0(100%) 이상이면 원본이 100으로 안 나눠졌다고 판단하고 보정
+                if is_dividend and val >= 1.0:
+                    val = val / 100.0
+                return f"{val*100:.2f}%"
             except: return 'N/A'
             
         def fmt_flt(v):
@@ -694,7 +700,8 @@ if user_input:
             c3.metric("영업이익률", fmt_pct(op_margin))
             c3.metric("순이익률", fmt_pct(net_margin))
             c3.metric("매출 성장률", fmt_pct(rev_growth))
-            c3.metric("배당 수익률", fmt_pct(div_yield))
+            # 💡 여기에도 is_dividend=True 인자를 넣어서 버그를 원천 차단했어요.
+            c3.metric("배당 수익률", fmt_pct(div_yield, is_dividend=True))
             
             c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
             c4.metric("유동비율", fmt_flt(current_ratio))
@@ -703,7 +710,6 @@ if user_input:
             c4.metric("52주 최고/최저", f"{high_52:{price_fmt}} {currency} / {low_52:{price_fmt}} {currency}")
             
             st.markdown("---")
-            # 💡 요청하신 대로 텍스트 수정 완료
             st.subheader("2. 재무제표 요약 (최근 결산)")
             fc1, fc2, fc3 = st.columns(3)
             
@@ -764,7 +770,7 @@ if user_input:
                     prompt = f"""종목 {ticker}의 상세 재무 데이터입니다.
 [가치 및 수익성 지표]
 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PSR: {fmt_flt(psr)}, PEG: {fmt_flt(peg)}, EV/EBITDA: {fmt_flt(ev_ebitda)}
-ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장률: {fmt_pct(rev_growth)}, 배당 수익률: {fmt_pct(div_yield)}
+ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장률: {fmt_pct(rev_growth)}, 배당 수익률: {fmt_pct(div_yield, is_dividend=True)}
 매출총이익률: {fmt_pct(gross_margin)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}
 [안정성 지표]
 부채비율: {debt}%, 유동비율: {fmt_flt(current_ratio)}, 당좌비율: {fmt_flt(quick_ratio)}, 이자보상배율: {interest_cov}
@@ -780,7 +786,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 1. 현재 주가의 고평가 또는 저평가 여부
 2. 기업의 재무적 안전성
 3. 기업의 수익성 및 미래 성장 가능성
-(🚨 주의: 상식적으로 이해하기 어려운 지표가 있다면 여러 뉴스를 분석하여 그 원인을 찾아주세요. 마크다운 렌더링 오류를 막기 위해 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. 금액은 '{currency}'으로 표기하세요.)
+(🚨 주의: 상식적으로 이해하기 어려운 지표가 있다면 해당 기업의 최근 동향을 분석하여 그 원인을 찾아주세요. 마크다운 렌더링 오류를 막기 위해 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. 금액은 '{currency}'으로 표기하세요.)
 """
                     response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                     st.info(response.text)
@@ -830,6 +836,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         - 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
                         - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt}%
                         - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}, 영업활동현금흐름: {v_cf_op}
+                        - 배당 수익률: {fmt_pct(div_yield, is_dividend=True)}
                         
                         [3. 실시간 최신 뉴스 (모멘텀)]
                         \n{news_context}
@@ -849,8 +856,3 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
-
-
-
-
-
