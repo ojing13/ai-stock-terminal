@@ -353,6 +353,18 @@ def augment_us_fundamentals(ticker, info):
         pass
     return info
 
+# 기사 본문 스크래핑 함수 (너무 오래 걸리지 않게 방어 로직 추가)
+def get_article_text(url):
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        res = requests.get(url, headers=headers, timeout=2, allow_redirects=True)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        paragraphs = soup.find_all('p')
+        text = " ".join([p.get_text().strip() for p in paragraphs if p.get_text()])
+        return text[:800] if text else ""
+    except:
+        return ""
+
 # ====================== 메인 ======================
 st.title("웅이의 AI 주식 분석 터미널")
 st.markdown("---")
@@ -383,7 +395,7 @@ if user_input:
         try: cf_df = stock.cashflow
         except: cf_df = pd.DataFrame()
        
-        # 수집하는 뉴스 개수를 15개로 늘려서 AI가 맥락을 더 깊이 파악하게 함
+        # 뉴스 및 기사 본문 추출 (최대 10개로 제한하여 앱 속도 유지)
         news_list = []
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         currency = "원" if is_korean_stock else "달러"
@@ -396,22 +408,37 @@ if user_input:
                 rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
             response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
             root = ET.fromstring(response.content)
-            for item in root.findall('.//item')[:15]:
+            for item in root.findall('.//item')[:10]:
                 title = item.find('title').text if item.find('title') is not None else "No title"
                 link = item.find('link').text if item.find('link') is not None else "#"
-                news_list.append({"title": title, "link": link})
+                desc = item.find('description').text if item.find('description') is not None else ""
+                
+                # RSS description에 요약본이 들어있는 경우 추출, 없으면 본문 직접 접근 시도
+                content = BeautifulSoup(desc, "html.parser").get_text() if desc else get_article_text(link)
+                content = content[:800].replace('\n', ' ')
+                news_list.append({"title": title, "link": link, "content": content})
         except:
             pass
           
         if not news_list:
             try:
                 raw_news = stock.news
-                for n in raw_news[:15]:
+                for n in raw_news[:10]:
                     if isinstance(n, dict) and 'title' in n and 'link' in n:
-                        news_list.append({"title": n['title'], "link": n['link']})
+                        link = n['link']
+                        title = n['title']
+                        content = n.get('summary', '') 
+                        if not content:
+                            content = get_article_text(link)
+                        news_list.append({"title": title, "link": link, "content": content[:800].replace('\n', ' ')})
             except:
                 pass
-        news_context = "\n- ".join([item["title"] for item in news_list]) if news_list else "수집된 실시간 뉴스가 없습니다."
+                
+        # 제목과 기사 본문을 합친 강력한 프롬프트 컨텍스트 생성
+        news_context_list = []
+        for idx, item in enumerate(news_list):
+            news_context_list.append(f"[{idx+1}] 제목: {item['title']}\n본문: {item.get('content', '본문 없음')}")
+        news_context = "\n\n".join(news_context_list) if news_context_list else "수집된 실시간 데이터가 없습니다."
         
         def fmt_pct(v, is_dividend=False):
             if v == 'N/A' or v is None: return 'N/A'
@@ -754,9 +781,9 @@ if user_input:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 재무 건전성 평가 실행"):
                 with st.spinner("재무적 지표를 바탕으로 입체적인 분석을 진행 중입니다..."):
-                    prompt = f"""종목 {ticker}의 상세 재무 데이터 및 최근 핵심 동향입니다.
+                    prompt = f"""종목 {ticker}의 상세 재무 데이터 및 최신 시장 동향입니다.
 
-[최신 동향 데이터]
+[최신 시장 동향 및 기사 본문 요약]
 {news_context}
 
 [가치 및 수익성 지표]
@@ -780,9 +807,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 3. 기업의 수익성 및 미래 성장 가능성
 
 🚨 [최고급 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
-- [작위적 표현 금지 (매우 중요)]: "표면적 지표 이면의", "숫자 이면의", "숨겨진 리스크", "제공된 뉴스 헤드라인에 따르면", "수집된 데이터에 의하면" 등과 같은 시스템 프롬프트의 지시어나 작위적인 메타 표현을 출력 결과물에 절대(Never) 적지 마세요.
-- [뉴스 직접 언급 완벽 금지]: '뉴스', '기사', '헤드라인'이라는 단어 자체를 쓰지 마세요. 주어진 정보는 그저 당신이 이미 알고 있는 팩트인 것처럼 "현재 AI 수요 폭발로 인해~", "최근 인수합병에 따른 비용 증가로~"와 같이 단정적이고 자연스럽게 서술하세요.
-- [배경 지식 통합]: 주어진 동향뿐만 아니라, 당신이 학습한 해당 기업의 최근 거시경제 환경, 산업 트렌드, 대규모 투자(CapEx) 현황 등을 총동원하여 수치의 인과관계를 역추적하세요.
+- [직접 인용 및 작위적 표현 완벽 금지]: "기사 본문에 따르면", "제공된 뉴스 헤드라인을 보면", "표면적 지표 이면의", "숨겨진 리스크" 등 당신이 AI로서 지시받은 티가 나는 메타 표현이나 어색한 단어를 절대 출력하지 마세요. 주어진 정보는 당신의 머릿속 지식인 것처럼 확신에 찬 전문가의 어조로 바로 서술하세요.
+- [배경 지식 통합]: 주어진 동향뿐만 아니라, 당신이 학습한 해당 기업의 최근 거시경제 환경, 산업 트렌드, 대규모 투자(CapEx) 현황 등을 총동원하여 수치의 인과관계를 논리적으로 설명하세요.
 - [입체적 재무 해석]: 부채비율이 높거나 자본잠식 상태일 때, 이를 무조건 '착한 부채'로 포장하지 마세요. '이자보상배율', '영업활동현금흐름', 그리고 동향을 교차 검증하여 과도한 인프라/인수합병 투자로 인해 실제로 시장이 우려하는 이자 비용 등의 부담인지 냉철하게 판단하세요.
 - [시장 우려 직시]: 특정 지표가 악화되었거나 부정적 상황이 있다면, 무조건적인 장밋빛 전망은 배제하고 객관적으로 파헤치세요.
 - 마크다운 렌더링 오류를 막기 위해 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
@@ -797,9 +823,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
           
             col_news1, col_news2 = st.columns(2)
             with col_news1:
-                if st.button("AI 최신 뉴스 브리핑"):
-                    with st.spinner("뉴스와 맥락을 깊이 있게 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 핵심 뉴스 15개 헤드라인입니다.\n\n- {news_context}\n\n단순히 기사 제목을 나열하거나 직역하는 것을 넘어, 행간의 의미를 파악하여 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요. (주의: 물결표 및 달러 기호 절대 사용 금지)"
+                if st.button("AI 최신 동향 브리핑"):
+                    with st.spinner("최신 기사 본문의 행간을 깊이 있게 분석하는 중입니다..."):
+                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 핵심 기사 10개의 제목과 본문 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지."
                         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         st.info(response.text)
                         st.markdown("---")
@@ -811,9 +837,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             st.write("뉴스 링크를 불러올 수 없습니다.")
           
             with col_news2:
-                if st.button("AI 뉴스 투심 분석 실행"):
-                    with st.spinner("시장 참여자들의 숨은 심리를 분석 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 실시간 뉴스 헤드라인들입니다.\n\n- {news_context}\n\n이 뉴스들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요. 거시경제나 산업 전반의 흐름과 기업의 펀더멘털 이슈를 엮어서 꼼꼼하게 해석해주세요. (주의: 물결표 및 달러 기호 절대 사용 금지)"
+                if st.button("AI 시장 투심 분석 실행"):
+                    with st.spinner("기사 본문을 바탕으로 시장 참여자들의 숨은 심리를 추적 중입니다..."):
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 기사 10개의 제목과 본문 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. '수집된 뉴스에 의하면' 같은 어색한 말도 금지합니다. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지."
                         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         st.info(response.text)
 
@@ -821,7 +847,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
         with tab4:
             st.subheader("AI 퀀트 애널리스트 최종 브리핑")
             if st.button("원클릭 종합 분석 리포트 생성"):
-                with st.spinner('지표와 실시간 뉴스를 종합하여 리포트를 작성 중입니다...'):
+                with st.spinner('지표와 기사 본문을 종합하여 리포트를 작성 중입니다...'):
                     try:
                         prompt = f"""
                         오늘은 {today_date}입니다. {ticker} 종목을 종합적으로 분석해주세요.
@@ -837,7 +863,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}, 영업활동현금흐름: {v_cf_op}
                         - 배당 수익률: {fmt_pct(div_yield, is_dividend=True)}
                         
-                        [3. 최신 시장 동향]
+                        [3. 최신 시장 동향 및 기사 본문 요약]
                         \n{news_context}
                         
                         반드시 다음 4가지 항목을 포함하여 최고급 애널리스트처럼 한국어로 명확하게 작성해주세요.
@@ -848,9 +874,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가 - 기술적 지표, 재무, 동향을 융합하여 논리적 근거와 함께 구체적으로 제시할 것)
                         
                         🚨 [최고급 퀀트 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
-                        - [작위적 표현 금지 (매우 중요)]: "표면적 지표 이면의", "숫자 이면의", "숨겨진 리스크", "제공된 뉴스 헤드라인에 따르면", "수집된 기사를 바탕으로" 등과 같은 지시어 및 메타 표현을 절대 출력문 안에 포함하지 마세요.
-                        - [뉴스 직접 언급 완벽 금지]: 리포트 내에 '뉴스', '기사', '헤드라인'이라는 단어를 아예 사용하지 마세요. 마치 당신이 현업에서 직접 시장을 모니터링하며 얻은 팩트인 것처럼 "최근 시장에서는~", "현재 회사가 직면한 환경은~" 식으로 유려하게 팩트만 서술하세요.
-                        - [배경 지식 총동원]: 제공된 수치와 텍스트에만 갇히지 마세요. 당신이 학습한 해당 기업의 최근 거시경제(금리, 인플레 등) 환경, 산업 트렌드(AI, 반도체 등), 경쟁사 동향, 대규모 투자(CapEx) 현황을 융합하여 인과관계를 셜록 홈즈처럼 역추적하세요.
+                        - [직접 인용 및 작위적 표현 완벽 금지]: 리포트 내에 '뉴스', '기사', '헤드라인'이라는 단어를 아예 사용하지 마세요. 기사 문장을 절대 복사하지 마세요. 또한 "표면적 지표 이면의", "숨겨진 리스크" 같은 시스템 지시어 느낌의 단어 자체를 쓰지 마세요. 마치 당신이 현업에서 직접 시장을 모니터링하며 얻은 팩트인 것처럼 유려하게 서술하세요.
+                        - [배경 지식 총동원]: 제공된 수치와 텍스트에만 갇히지 마세요. 당신이 학습한 해당 기업의 최근 거시경제(금리, 인플레 등) 환경, 산업 트렌드(AI, 반도체 등), 경쟁사 동향, 대규모 투자(CapEx) 현황을 융합하여 인과관계를 설명하세요.
                         - [맹목적 긍정 금지 및 리스크 직시]: 부채비율이 높거나 자본잠식 상태일 때, 무조건 주주환원에 의한 '착한 부채'로 포장하지 마세요. '이자보상배율', '현금흐름', '동향'을 교차 검증하여, 과도한 인프라/M&A 투자로 인한 이자 부담이나 시장이 실제로 우려하는 치명적 리스크라면 아주 냉철하게 경고하세요.
                         - [시장 심리(Fear & Greed) 통찰]: 주가가 크게 하락했거나 변동성이 크다면, 동향의 행간 의미를 파악해 현재 시장 참여자들이 무엇에 공포를 느끼고 있는지 평가에 명확히 반영하세요.
                         - 마크다운 렌더링 오류를 막기 위해 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
