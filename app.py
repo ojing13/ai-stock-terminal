@@ -786,7 +786,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 1. 현재 주가의 고평가 또는 저평가 여부
 2. 기업의 재무적 안전성
 3. 기업의 수익성 및 미래 성장 가능성
-(🚨 주의: 상식적으로 이해하기 어려운 지표가 있다면 해당 기업의 최근 동향을 분석하여 그 원인을 찾아주세요. 마크다운 렌더링 오류를 막기 위해 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. 금액은 '{currency}'으로 표기하세요.)
+(🚨 주의: 해당 기업의 뉴스나 최근 동향을 분석하여 그 정보를 바탕으로 재무 지표를 분석하세요. 마크다운 렌더링 오류를 막기 위해 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. 금액은 '{currency}'으로 표기하세요.)
 """
                     response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                     st.info(response.text)
@@ -856,3 +856,4 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
+
