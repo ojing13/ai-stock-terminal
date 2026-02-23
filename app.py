@@ -673,7 +673,7 @@ if user_input:
             
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 차트 추세 분석 실행"):
-                with st.spinner("순수 기술적 관점에서 종목의 사이클 파악하여 브리핑 중입니다..."):
+                with st.spinner("순수 기술적 관점에서 차트를 분석하는 중입니다..."):
                     df_close = filtered_history[['Close']].copy()
                     df_close.index = df_close.index.strftime('%Y-%m-%d')
                     df_close['Close'] = df_close['Close'].round(2)
@@ -783,7 +783,7 @@ if user_input:
             
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 재무 건전성 평가 실행"):
-                with st.spinner("재무적 지표를 바탕으로 입체적인 분석을 진행 중입니다..."):
+                with st.spinner("재무 데이터를 분석하는 중입니다..."):
                     prompt = f"""종목 {ticker}의 상세 재무 데이터 및 최신 동향 텍스트입니다.
 
 [최신 동향 데이터]
@@ -827,7 +827,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             col_news1, col_news2 = st.columns(2)
             with col_news1:
                 if st.button("AI 최신 동향 브리핑"):
-                    with st.spinner("최신 기사 본문의 행간을 깊이 있게 분석하는 중입니다..."):
+                    with st.spinner("최신 뉴스를 분석하는 중입니다..."):
                         prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 핵심 기사 10개의 제목과 본문 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지."
                         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         st.info(response.text)
@@ -841,7 +841,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
           
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
-                    with st.spinner("기사 본문을 바탕으로 시장 참여자들의 숨은 심리를 추적 중입니다..."):
+                    with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
                         prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 기사 10개의 제목과 본문 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. '수집된 뉴스에 의하면' 같은 어색한 말도 금지합니다. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지."
                         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         st.info(response.text)
@@ -850,7 +850,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
         with tab4:
             st.subheader("AI 퀀트 애널리스트 최종 브리핑")
             if st.button("원클릭 종합 분석 리포트 생성"):
-                with st.spinner('지표와 기사 본문을 종합하여 리포트를 작성 중입니다...'):
+                with st.spinner('모든 데이터를 종합하여 리포트를 작성 중입니다...'):
                     try:
                         prompt = f"""
                         오늘은 {today_date}입니다. {ticker} 종목을 종합적으로 분석해주세요.
@@ -889,4 +889,5 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
+
 
