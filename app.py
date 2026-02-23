@@ -766,8 +766,12 @@ if user_input:
             
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 재무 건전성 평가 실행"):
-                with st.spinner("순수 재무적 지표만을 바탕으로 분석 중입니다..."):
-                    prompt = f"""종목 {ticker}의 상세 재무 데이터입니다.
+                with st.spinner("실시간 동향과 재무적 지표를 종합하여 분석 중입니다..."):
+                    prompt = f"""종목 {ticker}의 상세 재무 데이터 및 최신 뉴스 동향입니다.
+
+[최신 뉴스 동향]
+{news_context}
+
 [가치 및 수익성 지표]
 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PSR: {fmt_flt(psr)}, PEG: {fmt_flt(peg)}, EV/EBITDA: {fmt_flt(ev_ebitda)}
 ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장률: {fmt_pct(rev_growth)}, 배당 수익률: {fmt_pct(div_yield, is_dividend=True)}
@@ -782,15 +786,20 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 자본총계: {v_tot_eq} (자본금: {v_cap_stock}, 자본잉여금: {v_cap_surplus}, 이익잉여금: {v_retained})
 [현금흐름표]
 기초현금: {v_cf_beg}, 영업활동현금흐름: {v_cf_op}, 투자활동현금흐름: {v_cf_inv}, 재무활동현금흐름: {v_cf_fin}, 배당금지급: {v_dividend}, 기말현금: {v_cf_end}
-이 모든 세부 재무 수치들을 빠짐없이 종합적으로 분석하여 다음을 객관적으로 평가해주세요:
+
+이 모든 세부 재무 수치들과 최신 뉴스 동향을 종합적으로 분석하여 다음을 객관적으로 평가해주세요:
 1. 현재 주가의 고평가 또는 저평가 여부
 2. 기업의 재무적 안전성
 3. 기업의 수익성 및 미래 성장 가능성
-(🚨 주의: 해당 기업의 뉴스나 최근 동향을 분석하여 그 정보를 바탕으로 재무 지표를 분석하세요. 마크다운 렌더링 오류를 막기 위해 절대 물결표(~) 및 달러 기호($)를 사용하지 마세요. 금액은 '{currency}'으로 표기하세요.)
+
+🚨 [핵심 지시사항]
+- 제공된 '최신 뉴스 동향'의 맥락을 바탕으로 재무 지표가 의미하는 바를 입체적으로 분석하세요.
+- 단, 뉴스 기사 내용 자체를 단순 나열하거나 직접적으로 언급하는 것은 피하고, 재무 상황이나 향후 성장성을 논리적으로 설명하는 데 '반드시 필요한 경우'에만 뉴스 내용을 자연스럽게 녹여내세요.
+- 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 '{currency}'으로 표기하세요.)
 """
                     response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                     st.info(response.text)
-
+                    
         # --- [탭 3: 최신 동향] ---
         with tab3:
             st.subheader("실시간 동향 및 투심 분석")
@@ -856,4 +865,5 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
+
 
