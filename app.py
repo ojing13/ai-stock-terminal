@@ -568,31 +568,35 @@ if user_input:
             mask = (history.index.date >= selected_start) & (history.index.date <= selected_end)
             filtered_history = history.loc[mask].copy()
             
+            ma_context_str = "차트 데이터 부족"
+
             if not filtered_history.empty:
                 price_min = filtered_history['Low'].min()
                 price_max = filtered_history['High'].max()
                 min_idx = filtered_history['Low'].idxmin()
                 max_idx = filtered_history['High'].idxmax()
                 
+                # ====== 이동평균선 동적 설정 ======
                 if interval_option == "일봉":
-                    short_w, mid_w, long_w = 5, 20, 60
+                    ma_settings = [(5, "단기 MA(5일)", "#00b0ff"), (20, "중기 MA(20일)", "#ff9100"), (60, "수급 MA(60일)", "#ff4081"), (120, "경기 MA(120일)", "#aa00ff")]
                 elif interval_option == "주봉":
-                    short_w, mid_w, long_w = 5, 20, 50
+                    # 요청하신 대로 주봉에 120주선을 추가했습니다.
+                    ma_settings = [(5, "단기 MA(5주)", "#00b0ff"), (20, "중기 MA(20주)", "#ff9100"), (60, "대세 MA(60주)", "#ff4081"), (120, "초장기 MA(120주)", "#aa00ff")]
                 else:
-                    short_w, mid_w, long_w = 3, 12, 24
+                    ma_settings = [(5, "단기 MA(5월)", "#00b0ff"), (20, "중기 MA(20월)", "#ff9100"), (60, "장기 MA(60월)", "#ff4081")]
                     
-                history['MA_short'] = history['Close'].rolling(window=short_w).mean()
-                history['MA_mid'] = history['Close'].rolling(window=mid_w).mean()
-                history['MA_long'] = history['Close'].rolling(window=long_w).mean()
+                for w, name, color in ma_settings:
+                    history[f'MA_{w}'] = history['Close'].rolling(window=w).mean()
+
                 filtered_history = history.loc[mask].copy()
                 
-                ma_s_val = filtered_history['MA_short'].iloc[-1]
-                ma_m_val = filtered_history['MA_mid'].iloc[-1]
-                ma_l_val = filtered_history['MA_long'].iloc[-1]
-                
-                ma_short_str = f"{ma_s_val:{price_fmt}} {currency}" if pd.notna(ma_s_val) else "데이터 부족"
-                ma_mid_str = f"{ma_m_val:{price_fmt}} {currency}" if pd.notna(ma_m_val) else "데이터 부족"
-                ma_long_str = f"{ma_l_val:{price_fmt}} {currency}" if pd.notna(ma_l_val) else "데이터 부족"
+                # AI 프롬프트용 텍스트 생성
+                ma_last_vals_str = []
+                for w, name, color in ma_settings:
+                    val = filtered_history[f'MA_{w}'].iloc[-1]
+                    val_str = f"{val:{price_fmt}} {currency}" if pd.notna(val) else "데이터 부족"
+                    ma_last_vals_str.append(f"{name}: {val_str}")
+                ma_context_str = " / ".join(ma_last_vals_str)
                 
                 padding = (price_max - price_min) * 0.1 if price_max != price_min else price_max * 0.1
                 min_y = price_min - padding
@@ -605,12 +609,15 @@ if user_input:
                     increasing_line_color='#00ff9d', decreasing_line_color='#ff2d55',
                     name="가격"
                 ))
-                fig.add_trace(go.Scatter(x=filtered_history.index, y=filtered_history['MA_short'], name=f'단기 MA ({short_w})',
-                                         line=dict(color='#00b0ff', width=2.5)))
-                fig.add_trace(go.Scatter(x=filtered_history.index, y=filtered_history['MA_mid'], name=f'중기 MA ({mid_w})',
-                                         line=dict(color='#ff9100', width=2.5)))
-                fig.add_trace(go.Scatter(x=filtered_history.index, y=filtered_history['MA_long'], name=f'장기 MA ({long_w})',
-                                         line=dict(color='#ff4081', width=2.5)))
+
+                # 이동평균선 루프를 돌며 차트에 추가 (두께를 아주 얇게 1.0으로 수정)
+                for w, name, color in ma_settings:
+                    fig.add_trace(go.Scatter(
+                        x=filtered_history.index, 
+                        y=filtered_history[f'MA_{w}'], 
+                        name=name,
+                        line=dict(color=color, width=1.0)
+                    ))
                 
                 fig.add_annotation(
                     x=max_idx, y=price_max,
@@ -646,7 +653,7 @@ if user_input:
             
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 차트 추세 분석 실행"):
-                with st.spinner("순수 기술적 관점에서 종목의 사이클을 파악하여 브리핑 중입니다..."):
+                with st.spinner("순수 기술적 관점에서 종목의 사이클 파악하여 브리핑 중입니다..."):
                     df_close = filtered_history[['Close']].copy()
                     df_close.index = df_close.index.strftime('%Y-%m-%d')
                     df_close['Close'] = df_close['Close'].round(2)
@@ -830,7 +837,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         [1. 현재 가격 및 기술적 지표]
                         - 현재가: {current_price:{price_fmt}} {currency}
                         - 52주 최고/최저: {high_52:{price_fmt}} {currency} / {low_52:{price_fmt}} {currency}
-                        - 단기/중기/장기 이동평균선 최근값: {ma_short_str} / {ma_mid_str} / {ma_long_str}
+                        - 이동평균선 최근값: {ma_context_str}
                         
                         [2. 주요 재무 및 펀더멘털 지표]
                         - 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
@@ -860,5 +867,3 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
-
-
