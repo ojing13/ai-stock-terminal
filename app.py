@@ -669,13 +669,14 @@ if user_input:
                 fig.update_layout(
                     title=dict(text=f"{user_input} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                     template="plotly_dark",
-                    dragmode=False,
+                    dragmode=False, # 1. 차트 안에서 드래그(확대/축소)되는 것을 완전히 막아 스크롤 허용
                     xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
                     yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True),
                     height=520,
                     margin=dict(l=0, r=0, t=40, b=0),
                     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
-                    hovermode="x unified"
+                    hovermode="x", # 2. 'x unified' 대신 'x' 사용 (모바일에서 박스가 안 사라지는 잔상 버그 최소화)
+                    clickmode="none" # 3. 불필요한 클릭 이벤트 차단
                 )
                 
                 # Plotly 모바일 웹뷰 터치 최적화 설정
@@ -683,7 +684,7 @@ if user_input:
                     'displayModeBar': False,
                     'scrollZoom': False,
                     'showAxisDragHandles': False,
-                    'doubleClick': 'reset'
+                    'doubleClick': False
                 })
             else:
                 st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더를 조절해 주세요!")
@@ -985,3 +986,4 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
+
