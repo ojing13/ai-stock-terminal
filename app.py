@@ -402,6 +402,8 @@ if user_input:
         news_list = []
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         currency = "원" if is_korean_stock else "달러"
+        
+        # [수정] 툴팁 'k' 문제 해결을 위한 숫자 포맷팅 강제 지정
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
         try:
@@ -660,17 +662,18 @@ if user_input:
                     template="plotly_dark",
                     dragmode=False, 
                     xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
-                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True),
+                    # [수정] y축 숫자에 k가 안 붙게 콤마 포맷팅 강제 지정
+                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt),
                     height=520,
                     margin=dict(l=0, r=0, t=40, b=0),
                     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
                     hovermode="x unified",
-                    clickmode="none"
+                    clickmode="none",
+                    hoverlabel=dict(font_family="Pretendard")
                 )
                 
                 st.markdown('<div class="scroll-tip">💡 팁: 앱에서 화면 스크롤 시 화면 맨 오른쪽 여백을 문질러주세요!</div>', unsafe_allow_html=True)
                 
-                # staticPlot 제거 (툴팁 살리기)
                 st.plotly_chart(fig, use_container_width=True, config={
                     'displayModeBar': False,
                     'scrollZoom': False,
@@ -697,15 +700,12 @@ if user_input:
                         cols_to_export = ['Open', 'High', 'Low', 'Close'] + [f'MA_{w}' for w, _, _ in ma_config]
                         df_export = temp_filtered[cols_to_export].copy()
                         df_export.index = df_export.index.strftime('%Y-%m-%d')
-                        return df_export.round(2).to_csv(header=True)
+                        # [수정] 프롬프트 용량 초과로 인한 500 에러 방지를 위해 AI에게는 최근 150개의 핵심 데이터만 전달
+                        return df_export.tail(150).round(2).to_csv(header=True)
 
-                    daily_ma_config = [(5, "", ""), (20, "", ""), (60, "", ""), (120, "", "")]
-                    weekly_ma_config = [(13, "", ""), (26, "", ""), (52, "", "")]
-                    monthly_ma_config = [(9, "", ""), (24, "", ""), (60, "", "")]
-
-                    daily_csv = get_formatted_history("1d", daily_ma_config)
-                    weekly_csv = get_formatted_history("1wk", weekly_ma_config)
-                    monthly_csv = get_formatted_history("1mo", monthly_ma_config)
+                    daily_csv = get_formatted_history("1d", [(5, "", ""), (20, "", ""), (60, "", ""), (120, "", "")])
+                    weekly_csv = get_formatted_history("1wk", [(13, "", ""), (26, "", ""), (52, "", "")])
+                    monthly_csv = get_formatted_history("1mo", [(9, "", ""), (24, "", ""), (60, "", "")])
 
                     prompt = f"""종목 {ticker}의 일봉, 주봉, 월봉 전체 가격(시가/고가/저가/종가) 및 이동평균선(MA) 데이터입니다.
                     
@@ -739,10 +739,10 @@ if user_input:
 
                     일/주/월봉을 아우르는 큰 흐름에서의 추세와 차트 구조를 분석합니다. 유의미할 경우에 한해 중장기 추세선, 거시적 가격대 돌파 여부 등을 언급하세요. 글머리 기호 없이 일반 문단으로 작성하세요.
                     """
+                    # [수정] 500 Server Error 해결: 불필요한 구글 검색 툴 제거 (서버 과부하 원인 차단)
                     response = client.models.generate_content(
                         model='gemini-2.5-flash', 
-                        contents=prompt,
-                        config={"tools": [{"google_search": {}}]}
+                        contents=prompt
                     )
                     st.info(response.text)
           
@@ -868,10 +868,10 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 - [작위적 표현 금지]: "표면적 지표 이면의", "숫자 이면의 진짜 리스크", "숨겨진 리스크" 등 시스템 프롬프트의 지시어 느낌이 나는 단어를 절대 출력하지 마세요.
 - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
 """
+                    # [수정] 500 Server Error 해결
                     response = client.models.generate_content(
                         model='gemini-2.5-flash', 
-                        contents=prompt,
-                        config={"tools": [{"google_search": {}}]}
+                        contents=prompt
                     )
                     st.info(response.text)
                     
@@ -885,10 +885,10 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                 if st.button("AI 최신 동향 브리핑"):
                     with st.spinner("최신 뉴스를 분석하는 중입니다..."):
                         prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 핵심 기사 10개의 제목과 본문 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장(예: **호실적 발표**, **공급망 이슈** 등)은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지."
+                        # [수정] 500 Server Error 해결
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', 
-                            contents=prompt,
-                            config={"tools": [{"google_search": {}}]}
+                            contents=prompt
                         )
                         st.info(response.text)
                         st.markdown("---")
@@ -903,10 +903,10 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
                         prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 기사 10개의 제목과 본문 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. '수집된 뉴스에 의하면' 같은 어색한 말도 금지합니다. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지."
+                        # [수정] 500 Server Error 해결
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', 
-                            contents=prompt,
-                            config={"tools": [{"google_search": {}}]}
+                            contents=prompt
                         )
                         st.info(response.text)
 
@@ -967,10 +967,10 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         - [시장 심리(Fear & Greed) 통찰]: 주가가 크게 하락했거나 변동성이 크다면, 동향의 행간 의미를 파악해 현재 시장 참여자들이 무엇에 공포를 느끼고 있는지 평가에 명확히 반영하세요.
                         - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
                         """
+                        # [수정] 500 Server Error 해결
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', 
-                            contents=prompt,
-                            config={"tools": [{"google_search": {}}]}
+                            contents=prompt
                         )
                         st.info(response.text)
                     except Exception as e:
