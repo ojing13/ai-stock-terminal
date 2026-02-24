@@ -668,20 +668,22 @@ if user_input:
                 fig.update_layout(
                     title=dict(text=f"{user_input} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                     template="plotly_dark",
-                    dragmode=False,
-                    xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
-                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True),
+                    dragmode=False, # 모바일 스크롤을 위해 드래그 방지
+                    xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True), # 줌 방지
+                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True), # 줌 방지
                     height=520,
                     margin=dict(l=0, r=0, t=40, b=0),
                     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
-                    hovermode="x",
+                    hovermode="x unified", # 터치 시 깔끔하게 뜨는 박스
                     clickmode="none"
                 )
                 
-                # Plotly 모바일 웹뷰 터치 스크롤 먹통 해결 (정적 이미지화 적용)
+                # staticPlot 제거! 다시 터치(툴팁)를 살리면서 스크롤은 CSS와 fixedrange로 처리
                 st.plotly_chart(fig, use_container_width=True, config={
                     'displayModeBar': False,
-                    'staticPlot': True  # 차트를 완벽한 정적 이미지로 변환하여 터치 이벤트 완전 차단
+                    'scrollZoom': False,
+                    'showAxisDragHandles': False,
+                    'doubleClick': False
                 })
             else:
                 st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더를 조절해 주세요!")
