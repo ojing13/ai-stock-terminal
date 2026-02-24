@@ -108,6 +108,18 @@ st.markdown("""
         font-size: 1.4rem !important; 
         line-height: 1.2 !important;
     }
+    
+    /* === 모바일 4열 지표 2열 배치 강제 (가치 및 안정성 지표) === */
+    @media (max-width: 768px) {
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(4)) {
+            flex-wrap: wrap !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(4)) > div[data-testid="column"] {
+            width: calc(50% - 0.5rem) !important;
+            flex: 0 0 calc(50% - 0.5rem) !important;
+            min-width: calc(50% - 0.5rem) !important;
+        }
+    }
 
     /* === 불필요한 UI 완벽 숨기기 === */
     .stDeployButton { display: none !important; }
