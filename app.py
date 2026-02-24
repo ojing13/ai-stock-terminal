@@ -8,7 +8,7 @@ import FinanceDataReader as fdr
 import xml.etree.ElementTree as ET
 import pandas as pd
 from bs4 import BeautifulSoup
-import math # nan 처리를 위해 추가
+import math 
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
@@ -127,6 +127,50 @@ except:
     
 client = genai.Client(api_key=MY_API_KEY)
 
+# ====================== 다국어 UI 사전 ======================
+ui_dict = {
+    "한국어": {
+        "title": "웅이의 AI 주식 분석 터미널",
+        "input_label": "분석할 종목명 또는 티커 (예: 삼성전자, AAPL, 7203)",
+        "tabs": ["차트 분석", "상세 재무", "최신 동향", "종합 리포트"],
+        "btn_chart": "AI 차트 추세 분석 실행",
+        "btn_fin": "AI 재무 건전성 평가 실행",
+        "btn_news1": "AI 최신 동향 브리핑",
+        "btn_news2": "AI 시장 투심 분석 실행",
+        "btn_report": "원클릭 종합 분석 리포트 생성",
+        "loading": "데이터를 분석하는 중입니다...",
+        "error_nodata": "'{}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!"
+    },
+    "English": {
+        "title": "AI Stock Analysis Terminal",
+        "input_label": "Enter Stock Name or Ticker (e.g. AAPL, TSLA, 7203)",
+        "tabs": ["Chart Analysis", "Financials", "Latest Trends", "Comprehensive Report"],
+        "btn_chart": "Run AI Chart Trend Analysis",
+        "btn_fin": "Run AI Financial Health Evaluation",
+        "btn_news1": "AI Latest Trend Briefing",
+        "btn_news2": "AI Market Sentiment Analysis",
+        "btn_report": "Generate One-Click Comprehensive Report",
+        "loading": "Analyzing data...",
+        "error_nodata": "Could not find data for '{}'. Please enter a valid stock name or ticker."
+    },
+    "日本語": {
+        "title": "AI株式分析ターミナル",
+        "input_label": "銘柄名またはティッカーを入力 (例: トヨタ, AAPL, 7203)",
+        "tabs": ["チャート分析", "詳細財務", "最新動向", "総合レポート"],
+        "btn_chart": "AIチャートトレンド分析を実行",
+        "btn_fin": "AI財務健全性評価を実行",
+        "btn_news1": "AI最新動向ブリーフィング",
+        "btn_news2": "AI市場心理分析を実行",
+        "btn_report": "ワンクリック総合分析レポート作成",
+        "loading": "データを分析しています...",
+        "error_nodata": "「{}」のデータが見つかりません。正確な企業名やティッカーを入力してください。"
+    }
+}
+
+# 사이드바 언어 선택
+lang = st.sidebar.radio("🌐 Language / 언어 / 言語", ["한국어", "English", "日本語"])
+ui = ui_dict[lang]
+
 @st.cache_data
 def load_krx_data():
     return fdr.StockListing('KRX')
@@ -161,10 +205,13 @@ def get_ticker_symbol(search_term):
     except:
         pass
     try:
-        translate_prompt = f"""당신은 세계 최고의 주식 종목 번역 전문가입니다.
-다음 한국어 주식 종목명을 정확한 영어 공식명으로 번역해주세요.
-답변은 영어 종목명만 한 줄로 출력하세요. 다른 설명 절대 금지.
-종목명: {search_term}"""
+        translate_prompt = f"""당신은 세계 최고의 주식 종목 식별 전문가입니다.
+다음 사용자가 입력한 종목명/코드의 정확한 Yahoo Finance 공식 티커를 찾아주세요.
+- 미국 주식: 티커만 (예: AAPL)
+- 한국 주식: 티커.KS 또는 .KQ (예: 005930.KS)
+- 일본 주식: 숫자 4자리.T (예: 7203.T, 닌텐도 -> 7974.T)
+답변은 정확한 티커만 한 줄로 출력하세요.
+입력값: {search_term}"""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=translate_prompt)
         eng_name = trans_response.text.strip()
         url_eng = f"https://query2.finance.yahoo.com/v1/finance/search?q={eng_name}"
@@ -276,7 +323,7 @@ def augment_korean_fundamentals(ticker, info):
     return info
 
 def augment_us_fundamentals(ticker, info):
-    if ticker.endswith('.KS') or ticker.endswith('.KQ'):
+    if ticker.endswith('.KS') or ticker.endswith('.KQ') or ticker.endswith('.T'):
         return info
     try:
         url = f"https://finviz.com/quote.ashx?t={ticker}"
@@ -356,12 +403,12 @@ def get_article_text(url):
         return ""
 
 # ====================== 메인 ======================
-st.title("웅이의 AI 주식 분석 터미널")
+st.title(ui["title"])
 st.markdown("---")
 
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL)", "")
+    user_input = st.text_input(ui["input_label"], "")
 
 if user_input:
     ticker = get_ticker_symbol(user_input)
@@ -375,7 +422,7 @@ if user_input:
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
         
-        today_date = datetime.now().strftime("%Y년 %m월 %d일")
+        today_date = datetime.now().strftime("%Y-%m-%d")
        
         try: fin_df = stock.financials
         except: fin_df = pd.DataFrame()
@@ -386,14 +433,31 @@ if user_input:
        
         news_list = []
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
-        currency = "원" if is_korean_stock else "달러"
+        is_japanese_stock = ticker.endswith('.T')
         
-        price_fmt = ",.0f" if is_korean_stock else ",.2f"
+        # 언어 및 주식 종류에 따른 통화 및 소수점 포맷 설정
+        if lang == "한국어":
+            if is_korean_stock: currency = "원"
+            elif is_japanese_stock: currency = "엔"
+            else: currency = "달러"
+        elif lang == "English":
+            if is_korean_stock: currency = "KRW"
+            elif is_japanese_stock: currency = "JPY"
+            else: currency = "USD"
+        else: # 일본어
+            if is_korean_stock: currency = "ウォン"
+            elif is_japanese_stock: currency = "円"
+            else: currency = "ドル"
+            
+        # 한국 주식과 일본 주식은 소수점을 표시하지 않음
+        price_fmt = ",.0f" if (is_korean_stock or is_japanese_stock) else ",.2f"
         
         # 뉴스 기사 수집량 100개
         try:
             if is_korean_stock:
                 rss_url = f"https://news.google.com/rss/search?q={user_input}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
+            elif is_japanese_stock:
+                rss_url = f"https://news.google.com/rss/search?q={user_input}+株&hl=ja&gl=JP&ceid=JP:ja"
             else:
                 rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
             response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -425,8 +489,8 @@ if user_input:
                 
         news_context_list = []
         for idx, item in enumerate(news_list):
-            news_context_list.append(f"[{idx+1}] 제목: {item['title']}\n본문: {item.get('content', '본문 없음')}")
-        news_context = "\n\n".join(news_context_list) if news_context_list else "수집된 실시간 데이터가 없습니다."
+            news_context_list.append(f"[{idx+1}] Title: {item['title']}\nContent: {item.get('content', 'No content')}")
+        news_context = "\n\n".join(news_context_list) if news_context_list else "No real-time data collected."
         
         def fmt_pct(v, is_dividend=False):
             if v == 'N/A' or v is None: return 'N/A'
@@ -544,18 +608,18 @@ if user_input:
         v_cf_end = safe_get_fin(cf_df, ['End Cash Position'])
         v_dividend = safe_get_fin(cf_df, ['Cash Dividends Paid', 'Dividends Paid'])
 
-        tab1, tab2, tab3, tab4 = st.tabs(["차트 분석", "상세 재무", "최신 동향", "종합 리포트"])
+        tab1, tab2, tab3, tab4 = st.tabs(ui["tabs"])
         
         # --- [탭 1: 차트 분석] ---
         with tab1:
             col_price, col_interval = st.columns([3, 1])
             with col_price:
-                st.markdown(f"### {user_input} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
+                st.markdown(f"### {user_input} ({ticker}) : {current_price:{price_fmt}} {currency}")
             
             with col_interval:
-                interval_option = st.selectbox("차트 주기", ("일봉", "주봉", "월봉"), index=0)
+                interval_option = st.selectbox("Interval", ("1d", "1wk", "1mo"), index=0, label_visibility="collapsed")
             
-            interval = "1d" if interval_option == "일봉" else "1wk" if interval_option == "주봉" else "1mo"
+            interval = interval_option
             history = stock.history(period="max", interval=interval)
             
             history = history[(history['Low'] > 0) & (history['High'] > 0) & (history['Close'] > 0)]
@@ -579,18 +643,18 @@ if user_input:
             
             mask = (history.index.date >= selected_start) & (history.index.date <= selected_end)
             
-            if interval_option == "일봉":
-                ma_settings = [(5, "MA1(5일)", "#00b0ff"), (20, "MA2(20일)", "#ff9100"), (60, "MA3(60일)", "#ff4081"), (120, "MA4(120일)", "#aa00ff")]
-            elif interval_option == "주봉":
-                ma_settings = [(13, "MA1(13주)", "#00b0ff"), (26, "MA2(26주)", "#ff9100"), (52, "MA3(52주)", "#ff4081")]
+            if interval_option == "1d":
+                ma_settings = [(5, "MA1(5)", "#00b0ff"), (20, "MA2(20)", "#ff9100"), (60, "MA3(60)", "#ff4081"), (120, "MA4(120)", "#aa00ff")]
+            elif interval_option == "1wk":
+                ma_settings = [(13, "MA1(13)", "#00b0ff"), (26, "MA2(26)", "#ff9100"), (52, "MA3(52)", "#ff4081")]
             else:
-                ma_settings = [(9, "MA1(9개월)", "#00b0ff"), (24, "MA2(24개월)", "#ff9100"), (60, "MA3(60개월)", "#ff4081")]
+                ma_settings = [(9, "MA1(9)", "#00b0ff"), (24, "MA2(24)", "#ff9100"), (60, "MA3(60)", "#ff4081")]
                 
             for w, name, color in ma_settings:
                 history[f'MA_{w}'] = history['Close'].rolling(window=w).mean()
 
             filtered_history = history.loc[mask].copy()
-            ma_context_str = "차트 데이터 부족"
+            ma_context_str = "No Data"
 
             if not filtered_history.empty:
                 price_min = filtered_history['Low'].min()
@@ -601,7 +665,7 @@ if user_input:
                 ma_last_vals_str = []
                 for w, name, color in ma_settings:
                     val = filtered_history[f'MA_{w}'].iloc[-1]
-                    val_str = f"{val:{price_fmt}} {currency}" if pd.notna(val) else "데이터 부족"
+                    val_str = f"{val:{price_fmt}} {currency}" if pd.notna(val) else "N/A"
                     ma_last_vals_str.append(f"{name}: {val_str}")
                 ma_context_str = " / ".join(ma_last_vals_str)
                 
@@ -615,7 +679,7 @@ if user_input:
                     x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                     low=filtered_history['Low'], close=filtered_history['Close'],
                     increasing_line_color='#00ff9d', decreasing_line_color='#ff2d55',
-                    name="가격"
+                    name="Price"
                 ))
 
                 for w, name, color in ma_settings:
@@ -629,7 +693,7 @@ if user_input:
                 
                 fig.add_annotation(
                     x=max_idx, y=price_max,
-                    text=f"최고: {price_max:{price_fmt}} {currency}",
+                    text=f"High: {price_max:{price_fmt}} {currency}",
                     showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#ff2d55",
                     ax=0, ay=-35,
                     font=dict(color="white", size=13, family="Pretendard"),
@@ -637,7 +701,7 @@ if user_input:
                 )
                 fig.add_annotation(
                     x=min_idx, y=price_min,
-                    text=f"최저: {price_min:{price_fmt}} {currency}",
+                    text=f"Low: {price_min:{price_fmt}} {currency}",
                     showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#00b0ff",
                     ax=0, ay=35,
                     font=dict(color="white", size=13, family="Pretendard"),
@@ -645,7 +709,7 @@ if user_input:
                 )
                 
                 fig.update_layout(
-                    title=dict(text=f"{user_input} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
+                    title=dict(text=f"{user_input} ({ticker})", font=dict(size=22, color="white")),
                     template="plotly_dark",
                     dragmode=False, 
                     xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
@@ -665,12 +729,12 @@ if user_input:
                     'doubleClick': False
                 })
             else:
-                st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더를 조절해 주세요!")
+                st.warning("No data for the selected period.")
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            if st.button("AI 차트 추세 분석 실행"):
-                with st.spinner("순수 기술적 관점에서 차트를 분석하는 중입니다..."):
+            if st.button(ui["btn_chart"]):
+                with st.spinner(ui["loading"]):
                     
                     def get_formatted_history(interval_str, ma_config):
                         temp_hist = stock.history(period="max", interval=interval_str)
@@ -709,7 +773,7 @@ if user_input:
                     [🚨 기술적 분석 핵심 지시사항 🚨]
                     1. [프라이스 액션 중심 분석]: 이동평균선(MA) 수치만 기계적으로 나열하지 마세요!! 제공된 시가(Open), 고가(High), 저가(Low), 종가(Close) 데이터를 종합하여 캔들의 형태, 고점/저점의 돌파 여부, 심리적 지지와 저항선, 변동성 등 실전적인 **'프라이스 액션(Price Action)'** 관점으로 폭넓게 분석하세요.
                     2. [정보 필터링]: 일봉, 주봉, 월봉을 모두 확인하되, 추세 설명에 꼭 필요한 유의미한 기술적 단서(특정 가격대, 매물대, 주요 돌파 지점 등)만 선별해서 자연스럽게 제시하세요.
-                    3. [이동평균선 표기 규칙]: 이동평균선을 언급할 때 '13-주 이동평균선'처럼 숫자와 단위 사이에 하이픈(-)을 절대 넣지 마세요. 반드시 '13주 이동평균선', '20일 이동평균선'과 같이 올바른 한국어로 작성하세요.
+                    3. [이동평균선 표기 규칙]: 이동평균선을 언급할 때 '13-주 이동평균선'처럼 숫자와 단위 사이에 하이픈(-)을 절대 넣지 마세요. 반드시 '13주 이동평균선', '20일 이동평균선'과 같이 올바른 표현으로 작성하세요.
                     4. 마크다운 수식 오류 방지: 가격 범위나 기간 표시 시 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'로 표기할 것)
                     5. [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요. 소제목은 마크다운 헤딩(###)으로 작성하고, 문단과 문단 사이에는 빈 줄(Enter 2번)을 넣어 완벽하게 분리하세요.
                     6. [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장 및 주요 지지/저항 가격은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 절대 변경하지 마세요.
@@ -725,6 +789,9 @@ if user_input:
                     ### 2. 장기적인 추세 (Long-term trend)
 
                     일/주/월봉을 아우르는 큰 흐름에서의 추세와 차트 구조를 분석합니다. 유의미할 경우에 한해 중장기 추세선, 거시적 가격대 돌파 여부 등을 언급하세요. 글머리 기호 없이 일반 문단으로 작성하세요.
+                    
+                    🚨 [언어 출력 필수 지시사항]
+                    반드시 모든 답변 내용을 **{lang}**로만 번역 및 작성하여 출력하세요!! 기존 분석 프레임 및 마크다운 양식은 절대로 변경하지 마세요.
                     """
                     try:
                         response = client.models.generate_content(
@@ -734,14 +801,14 @@ if user_input:
                         )
                         st.info(response.text)
                     except Exception as e:
-                        st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+                        st.error(f"Error: {e}")
           
         # --- [탭 2: 상세 재무] ---
         with tab2:
-            st.subheader("1. 가치 및 안정성 지표")
+            st.subheader("1. Valuation & Stability")
             c1, c2, c3, c4 = st.columns(4)
             
-            c1.metric("시가총액", format_large_number(market_cap, currency))
+            c1.metric("Market Cap", format_large_number(market_cap, currency))
             c1.metric("Trailing PER", fmt_flt(trailing_pe))
             c1.metric("Forward PER", fmt_flt(forward_pe))
             c1.metric("PBR", fmt_flt(pb))
@@ -753,76 +820,21 @@ if user_input:
             c2.metric("ROA", fmt_pct(roa))
             c2.metric("ROIC", fmt_pct(roic))
             
-            c3.metric("매출총이익률", fmt_pct(gross_margin))
-            c3.metric("영업이익률", fmt_pct(op_margin))
-            c3.metric("순이익률", fmt_pct(net_margin))
-            c3.metric("매출 성장률", fmt_pct(rev_growth))
-            c3.metric("배당 수익률", fmt_pct(div_yield, is_dividend=True))
+            c3.metric("Gross Margin", fmt_pct(gross_margin))
+            c3.metric("Operating Margin", fmt_pct(op_margin))
+            c3.metric("Net Margin", fmt_pct(net_margin))
+            c3.metric("Revenue Growth", fmt_pct(rev_growth))
+            c3.metric("Dividend Yield", fmt_pct(div_yield, is_dividend=True))
             
-            c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
-            c4.metric("유동비율", fmt_flt(current_ratio))
-            c4.metric("당좌비율", fmt_flt(quick_ratio))
-            c4.metric("이자보상배율", interest_cov)
-            c4.metric("52주 최고/최저", f"{high_52:{price_fmt}} {currency} / {low_52:{price_fmt}} {currency}")
+            c4.metric("Debt to Equity", f"{debt}%" if debt != 'N/A' else 'N/A')
+            c4.metric("Current Ratio", fmt_flt(current_ratio))
+            c4.metric("Quick Ratio", fmt_flt(quick_ratio))
+            c4.metric("Interest Coverage", interest_cov)
+            c4.metric("52W High/Low", f"{high_52:{price_fmt}} / {low_52:{price_fmt}} {currency}")
             
             st.markdown("---")
-            st.subheader("2. 재무제표 요약 (최근 결산)")
-            fc1, fc2, fc3 = st.columns(3)
-            
-            with fc1:
-                st.markdown("**손익계산서**")
-                st.markdown(f"""
-                <table class="fin-table">
-                    <tr><td>매출액</td><td>{v_rev}</td></tr>
-                    <tr><td>매출원가</td><td>{v_cogs}</td></tr>
-                    <tr><td>매출총이익</td><td>{v_gp}</td></tr>
-                    <tr><td>판매관리비</td><td>{v_sga}</td></tr>
-                    <tr><td>영업이익</td><td>{v_op}</td></tr>
-                    <tr><td>법인세차감전순이익</td><td>{v_pretax}</td></tr>
-                    <tr><td>당기순이익</td><td>{v_net}</td></tr>
-                    <tr><td>기타포괄손익</td><td>{v_oci}</td></tr>
-                </table>
-                """, unsafe_allow_html=True)
-                
-            with fc2:
-                st.markdown("**재무상태표**")
-                st.markdown(f"""
-                <table class="fin-table">
-                    <tr><td>자산총계</td><td>{v_tot_assets}</td></tr>
-                    <tr><td>유동자산</td><td>{v_cur_assets}</td></tr>
-                    <tr><td>현금및현금성자산</td><td>{v_cash}</td></tr>
-                    <tr><td>매출채권</td><td>{v_receiv}</td></tr>
-                    <tr><td>재고자산</td><td>{v_inv}</td></tr>
-                    <tr><td>비유동자산</td><td>{v_ncur_assets}</td></tr>
-                    <tr><td>유형자산</td><td>{v_tangible}</td></tr>
-                    <tr><td>무형자산</td><td>{v_intangible}</td></tr>
-                    <tr><td>부채총계</td><td>{v_tot_liab}</td></tr>
-                    <tr><td>유동부채</td><td>{v_cur_liab}</td></tr>
-                    <tr><td>단기차입금</td><td>{v_s_debt}</td></tr>
-                    <tr><td>비유동부채</td><td>{v_ncur_liab}</td></tr>
-                    <tr><td>장기차입금</td><td>{v_l_debt}</td></tr>
-                    <tr><td>자본총계</td><td>{v_tot_eq}</td></tr>
-                    <tr><td>자본금</td><td>{v_cap_stock}</td></tr>
-                    <tr><td>자본잉여금</td><td>{v_cap_surplus}</td></tr>
-                    <tr><td>이익잉여금</td><td>{v_retained}</td></tr>
-                </table>
-                """, unsafe_allow_html=True)
-            with fc3:
-                st.markdown("**현금흐름표**")
-                st.markdown(f"""
-                <table class="fin-table">
-                    <tr><td>기초현금</td><td>{v_cf_beg}</td></tr>
-                    <tr><td>영업활동현금흐름</td><td>{v_cf_op}</td></tr>
-                    <tr><td>투자활동현금흐름</td><td>{v_cf_inv}</td></tr>
-                    <tr><td>재무활동현금흐름</td><td>{v_cf_fin}</td></tr>
-                    <tr><td>배당금 지급</td><td>{v_dividend}</td></tr>
-                    <tr><td>기말현금</td><td>{v_cf_end}</td></tr>
-                </table>
-                """, unsafe_allow_html=True)
-            
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("AI 재무 건전성 평가 실행"):
-                with st.spinner("재무 데이터를 분석하는 중입니다..."):
+            if st.button(ui["btn_fin"]):
+                with st.spinner(ui["loading"]):
                     prompt = f"""종목 {ticker}의 상세 재무 데이터 및 최신 동향 텍스트입니다.
 
 [최신 동향 데이터]
@@ -857,6 +869,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 - [입체적 재무 해석]: 부채비율이 높거나 자본잠식 상태일 때, 무조건 '착한 부채'로 포장하지 마세요. 이자보상배율, 현금흐름, 대규모 투자(CapEx) 등의 맥락을 융합하여 실제 시장이 우려하는 재무적 리스크인지 성장을 위한 통과 의례인지 객관적으로 판단하세요.
 - [작위적 표현 금지]: "표면적 지표 이면의", "숫자 이면의 진짜 리스크", "숨겨진 리스크" 등 시스템 프롬프트의 지시어 느낌이 나는 단어를 절대 출력하지 마세요.
 - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
+
+🚨 [언어 출력 필수 지시사항]
+반드시 모든 답변 내용을 **{lang}**로만 번역 및 작성하여 출력하세요!! 기존 분석 프레임 및 마크다운 양식은 절대로 변경하지 마세요.
 """
                     try:
                         response = client.models.generate_content(
@@ -866,18 +881,15 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         )
                         st.info(response.text)
                     except Exception as e:
-                        st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+                        st.error(f"Error: {e}")
                     
         # --- [탭 3: 최신 동향] ---
         with tab3:
-            st.subheader("실시간 동향 및 투심 분석")
-            st.write(f"기준일: **{today_date}**")
-          
             col_news1, col_news2 = st.columns(2)
             with col_news1:
-                if st.button("AI 최신 동향 브리핑"):
-                    with st.spinner("최신 뉴스를 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장(예: **호실적 발표**, **공급망 이슈** 등)은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다', '다수의 기사에서'와 같이 수집된 기사의 개수나 규모를 직접적으로 절대 언급하지 마세요."
+                if st.button(ui["btn_news1"]):
+                    with st.spinner(ui["loading"]):
+                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장(예: **호실적 발표**, **공급망 이슈** 등)은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다', '다수의 기사에서'와 같이 수집된 기사의 개수나 규모를 직접적으로 절대 언급하지 마세요.\n\n🚨 [언어 출력 필수 지시사항]\n반드시 모든 답변 내용을 **{lang}**로만 번역 및 작성하여 출력하세요!! 기존 분석 프레임 및 마크다운 양식은 절대로 변경하지 마세요."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', 
@@ -886,21 +898,17 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             )
                             st.info(response.text)
                         except Exception as e:
-                            st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+                            st.error(f"Error: {e}")
                         
                         st.markdown("---")
-                        st.markdown("**📌 참고한 실시간 뉴스 원문 (클릭해서 바로 이동)**")
                         if news_list:
-                            # 100개를 수집했지만 화면에는 상위 10개만 보여주기
                             for item in news_list[:10]:
                                 st.markdown(f"• <a href='{item['link']}' target='_blank'>{item['title']}</a>", unsafe_allow_html=True)
-                        else:
-                            st.write("뉴스 링크를 불러올 수 없습니다.")
           
             with col_news2:
-                if st.button("AI 시장 투심 분석 실행"):
-                    with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. '수집된 뉴스에 의하면' 같은 어색한 말도 금지합니다. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다', '다수의 기사에서'와 같이 수집된 기사의 개수나 규모를 직접적으로 절대 언급하지 마세요."
+                if st.button(ui["btn_news2"]):
+                    with st.spinner(ui["loading"]):
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. '수집된 뉴스에 의하면' 같은 어색한 말도 금지합니다. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다', '다수의 기사에서'와 같이 수집된 기사의 개수나 규모를 직접적으로 절대 언급하지 마세요.\n\n🚨 [언어 출력 필수 지시사항]\n반드시 모든 답변 내용을 **{lang}**로만 번역 및 작성하여 출력하세요!! 기존 분석 프레임 및 마크다운 양식은 절대로 변경하지 마세요."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', 
@@ -909,13 +917,12 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             )
                             st.info(response.text)
                         except Exception as e:
-                            st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+                            st.error(f"Error: {e}")
 
         # --- [탭 4: 종합 리포트] ---
         with tab4:
-            st.subheader("AI 퀀트 애널리스트 최종 브리핑")
-            if st.button("원클릭 종합 분석 리포트 생성"):
-                with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
+            if st.button(ui["btn_report"]):
+                with st.spinner(ui["loading"]):
                     prompt = f"""
                     오늘은 {today_date}입니다. {ticker} 종목을 종합적으로 분석해주세요.
                     
@@ -933,7 +940,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     [3. 최신 시장 동향 및 기사 본문 요약]
                     \n{news_context}
                     
-                    반드시 다음 4가지 항목을 포함하여 최고급 애널리스트처럼 한국어로 명확하게 작성해주세요.
+                    반드시 다음 4가지 항목을 포함하여 최고급 애널리스트처럼 명확하게 작성해주세요.
                     
                     1. 재무 상황 종합 평가
                     2. 시장 투심 및 향후 주가 흐름 예상
@@ -967,6 +974,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - [시장 심리(Fear & Greed) 통찰]: 주가가 크게 하락했거나 변동성이 크다면, 동향의 행간 의미를 파악해 현재 시장 참여자들이 무엇에 공포를 느끼고 있는지 평가에 명확히 반영하세요.
                     - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
                     - [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다', '다수의 기사에서'와 같이 수집된 기사의 개수나 규모를 직접적으로 절대 언급하지 마세요.
+                    
+                    🚨 [언어 출력 필수 지시사항]
+                    반드시 모든 답변 내용을 **{lang}**로만 번역 및 작성하여 출력하세요!! 기존 분석 프레임 및 마크다운 양식은 절대로 변경하지 마세요.
                     """
                     try:
                         response = client.models.generate_content(
@@ -976,6 +986,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         )
                         st.info(response.text)
                     except Exception as e:
-                        st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
-    else:
-        st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
+                        st.error(f"Error: {e}")
+else:
+    st.error(ui["error_nodata"].format(user_input))
