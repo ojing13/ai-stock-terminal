@@ -92,6 +92,7 @@ st.markdown("""
     .fin-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; table-layout: fixed; }
     .fin-table th { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; color: #555; }
     .fin-table td { border-bottom: 1px solid #eee; padding: 8px; text-align: right; vertical-align: middle; }
+    /* 첫 번째 열(항목명) 너비 고정으로 정렬 맞춤 (칸 앞에 딱 붙도록) */
     .fin-table td:first-child {
         text-align: left;
         font-weight: 600;
@@ -100,43 +101,41 @@ st.markdown("""
         word-break: break-all;
     }
     
-    /* === 커스텀 지표 그리드 (모바일 2열 완벽 지원) === */
-    .metric-container {
+    /* === 커스텀 지표(Metric) 그리드 디자인 (오류 방지용) === */
+    .custom-metric-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
         gap: 20px;
-        margin-bottom: 25px;
-        margin-top: 10px;
+        margin-bottom: 20px;
     }
-    .metric-item {
+    .custom-metric-item {
         display: flex;
         flex-direction: column;
-        gap: 5px;
     }
-    .metric-label {
-        font-size: 1.0rem;
+    .custom-metric-label {
+        font-size: 14px;
         color: #555555;
-        font-weight: 600;
+        margin-bottom: 4px;
     }
-    .metric-value {
-        font-size: 1.6rem;
+    .custom-metric-value {
+        font-size: 24px;
         font-weight: 700;
         color: #111111;
-        word-break: break-word; /* 너무 긴 숫자 줄바꿈 */
         line-height: 1.2;
+        word-break: break-all; /* 숫자가 길면 자동 줄바꿈 */
     }
-    
-    /* 모바일 화면에서 강제 2열 배치 및 폰트 크기 자동 축소 */
+
+    /* 모바일 환경에서 2열로 강제 변경 및 폰트 축소 */
     @media (max-width: 768px) {
-        .metric-container {
-            grid-template-columns: repeat(2, 1fr); /* 무조건 2칸씩 */
+        .custom-metric-grid {
+            grid-template-columns: repeat(2, 1fr);
             gap: 15px;
         }
-        .metric-label {
-            font-size: 0.85rem;
+        .custom-metric-value {
+            font-size: 18px !important; /* 모바일에서 폰트 크기 줄임 */
         }
-        .metric-value {
-            font-size: 1.15rem; /* 글자 크기를 확 줄여서 삐져나가지 않게 처리 */
+        .custom-metric-label {
+            font-size: 12px !important;
         }
     }
 
@@ -743,39 +742,39 @@ if user_input:
         with tab2:
             st.subheader("1. 가치 및 안정성 지표")
             
-            # [수정] 모바일 화면(1열 겹침) 버그를 방지하기 위해 스트림릿 st.columns 대신 HTML/CSS Grid로 UI를 렌더링합니다.
+            # 스트림릿 고유 버그(모바일 1열 강제 변경)를 우회하기 위한 커스텀 HTML Grid 방식
             debt_str = f"{debt}%" if debt != 'N/A' else 'N/A'
-            high_low_str = f"{high_52:{price_fmt}} {currency} / {low_52:{price_fmt}} {currency}"
+            high_low_str = f"{high_52:{price_fmt}} {currency} /<br>{low_52:{price_fmt}} {currency}"
             
-            html_metrics = f"""
-            <div class="metric-container">
-                <div class="metric-item"><div class="metric-label">시가총액</div><div class="metric-value">{format_large_number(market_cap, currency)}</div></div>
-                <div class="metric-item"><div class="metric-label">PEG</div><div class="metric-value">{fmt_flt(peg)}</div></div>
-                <div class="metric-item"><div class="metric-label">매출총이익률</div><div class="metric-value">{fmt_pct(gross_margin)}</div></div>
-                <div class="metric-item"><div class="metric-label">부채비율</div><div class="metric-value">{debt_str}</div></div>
-                
-                <div class="metric-item"><div class="metric-label">Trailing PER</div><div class="metric-value">{fmt_flt(trailing_pe)}</div></div>
-                <div class="metric-item"><div class="metric-label">EV/EBITDA</div><div class="metric-value">{fmt_flt(ev_ebitda)}</div></div>
-                <div class="metric-item"><div class="metric-label">영업이익률</div><div class="metric-value">{fmt_pct(op_margin)}</div></div>
-                <div class="metric-item"><div class="metric-label">유동비율</div><div class="metric-value">{fmt_flt(current_ratio)}</div></div>
-                
-                <div class="metric-item"><div class="metric-label">Forward PER</div><div class="metric-value">{fmt_flt(forward_pe)}</div></div>
-                <div class="metric-item"><div class="metric-label">ROE</div><div class="metric-value">{fmt_pct(roe)}</div></div>
-                <div class="metric-item"><div class="metric-label">순이익률</div><div class="metric-value">{fmt_pct(net_margin)}</div></div>
-                <div class="metric-item"><div class="metric-label">당좌비율</div><div class="metric-value">{fmt_flt(quick_ratio)}</div></div>
-                
-                <div class="metric-item"><div class="metric-label">PBR</div><div class="metric-value">{fmt_flt(pb)}</div></div>
-                <div class="metric-item"><div class="metric-label">ROA</div><div class="metric-value">{fmt_pct(roa)}</div></div>
-                <div class="metric-item"><div class="metric-label">매출 성장률</div><div class="metric-value">{fmt_pct(rev_growth)}</div></div>
-                <div class="metric-item"><div class="metric-label">이자보상배율</div><div class="metric-value">{interest_cov}</div></div>
-                
-                <div class="metric-item"><div class="metric-label">PSR</div><div class="metric-value">{fmt_flt(psr)}</div></div>
-                <div class="metric-item"><div class="metric-label">ROIC</div><div class="metric-value">{fmt_pct(roic)}</div></div>
-                <div class="metric-item"><div class="metric-label">배당 수익률</div><div class="metric-value">{fmt_pct(div_yield, is_dividend=True)}</div></div>
-                <div class="metric-item"><div class="metric-label">52주 최고/최저</div><div class="metric-value">{high_low_str}</div></div>
+            metrics_html = f"""
+            <div class="custom-metric-grid">
+                <div class="custom-metric-item"><div class="custom-metric-label">시가총액</div><div class="custom-metric-value">{format_large_number(market_cap, currency)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">PEG</div><div class="custom-metric-value">{fmt_flt(peg)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">매출총이익률</div><div class="custom-metric-value">{fmt_pct(gross_margin)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">부채비율</div><div class="custom-metric-value">{debt_str}</div></div>
+
+                <div class="custom-metric-item"><div class="custom-metric-label">Trailing PER</div><div class="custom-metric-value">{fmt_flt(trailing_pe)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">EV/EBITDA</div><div class="custom-metric-value">{fmt_flt(ev_ebitda)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">영업이익률</div><div class="custom-metric-value">{fmt_pct(op_margin)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">유동비율</div><div class="custom-metric-value">{fmt_flt(current_ratio)}</div></div>
+
+                <div class="custom-metric-item"><div class="custom-metric-label">Forward PER</div><div class="custom-metric-value">{fmt_flt(forward_pe)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">ROE</div><div class="custom-metric-value">{fmt_pct(roe)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">순이익률</div><div class="custom-metric-value">{fmt_pct(net_margin)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">당좌비율</div><div class="custom-metric-value">{fmt_flt(quick_ratio)}</div></div>
+
+                <div class="custom-metric-item"><div class="custom-metric-label">PBR</div><div class="custom-metric-value">{fmt_flt(pb)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">ROA</div><div class="custom-metric-value">{fmt_pct(roa)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">매출 성장률</div><div class="custom-metric-value">{fmt_pct(rev_growth)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">이자보상배율</div><div class="custom-metric-value">{interest_cov}</div></div>
+
+                <div class="custom-metric-item"><div class="custom-metric-label">PSR</div><div class="custom-metric-value">{fmt_flt(psr)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">ROIC</div><div class="custom-metric-value">{fmt_pct(roic)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">배당 수익률</div><div class="custom-metric-value">{fmt_pct(div_yield, is_dividend=True)}</div></div>
+                <div class="custom-metric-item"><div class="custom-metric-label">52주 최고/최저</div><div class="custom-metric-value" style="font-size: 1.4rem;">{high_low_str}</div></div>
             </div>
             """
-            st.markdown(html_metrics, unsafe_allow_html=True)
+            st.markdown(metrics_html, unsafe_allow_html=True)
             
             st.markdown("---")
             st.subheader("2. 재무제표 요약 (최근 결산)")
