@@ -116,24 +116,9 @@ st.markdown("""
         padding: 5px 15px;
     }
 
-    /* 🚨 핵심 우회책: 모바일 스크롤을 위한 차트 우측 안전 여백 (Scroll Safe Zone) 🚨 */
-    div[data-testid="stPlotlyChart"] {
-        padding-right: 12% !important; /* 화면 오른쪽에 차트가 닿지 않는 빈 공간 생성 */
-    }
-    
-    /* 스크롤 안내 문구 스타일 */
-    .scroll-tip {
-        font-size: 13px;
-        color: #007bff;
-        text-align: right;
-        font-weight: 600;
-        margin-bottom: -15px;
-        padding-right: 12%; /* 여백과 라인 맞추기 */
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# API 키를 Streamlit 비밀 금고(Secrets)에서 안전하게 불러오기
 try:
     MY_API_KEY = st.secrets["GEMINI_API_KEY"]
 except:
@@ -403,7 +388,7 @@ if user_input:
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         currency = "원" if is_korean_stock else "달러"
         
-        # [수정] 툴팁 'k' 문제 해결을 위한 숫자 포맷팅 강제 지정
+        # 툴팁 'k' 문제 해결을 위한 숫자 포맷팅 강제 지정
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
         try:
@@ -625,6 +610,8 @@ if user_input:
                 max_y = price_max + padding
                 
                 fig = go.Figure()
+                
+                # 툴팁에서 k단위 나오는 것 방지를 위해 y축, hoverformat 완벽 셋팅
                 fig.add_trace(go.Candlestick(
                     x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                     low=filtered_history['Low'], close=filtered_history['Close'],
@@ -637,7 +624,8 @@ if user_input:
                         x=filtered_history.index, 
                         y=filtered_history[f'MA_{w}'], 
                         name=name,
-                        line=dict(color=color, width=1.0)
+                        line=dict(color=color, width=1.0),
+                        hovertemplate=f'%{{y:{price_fmt}}}' # 이동평균선 툴팁 강제 포맷팅
                     ))
                 
                 fig.add_annotation(
@@ -662,8 +650,7 @@ if user_input:
                     template="plotly_dark",
                     dragmode=False, 
                     xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
-                    # [수정] y축 숫자에 k가 안 붙게 콤마 포맷팅 강제 지정
-                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt),
+                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
                     height=520,
                     margin=dict(l=0, r=0, t=40, b=0),
                     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
@@ -671,8 +658,6 @@ if user_input:
                     clickmode="none",
                     hoverlabel=dict(font_family="Pretendard")
                 )
-                
-                st.markdown('<div class="scroll-tip">💡 팁: 앱에서 화면 스크롤 시 화면 맨 오른쪽 여백을 문질러주세요!</div>', unsafe_allow_html=True)
                 
                 st.plotly_chart(fig, use_container_width=True, config={
                     'displayModeBar': False,
@@ -700,7 +685,6 @@ if user_input:
                         cols_to_export = ['Open', 'High', 'Low', 'Close'] + [f'MA_{w}' for w, _, _ in ma_config]
                         df_export = temp_filtered[cols_to_export].copy()
                         df_export.index = df_export.index.strftime('%Y-%m-%d')
-                        # [수정] 프롬프트 용량 초과로 인한 500 에러 방지를 위해 AI에게는 최근 150개의 핵심 데이터만 전달
                         return df_export.tail(150).round(2).to_csv(header=True)
 
                     daily_csv = get_formatted_history("1d", [(5, "", ""), (20, "", ""), (60, "", ""), (120, "", "")])
@@ -739,12 +723,16 @@ if user_input:
 
                     일/주/월봉을 아우르는 큰 흐름에서의 추세와 차트 구조를 분석합니다. 유의미할 경우에 한해 중장기 추세선, 거시적 가격대 돌파 여부 등을 언급하세요. 글머리 기호 없이 일반 문단으로 작성하세요.
                     """
-                    # [수정] 500 Server Error 해결: 불필요한 구글 검색 툴 제거 (서버 과부하 원인 차단)
-                    response = client.models.generate_content(
-                        model='gemini-2.5-flash', 
-                        contents=prompt
-                    )
-                    st.info(response.text)
+                    try:
+                        # [수정] AI가 검색을 핑계로 헛소리를 하지 않도록 온도를 0.1(매우 논리적)로 세팅
+                        response = client.models.generate_content(
+                            model='gemini-2.5-flash', 
+                            contents=prompt,
+                            config={"temperature": 0.1}
+                        )
+                        st.info(response.text)
+                    except Exception as e:
+                        st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
           
         # --- [탭 2: 상세 재무] ---
         with tab2:
@@ -868,12 +856,16 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 - [작위적 표현 금지]: "표면적 지표 이면의", "숫자 이면의 진짜 리스크", "숨겨진 리스크" 등 시스템 프롬프트의 지시어 느낌이 나는 단어를 절대 출력하지 마세요.
 - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
 """
-                    # [수정] 500 Server Error 해결
-                    response = client.models.generate_content(
-                        model='gemini-2.5-flash', 
-                        contents=prompt
-                    )
-                    st.info(response.text)
+                    try:
+                        # [수정] 철저히 숫자(팩트) 위주로 분석하도록 온도를 0.1로 고정
+                        response = client.models.generate_content(
+                            model='gemini-2.5-flash', 
+                            contents=prompt,
+                            config={"temperature": 0.1}
+                        )
+                        st.info(response.text)
+                    except Exception as e:
+                        st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
                     
         # --- [탭 3: 최신 동향] ---
         with tab3:
@@ -885,12 +877,17 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                 if st.button("AI 최신 동향 브리핑"):
                     with st.spinner("최신 뉴스를 분석하는 중입니다..."):
                         prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 핵심 기사 10개의 제목과 본문 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장(예: **호실적 발표**, **공급망 이슈** 등)은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지."
-                        # [수정] 500 Server Error 해결
-                        response = client.models.generate_content(
-                            model='gemini-2.5-flash', 
-                            contents=prompt
-                        )
-                        st.info(response.text)
+                        try:
+                            # [수정] 팩트 기반 요약을 위해 온도 0.1 세팅
+                            response = client.models.generate_content(
+                                model='gemini-2.5-flash', 
+                                contents=prompt,
+                                config={"temperature": 0.1}
+                            )
+                            st.info(response.text)
+                        except Exception as e:
+                            st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+                        
                         st.markdown("---")
                         st.markdown("**📌 참고한 실시간 뉴스 원문 (클릭해서 바로 이동)**")
                         if news_list:
@@ -903,77 +900,82 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
                         prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 기사 10개의 제목과 본문 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. '수집된 뉴스에 의하면' 같은 어색한 말도 금지합니다. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지."
-                        # [수정] 500 Server Error 해결
-                        response = client.models.generate_content(
-                            model='gemini-2.5-flash', 
-                            contents=prompt
-                        )
-                        st.info(response.text)
+                        try:
+                            # [수정] 팩트 기반 요약을 위해 온도 0.1 세팅
+                            response = client.models.generate_content(
+                                model='gemini-2.5-flash', 
+                                contents=prompt,
+                                config={"temperature": 0.1}
+                            )
+                            st.info(response.text)
+                        except Exception as e:
+                            st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
 
         # --- [탭 4: 종합 리포트] ---
         with tab4:
             st.subheader("AI 퀀트 애널리스트 최종 브리핑")
             if st.button("원클릭 종합 분석 리포트 생성"):
                 with st.spinner('순수 기술적 관점에서 차트를 분석하는 중입니다...'):
+                    prompt = f"""
+                    오늘은 {today_date}입니다. {ticker} 종목을 종합적으로 분석해주세요.
+                    
+                    [1. 현재 가격 및 기술적 지표]
+                    - 현재가: {current_price:{price_fmt}} {currency}
+                    - 52주 최고/최저: {high_52:{price_fmt}} {currency} / {low_52:{price_fmt}} {currency}
+                    - 이동평균선 최근값: {ma_context_str}
+                    
+                    [2. 주요 재무 및 펀더멘털 지표]
+                    - 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
+                    - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt}%
+                    - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}, 영업활동현금흐름: {v_cf_op}
+                    - 배당 수익률: {fmt_pct(div_yield, is_dividend=True)}
+                    
+                    [3. 최신 시장 동향 및 기사 본문 요약]
+                    \n{news_context}
+                    
+                    반드시 다음 4가지 항목을 포함하여 최고급 애널리스트처럼 한국어로 명확하게 작성해주세요.
+                    
+                    1. 재무 상황 종합 평가
+                    2. 시장 투심 및 향후 주가 흐름 예상
+                    3. 상황별 대응 전략 (현재 보유자 / 신규 매수 대기자 / 매도 고려자)
+                    4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가)
+                    
+                    [출력 형식 가이드]
+                    - 글머리 기호(-, *, • 등 땡땡 표시)는 일절 사용하지 마세요.
+                    - 각 항목의 제목(1, 2, 3, 4번)은 마크다운 헤딩(## 또는 ###)을 사용하여 크게 작성하세요.
+                    - 제목 아래에는 반드시 빈 줄(Enter 2번)을 띄우고 일반 문단으로 줄글을 작성하세요.
+                    
+                    [4번 항목 작성 예시]
+                    ### 4. 구체적인 가격 제시
+                    
+                    진입 추천가: 000 원
+                    
+                    논리적 근거: 차트를 분석하여 유의미한 기술적 지표(이평선, 지지/저항선 등)나 재무적 근거가 있을 경우에만 이를 포함하여 논리적으로 작성합니다.
+                    
+                    1차 목표가: 000 원
+                    
+                    논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 근거를 자연스럽게 엮어서 설명)
+                    
+                    🚨 [최고급 퀀트 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
+                    - [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.
+                    - [가독성 철저]: 위 형식 가이드를 완벽히 지켜서, 땡땡 표시 없이 제목과 문단 구분을 통해 마치 잘 쓰여진 신문 기사나 리포트 본문처럼 보이게 하세요.
+                    - [균형 잡힌 차트 분석]: 기술적 지표를 언급할 때 이동평균선에만 집착하지 말고, 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 자연스럽게 설명하세요.
+                    - [핵심 강조]: 전체 리포트에서 핵심이 되는 주요 단어나 결과 문장은 반드시 **굵은 글씨(**)**로 강조해서 핵심을 짚어주세요. 폰트 변경은 불가합니다.
+                    - [직접 인용 및 작위적 표현 완벽 금지]: 리포트 내에 '뉴스', '기사', '헤드라인'이라는 단어를 아예 사용하지 마세요. 기사 문장을 절대 복사하지 마세요. 또한 "표면적 지표 이면의", "숨겨진 리스크" 같은 시스템 지시어 느낌의 단어 자체를 쓰지 마세요. 마치 당신이 현업에서 직접 시장을 모니터링하며 얻은 팩트인 것처럼 유려하게 서술하세요.
+                    - [배경 지식 총동원]: 제공된 수치와 텍스트에만 갇히지 마세요. 당신이 학습한 해당 기업의 최근 거시경제(금리, 인플레 등) 환경, 산업 트렌드(AI, 반도체 등),경쟁사 동향, 대규모 투자(CapEx) 현황을 융합하여 인과관계를 설명하세요.
+                    - [맹목적 긍정 금지 및 리스크 직시]: 부채비율이 높거나 자본잠식 상태일 때, 무조건 주주환원에 의한 '착한 부채'로 포장하지 마세요. '이자보상배율', '현금흐름', '동향'을 교차 검증하여, 과도한 인프라/M&A 투자로 인한 이자 부담이나 시장이 실제로 우려하는 치명적 리스크라면 아주 냉철하게 경고하세요.
+                    - [시장 심리(Fear & Greed) 통찰]: 주가가 크게 하락했거나 변동성이 크다면, 동향의 행간 의미를 파악해 현재 시장 참여자들이 무엇에 공포를 느끼고 있는지 평가에 명확히 반영하세요.
+                    - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
+                    """
                     try:
-                        prompt = f"""
-                        오늘은 {today_date}입니다. {ticker} 종목을 종합적으로 분석해주세요.
-                        
-                        [1. 현재 가격 및 기술적 지표]
-                        - 현재가: {current_price:{price_fmt}} {currency}
-                        - 52주 최고/최저: {high_52:{price_fmt}} {currency} / {low_52:{price_fmt}} {currency}
-                        - 이동평균선 최근값: {ma_context_str}
-                        
-                        [2. 주요 재무 및 펀더멘털 지표]
-                        - 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
-                        - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt}%
-                        - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}, 영업활동현금흐름: {v_cf_op}
-                        - 배당 수익률: {fmt_pct(div_yield, is_dividend=True)}
-                        
-                        [3. 최신 시장 동향 및 기사 본문 요약]
-                        \n{news_context}
-                        
-                        반드시 다음 4가지 항목을 포함하여 최고급 애널리스트처럼 한국어로 명확하게 작성해주세요.
-                        
-                        1. 재무 상황 종합 평가
-                        2. 시장 투심 및 향후 주가 흐름 예상
-                        3. 상황별 대응 전략 (현재 보유자 / 신규 매수 대기자 / 매도 고려자)
-                        4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가)
-                        
-                        [출력 형식 가이드]
-                        - 글머리 기호(-, *, • 등 땡땡 표시)는 일절 사용하지 마세요.
-                        - 각 항목의 제목(1, 2, 3, 4번)은 마크다운 헤딩(## 또는 ###)을 사용하여 크게 작성하세요.
-                        - 제목 아래에는 반드시 빈 줄(Enter 2번)을 띄우고 일반 문단으로 줄글을 작성하세요.
-                        
-                        [4번 항목 작성 예시]
-                        ### 4. 구체적인 가격 제시
-                        
-                        진입 추천가: 000 원
-                        
-                        논리적 근거: 차트를 분석하여 유의미한 기술적 지표(이평선, 지지/저항선 등)나 재무적 근거가 있을 경우에만 이를 포함하여 논리적으로 작성합니다.
-                        
-                        1차 목표가: 000 원
-                        
-                        논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 근거를 자연스럽게 엮어서 설명)
-                        
-                        🚨 [최고급 퀀트 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
-                        - [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.
-                        - [가독성 철저]: 위 형식 가이드를 완벽히 지켜서, 땡땡 표시 없이 제목과 문단 구분을 통해 마치 잘 쓰여진 신문 기사나 리포트 본문처럼 보이게 하세요.
-                        - [균형 잡힌 차트 분석]: 기술적 지표를 언급할 때 이동평균선에만 집착하지 말고, 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 자연스럽게 설명하세요.
-                        - [핵심 강조]: 전체 리포트에서 핵심이 되는 주요 단어나 결과 문장은 반드시 **굵은 글씨(**)**로 강조해서 핵심을 짚어주세요. 폰트 변경은 불가합니다.
-                        - [직접 인용 및 작위적 표현 완벽 금지]: 리포트 내에 '뉴스', '기사', '헤드라인'이라는 단어를 아예 사용하지 마세요. 기사 문장을 절대 복사하지 마세요. 또한 "표면적 지표 이면의", "숨겨진 리스크" 같은 시스템 지시어 느낌의 단어 자체를 쓰지 마세요. 마치 당신이 현업에서 직접 시장을 모니터링하며 얻은 팩트인 것처럼 유려하게 서술하세요.
-                        - [배경 지식 총동원]: 제공된 수치와 텍스트에만 갇히지 마세요. 당신이 학습한 해당 기업의 최근 거시경제(금리, 인플레 등) 환경, 산업 트렌드(AI, 반도체 등),경쟁사 동향, 대규모 투자(CapEx) 현황을 융합하여 인과관계를 설명하세요.
-                        - [맹목적 긍정 금지 및 리스크 직시]: 부채비율이 높거나 자본잠식 상태일 때, 무조건 주주환원에 의한 '착한 부채'로 포장하지 마세요. '이자보상배율', '현금흐름', '동향'을 교차 검증하여, 과도한 인프라/M&A 투자로 인한 이자 부담이나 시장이 실제로 우려하는 치명적 리스크라면 아주 냉철하게 경고하세요.
-                        - [시장 심리(Fear & Greed) 통찰]: 주가가 크게 하락했거나 변동성이 크다면, 동향의 행간 의미를 파악해 현재 시장 참여자들이 무엇에 공포를 느끼고 있는지 평가에 명확히 반영하세요.
-                        - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
-                        """
-                        # [수정] 500 Server Error 해결
+                        # [수정] 가장 중요한 최종 리포트이므로 온도 0.1 세팅
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', 
-                            contents=prompt
+                            contents=prompt,
+                            config={"temperature": 0.1}
                         )
                         st.info(response.text)
                     except Exception as e:
-                        st.error(f"오류가 발생했습니다: {e}")
+                        st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
