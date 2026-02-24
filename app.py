@@ -923,7 +923,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
         with tab4:
             st.subheader("AI 퀀트 애널리스트 최종 브리핑")
             if st.button("원클릭 종합 분석 리포트 생성"):
-                with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
+                with st.spinner('순수 기술적 관점에서 차트를 분석하는 중입니다...'):
                     try:
                         prompt = f"""
                         오늘은 {today_date}입니다. {ticker} 종목을 종합적으로 분석해주세요.
@@ -986,4 +986,3 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
-
