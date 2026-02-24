@@ -565,6 +565,9 @@ if user_input:
             interval = "1d" if interval_option == "일봉" else "1wk" if interval_option == "주봉" else "1mo"
             history = stock.history(period="max", interval=interval)
             
+            # [버그 픽스] yfinance에서 가끔 최신 데이터의 가격을 0으로 반환하여 차트가 깨지는 현상 원천 차단
+            history = history[(history['Low'] > 0) & (history['High'] > 0) & (history['Close'] > 0)]
+            
             raw_min_date = history.index.min().to_pydatetime().date()
             min_date = raw_min_date.replace(day=1) 
             max_date = datetime.now().date()       
@@ -583,37 +586,25 @@ if user_input:
             )
             
             mask = (history.index.date >= selected_start) & (history.index.date <= selected_end)
-            filtered_history = history.loc[mask].copy()
             
+            if interval_option == "일봉":
+                ma_settings = [(5, "MA1(5일)", "#00b0ff"), (20, "MA2(20일)", "#ff9100"), (60, "MA3(60일)", "#ff4081"), (120, "MA4(120일)", "#aa00ff")]
+            elif interval_option == "주봉":
+                ma_settings = [(13, "MA1(13주)", "#00b0ff"), (26, "MA2(26주)", "#ff9100"), (52, "MA3(52주)", "#ff4081")]
+            else:
+                ma_settings = [(9, "MA1(9개월)", "#00b0ff"), (24, "MA2(24개월)", "#ff9100"), (60, "MA3(60개월)", "#ff4081")]
+                
+            for w, name, color in ma_settings:
+                history[f'MA_{w}'] = history['Close'].rolling(window=w).mean()
+
+            filtered_history = history.loc[mask].copy()
             ma_context_str = "차트 데이터 부족"
 
             if not filtered_history.empty:
-                # 데이터 오류(0원)를 제외한 유효 데이터만 필터링하여 최저/최고점 계산
-                valid_history = filtered_history[filtered_history['Low'] > 0]
-                
-                if not valid_history.empty:
-                    price_min = valid_history['Low'].min()
-                    price_max = valid_history['High'].max()
-                    min_idx = valid_history['Low'].idxmin()
-                    max_idx = valid_history['High'].idxmax()
-                else:
-                    # 모든 데이터가 0 이하인 극단적인 예외 상황 대비
-                    price_min = filtered_history['Low'].min()
-                    price_max = filtered_history['High'].max()
-                    min_idx = filtered_history['Low'].idxmin()
-                    max_idx = filtered_history['High'].idxmax()
-                
-                if interval_option == "일봉":
-                    ma_settings = [(5, "MA1(5일)", "#00b0ff"), (20, "MA2(20일)", "#ff9100"), (60, "MA3(60일)", "#ff4081"), (120, "MA4(120일)", "#aa00ff")]
-                elif interval_option == "주봉":
-                    ma_settings = [(13, "MA1(13주)", "#00b0ff"), (26, "MA2(26주)", "#ff9100"), (52, "MA3(52주)", "#ff4081")]
-                else:
-                    ma_settings = [(9, "MA1(9개월)", "#00b0ff"), (24, "MA2(24개월)", "#ff9100"), (60, "MA3(60개월)", "#ff4081")]
-                    
-                for w, name, color in ma_settings:
-                    history[f'MA_{w}'] = history['Close'].rolling(window=w).mean()
-
-                filtered_history = history.loc[mask].copy()
+                price_min = filtered_history['Low'].min()
+                price_max = filtered_history['High'].max()
+                min_idx = filtered_history['Low'].idxmin()
+                max_idx = filtered_history['High'].idxmax()
                 
                 ma_last_vals_str = []
                 for w, name, color in ma_settings:
