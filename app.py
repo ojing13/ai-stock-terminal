@@ -60,18 +60,16 @@ st.markdown("""
         box-shadow: 0 0 0 1px #007bff !important;
     }
     div[data-baseweb="select"] input {
-        caret-color: transparent !important; /* 깜빡이는 텍스트 커서 숨김 (수정 불가처럼 보임) */
+        caret-color: transparent !important; 
         user-select: none !important;
     }
     
     /* === 슬라이더 전체 파란색 테마 강력 적용 === */
-    /* 슬라이더 손잡이(Thumb) */
     div[data-testid="stSlider"] div[role="slider"] {
         background-color: #007bff !important;
         border-color: #007bff !important;
         box-shadow: none !important;
     }
-    /* 스트림릿 내부 인라인 빨간색 강제 덮어쓰기 (트랙 구간) */
     div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
     div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"],
     div[data-testid="stSlider"] div[style*="background: rgb(255, 75, 75)"],
@@ -79,8 +77,6 @@ st.markdown("""
         background-color: #007bff !important;
         background: #007bff !important;
     }
-   
-    /* 슬라이더 날짜 텍스트 파란색 적용 */
     [data-testid="stTickBarMin"],
     [data-testid="stTickBarMax"],
     [data-testid="stThumbValue"] {
@@ -92,7 +88,6 @@ st.markdown("""
     .fin-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; table-layout: fixed; }
     .fin-table th { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; color: #555; }
     .fin-table td { border-bottom: 1px solid #eee; padding: 8px; text-align: right; vertical-align: middle; }
-    /* 첫 번째 열(항목명) 너비 고정으로 정렬 맞춤 (칸 앞에 딱 붙도록) */
     .fin-table td:first-child {
         text-align: left;
         font-weight: 600;
@@ -101,7 +96,6 @@ st.markdown("""
         word-break: break-all;
     }
     
-    /* === Metric(지표) 텍스트 잘림 방지 === */
     div[data-testid="stMetricValue"] {
         white-space: normal !important;
         word-break: break-all !important;
@@ -122,19 +116,19 @@ st.markdown("""
         padding: 5px 15px;
     }
 
-    /* === 앱크리에이터24 등 모바일 웹뷰 완벽 호환(스크롤/터치) CSS === */
-    div[data-testid="stPlotlyChart"], 
-    div[data-testid="stPlotlyChart"] > div, 
-    div[data-testid="stPlotlyChart"] iframe {
-        touch-action: pan-y !important; 
+    /* 🚨 핵심 우회책: 모바일 스크롤을 위한 차트 우측 안전 여백 (Scroll Safe Zone) 🚨 */
+    div[data-testid="stPlotlyChart"] {
+        padding-right: 12% !important; /* 화면 오른쪽에 차트가 닿지 않는 빈 공간 생성 */
     }
     
-    .js-plotly-plot .plotly, 
-    .js-plotly-plot .plotly div,
-    .js-plotly-plot .plotly svg,
-    .js-plotly-plot .plotly .draglayer,
-    .js-plotly-plot .plotly .nsewdrag {
-        touch-action: pan-y !important; 
+    /* 스크롤 안내 문구 스타일 */
+    .scroll-tip {
+        font-size: 13px;
+        color: #007bff;
+        text-align: right;
+        font-weight: 600;
+        margin-bottom: -15px;
+        padding-right: 12%; /* 여백과 라인 맞추기 */
     }
 </style>
 """, unsafe_allow_html=True)
@@ -211,17 +205,15 @@ def safe_get_fin(df, keys, default='N/A'):
     return default
 
 def format_large_number(num, currency):
-    """조/억 단위 대신 다른 항목처럼 숫자로만 콤마 표시"""
     return f"{num:,.0f} {currency}"
 
 def get_52w_high_low(stock, info_high, info_low):
-    """52주 최저가 0 나오는 문제 해결"""
     high = info_high
     low = info_low
     if low <= 0 or high <= 0:
         try:
             hist = stock.history(period="2y")
-            hist = hist[hist['Low'] > 0] # 0원 오류 방지 필터 추가
+            hist = hist[hist['Low'] > 0] 
             if not hist.empty:
                 high = hist['High'].max()
                 low = hist['Low'].min()
@@ -230,7 +222,6 @@ def get_52w_high_low(stock, info_high, info_low):
     return high, low
 
 def safe_info(info, keys, default='N/A'):
-    """N/A 너무 많이 나오는 문제 해결 - 여러 키 후보군 시도"""
     for k in keys:
         v = info.get(k)
         if v is not None and v != '' and v != 0 and str(v).upper() != 'N/A':
@@ -580,7 +571,6 @@ if user_input:
             interval = "1d" if interval_option == "일봉" else "1wk" if interval_option == "주봉" else "1mo"
             history = stock.history(period="max", interval=interval)
             
-            # [버그 픽스] yfinance에서 가끔 최신 데이터의 가격을 0으로 반환하여 차트가 깨지는 현상 원천 차단
             history = history[(history['Low'] > 0) & (history['High'] > 0) & (history['Close'] > 0)]
             
             raw_min_date = history.index.min().to_pydatetime().date()
@@ -668,17 +658,19 @@ if user_input:
                 fig.update_layout(
                     title=dict(text=f"{user_input} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                     template="plotly_dark",
-                    dragmode=False, # 모바일 스크롤을 위해 드래그 방지
-                    xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True), # 줌 방지
-                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True), # 줌 방지
+                    dragmode=False, 
+                    xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
+                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True),
                     height=520,
                     margin=dict(l=0, r=0, t=40, b=0),
                     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
-                    hovermode="x unified", # 터치 시 깔끔하게 뜨는 박스
+                    hovermode="x unified",
                     clickmode="none"
                 )
                 
-                # staticPlot 제거! 다시 터치(툴팁)를 살리면서 스크롤은 CSS와 fixedrange로 처리
+                st.markdown('<div class="scroll-tip">💡 팁: 앱에서 화면 스크롤 시 화면 맨 오른쪽 여백을 문질러주세요!</div>', unsafe_allow_html=True)
+                
+                # staticPlot 제거 (툴팁 살리기)
                 st.plotly_chart(fig, use_container_width=True, config={
                     'displayModeBar': False,
                     'scrollZoom': False,
@@ -693,7 +685,6 @@ if user_input:
             if st.button("AI 차트 추세 분석 실행"):
                 with st.spinner("순수 기술적 관점에서 차트를 분석하는 중입니다..."):
                     
-                    # 시가, 고가, 저가, 종가를 모두 추출하여 AI에게 넘겨줌 (프라이스 액션 파악용)
                     def get_formatted_history(interval_str, ma_config):
                         temp_hist = stock.history(period="max", interval=interval_str)
                         temp_hist = temp_hist[(temp_hist['Low'] > 0) & (temp_hist['High'] > 0) & (temp_hist['Close'] > 0)].copy()
