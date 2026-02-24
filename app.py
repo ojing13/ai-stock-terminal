@@ -206,6 +206,7 @@ def get_52w_high_low(stock, info_high, info_low):
     if low <= 0 or high <= 0:
         try:
             hist = stock.history(period="2y")
+            hist = hist[hist['Low'] > 0] # 0원 오류 방지 필터 추가
             if not hist.empty:
                 high = hist['High'].max()
                 low = hist['Low'].min()
@@ -587,10 +588,20 @@ if user_input:
             ma_context_str = "차트 데이터 부족"
 
             if not filtered_history.empty:
-                price_min = filtered_history['Low'].min()
-                price_max = filtered_history['High'].max()
-                min_idx = filtered_history['Low'].idxmin()
-                max_idx = filtered_history['High'].idxmax()
+                # 데이터 오류(0원)를 제외한 유효 데이터만 필터링하여 최저/최고점 계산
+                valid_history = filtered_history[filtered_history['Low'] > 0]
+                
+                if not valid_history.empty:
+                    price_min = valid_history['Low'].min()
+                    price_max = valid_history['High'].max()
+                    min_idx = valid_history['Low'].idxmin()
+                    max_idx = valid_history['High'].idxmax()
+                else:
+                    # 모든 데이터가 0 이하인 극단적인 예외 상황 대비
+                    price_min = filtered_history['Low'].min()
+                    price_max = filtered_history['High'].max()
+                    min_idx = filtered_history['Low'].idxmin()
+                    max_idx = filtered_history['High'].idxmax()
                 
                 if interval_option == "일봉":
                     ma_settings = [(5, "MA1(5일)", "#00b0ff"), (20, "MA2(20일)", "#ff9100"), (60, "MA3(60일)", "#ff4081"), (120, "MA4(120일)", "#aa00ff")]
@@ -666,7 +677,7 @@ if user_input:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 차트 추세 분석 실행"):
                 with st.spinner("순수 기술적 관점에서 차트를 분석하는 중입니다..."):
-                    # 가격 데이터와 계산된 이동평균선 데이터를 함께 AI에게 전달
+                    # 종가 데이터뿐만 아니라 계산된 이동평균선 데이터도 AI에게 통째로 전달
                     cols_to_export = ['Close']
                     for w, name, color in ma_settings:
                         if f'MA_{w}' in filtered_history.columns:
@@ -682,24 +693,25 @@ if user_input:
                     [차트 데이터 내역 (날짜, 종가, 이동평균선)]
                     {full_data_csv}
                     
-                    위 데이터를 바탕으로 단순한 가격 등락 나열("얼마에서 얼마로 올랐다")을 절대 금지하고, 실전 트레이더 수준의 깊이 있는 '기술적 분석(Technical Analysis)' 리포트를 작성해주세요. 
+                    위 데이터를 바탕으로 실전 트레이더 수준의 깊이 있는 '기술적 분석(Technical Analysis)' 리포트를 작성해주세요. 
                     
                     [🚨 기술적 분석 핵심 지시사항 🚨]
-                    1. [필수 분석]: 이동평균선(MA) 간의 이격도, 골든크로스/데드크로스, 정배열/역배열 상태 등을 반드시 분석하여 추세의 힘과 지지/저항 구간을 도출하세요. (60일/주선은 중장기 MA, 120일/주선은 장기 MA로 간주할 것)
-                    2. [초보적 서술 금지]: "A일에 B원이었고 C일에 D원으로 떨어졌다" 식의 단순 가격 읽기를 강력히 금지합니다. 차트의 '구조'와 '모멘텀'을 전문가의 시선으로 융합 분석하세요.
-                    3. [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요. 소제목은 마크다운 헤딩(###)으로 작성하고, 문단과 문단 사이에는 빈 줄(Enter 2번)을 넣어 완벽하게 분리하세요.
-                    4. [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장(예: **정배열 진입**, **단기 지지선 이탈** 등)은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.
-                    5. [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔하고 객관적인 톤을 유지하세요.
-                    6. [항목 제한]: 분석 항목은 무조건 '1. 단기적인 추세', '2. 장기적인 추세' 딱 두 가지만 출력하세요. '중기적인 추세' 같은 임의의 항목을 절대 추가하지 마세요.
+                    1. [가격과 기술의 조화]: 이동평균선(이격도, 골든크로스, 정배열/역배열 등) 같은 전문적인 기술적 지표를 적극 활용하되, 반드시 **의미 있는 구체적인 가격대(예: 150,000원 선 지지, 전고점 180,000원 돌파 등)**를 함께 엮어서 설명하세요. 너무 기술적 용어만 나열하지 말고 실제 주가 흐름과 직관적으로 연결해야 합니다.
+                    2. 마크다운 수식 오류 방지: 가격 범위나 기간 표시 시 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'로 표기할 것)
+                    3. 기계적인 기간 설정 금지: 장기 추세를 분석할 때 스스로 의미 있는 기간을 정의하세요.
+                    4. [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요. 소제목은 마크다운 헤딩(###)으로 작성하고, 문단과 문단 사이에는 빈 줄(Enter 2번)을 넣어 완벽하게 분리하세요.
+                    5. [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장 및 주요 가격은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 절대 변경하지 마세요.
+                    6. [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔하고 객관적인 톤을 유지하세요.
+                    7. [항목 제한]: 분석 항목은 무조건 '1. 단기적인 추세', '2. 장기적인 추세' 딱 두 가지만 출력하세요. '중기적인 추세' 같은 임의의 항목을 절대 추가하지 마세요.
 
                     [출력 형식 가이드]
                     ### 1. 단기적인 추세 (Short-term trend)
 
-                    단기 이동평균선 간의 관계, 최근 매수/매도 세력의 힘, 주요 단기 지지/저항 라인을 분석합니다. 글머리 기호 없이 일반 문단으로 작성하세요.
+                    단기 이동평균선과 실제 가격의 움직임을 바탕으로 최근 매수/매도 세력의 힘, 주요 단기 지지/저항 가격대를 분석합니다. 글머리 기호 없이 일반 문단으로 작성하세요.
 
                     ### 2. 장기적인 추세 (Long-term trend)
 
-                    중장기 및 장기 이동평균선의 배열 상태, 거시적인 박스권 돌파 여부 등 큰 흐름의 차트 구조를 분석합니다. 글머리 기호 없이 일반 문단으로 작성하세요.
+                    중장기 및 장기 이동평균선의 배열 상태, 큰 흐름에서의 중요한 가격대 돌파 여부 등 전체적인 차트 구조를 분석합니다. 글머리 기호 없이 일반 문단으로 작성하세요.
                     """
                     response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                     st.info(response.text)
