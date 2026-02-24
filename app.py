@@ -101,42 +101,12 @@ st.markdown("""
         word-break: break-all;
     }
     
-    /* === 커스텀 지표(Metric) 그리드 디자인 (오류 방지용) === */
-    .custom-metric-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 20px;
-        margin-bottom: 20px;
-    }
-    .custom-metric-item {
-        display: flex;
-        flex-direction: column;
-    }
-    .custom-metric-label {
-        font-size: 14px;
-        color: #555555;
-        margin-bottom: 4px;
-    }
-    .custom-metric-value {
-        font-size: 24px;
-        font-weight: 700;
-        color: #111111;
-        line-height: 1.2;
-        word-break: break-all; /* 숫자가 길면 자동 줄바꿈 */
-    }
-
-    /* 모바일 환경에서 2열로 강제 변경 및 폰트 축소 */
-    @media (max-width: 768px) {
-        .custom-metric-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-        }
-        .custom-metric-value {
-            font-size: 18px !important; /* 모바일에서 폰트 크기 줄임 */
-        }
-        .custom-metric-label {
-            font-size: 12px !important;
-        }
+    /* === Metric(지표) 텍스트 잘림 방지 === */
+    div[data-testid="stMetricValue"] {
+        white-space: normal !important;
+        word-break: break-all !important;
+        font-size: 1.4rem !important; 
+        line-height: 1.2 !important;
     }
 
     /* === 불필요한 UI 완벽 숨기기 === */
@@ -741,40 +711,31 @@ if user_input:
         # --- [탭 2: 상세 재무] ---
         with tab2:
             st.subheader("1. 가치 및 안정성 지표")
+            c1, c2, c3, c4 = st.columns(4)
             
-            # 스트림릿 고유 버그(모바일 1열 강제 변경)를 우회하기 위한 커스텀 HTML Grid 방식
-            debt_str = f"{debt}%" if debt != 'N/A' else 'N/A'
-            high_low_str = f"{high_52:{price_fmt}} {currency} /<br>{low_52:{price_fmt}} {currency}"
+            c1.metric("시가총액", format_large_number(market_cap, currency))
+            c1.metric("Trailing PER", fmt_flt(trailing_pe))
+            c1.metric("Forward PER", fmt_flt(forward_pe))
+            c1.metric("PBR", fmt_flt(pb))
+            c1.metric("PSR", fmt_flt(psr))
             
-            metrics_html = f"""
-            <div class="custom-metric-grid">
-                <div class="custom-metric-item"><div class="custom-metric-label">시가총액</div><div class="custom-metric-value">{format_large_number(market_cap, currency)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">PEG</div><div class="custom-metric-value">{fmt_flt(peg)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">매출총이익률</div><div class="custom-metric-value">{fmt_pct(gross_margin)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">부채비율</div><div class="custom-metric-value">{debt_str}</div></div>
-
-                <div class="custom-metric-item"><div class="custom-metric-label">Trailing PER</div><div class="custom-metric-value">{fmt_flt(trailing_pe)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">EV/EBITDA</div><div class="custom-metric-value">{fmt_flt(ev_ebitda)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">영업이익률</div><div class="custom-metric-value">{fmt_pct(op_margin)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">유동비율</div><div class="custom-metric-value">{fmt_flt(current_ratio)}</div></div>
-
-                <div class="custom-metric-item"><div class="custom-metric-label">Forward PER</div><div class="custom-metric-value">{fmt_flt(forward_pe)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">ROE</div><div class="custom-metric-value">{fmt_pct(roe)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">순이익률</div><div class="custom-metric-value">{fmt_pct(net_margin)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">당좌비율</div><div class="custom-metric-value">{fmt_flt(quick_ratio)}</div></div>
-
-                <div class="custom-metric-item"><div class="custom-metric-label">PBR</div><div class="custom-metric-value">{fmt_flt(pb)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">ROA</div><div class="custom-metric-value">{fmt_pct(roa)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">매출 성장률</div><div class="custom-metric-value">{fmt_pct(rev_growth)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">이자보상배율</div><div class="custom-metric-value">{interest_cov}</div></div>
-
-                <div class="custom-metric-item"><div class="custom-metric-label">PSR</div><div class="custom-metric-value">{fmt_flt(psr)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">ROIC</div><div class="custom-metric-value">{fmt_pct(roic)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">배당 수익률</div><div class="custom-metric-value">{fmt_pct(div_yield, is_dividend=True)}</div></div>
-                <div class="custom-metric-item"><div class="custom-metric-label">52주 최고/최저</div><div class="custom-metric-value" style="font-size: 1.4rem;">{high_low_str}</div></div>
-            </div>
-            """
-            st.markdown(metrics_html, unsafe_allow_html=True)
+            c2.metric("PEG", fmt_flt(peg))
+            c2.metric("EV/EBITDA", fmt_flt(ev_ebitda))
+            c2.metric("ROE", fmt_pct(roe))
+            c2.metric("ROA", fmt_pct(roa))
+            c2.metric("ROIC", fmt_pct(roic))
+            
+            c3.metric("매출총이익률", fmt_pct(gross_margin))
+            c3.metric("영업이익률", fmt_pct(op_margin))
+            c3.metric("순이익률", fmt_pct(net_margin))
+            c3.metric("매출 성장률", fmt_pct(rev_growth))
+            c3.metric("배당 수익률", fmt_pct(div_yield, is_dividend=True))
+            
+            c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
+            c4.metric("유동비율", fmt_flt(current_ratio))
+            c4.metric("당좌비율", fmt_flt(quick_ratio))
+            c4.metric("이자보상배율", interest_cov)
+            c4.metric("52주 최고/최저", f"{high_52:{price_fmt}} {currency} / {low_52:{price_fmt}} {currency}")
             
             st.markdown("---")
             st.subheader("2. 재무제표 요약 (최근 결산)")
@@ -939,11 +900,11 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         진입 추천가: 000 원
                         
-                        논리적 근거: 차트를 분석하여 유의미한 기술적 지표(이평선, 지지/저항선 등)나 재무적 근거가 있을 경우에만 이를 포함하여 자연스럽게 작성합니다.
+                        논리적 근거: 차트를 분석하여 유의미한 기술적 지표(이평선, 지지/저항선 등)나 재무적 근거가 있을 경우에만 이를 포함하여 논리적으로 작성합니다.
                         
                         1차 목표가: 000 원
                         
-                        논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 근거를 설명)
+                        논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 근거를 자연스럽게 엮어서 설명)
                         
                         🚨 [최고급 퀀트 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
                         - [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.
