@@ -123,7 +123,6 @@ st.markdown("""
     }
 
     /* === 앱크리에이터24 등 모바일 웹뷰 완벽 호환(스크롤/터치) CSS === */
-    /* Plotly 차트 영역이 모바일의 기본 위아래 스크롤을 막지 못하도록 강제 */
     div[data-testid="stPlotlyChart"], 
     div[data-testid="stPlotlyChart"] > div, 
     div[data-testid="stPlotlyChart"] iframe {
@@ -669,22 +668,20 @@ if user_input:
                 fig.update_layout(
                     title=dict(text=f"{user_input} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                     template="plotly_dark",
-                    dragmode=False, # 1. 차트 안에서 드래그(확대/축소)되는 것을 완전히 막아 스크롤 허용
+                    dragmode=False,
                     xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
                     yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True),
                     height=520,
                     margin=dict(l=0, r=0, t=40, b=0),
                     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
-                    hovermode="x", # 2. 'x unified' 대신 'x' 사용 (모바일에서 박스가 안 사라지는 잔상 버그 최소화)
-                    clickmode="none" # 3. 불필요한 클릭 이벤트 차단
+                    hovermode="x",
+                    clickmode="none"
                 )
                 
-                # Plotly 모바일 웹뷰 터치 최적화 설정
+                # Plotly 모바일 웹뷰 터치 스크롤 먹통 해결 (정적 이미지화 적용)
                 st.plotly_chart(fig, use_container_width=True, config={
                     'displayModeBar': False,
-                    'scrollZoom': False,
-                    'showAxisDragHandles': False,
-                    'doubleClick': False
+                    'staticPlot': True  # 차트를 완벽한 정적 이미지로 변환하여 터치 이벤트 완전 차단
                 })
             else:
                 st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더를 조절해 주세요!")
@@ -969,6 +966,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         🚨 [최고급 퀀트 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
                         - [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.
                         - [가독성 철저]: 위 형식 가이드를 완벽히 지켜서, 땡땡 표시 없이 제목과 문단 구분을 통해 마치 잘 쓰여진 신문 기사나 리포트 본문처럼 보이게 하세요.
+                        - [균형 잡힌 차트 분석]: 기술적 지표를 언급할 때 이동평균선에만 집착하지 말고, 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 자연스럽게 설명하세요.
                         - [핵심 강조]: 전체 리포트에서 핵심이 되는 주요 단어나 결과 문장은 반드시 **굵은 글씨(**)**로 강조해서 핵심을 짚어주세요. 폰트 변경은 불가합니다.
                         - [직접 인용 및 작위적 표현 완벽 금지]: 리포트 내에 '뉴스', '기사', '헤드라인'이라는 단어를 아예 사용하지 마세요. 기사 문장을 절대 복사하지 마세요. 또한 "표면적 지표 이면의", "숨겨진 리스크" 같은 시스템 지시어 느낌의 단어 자체를 쓰지 마세요. 마치 당신이 현업에서 직접 시장을 모니터링하며 얻은 팩트인 것처럼 유려하게 서술하세요.
                         - [배경 지식 총동원]: 제공된 수치와 텍스트에만 갇히지 마세요. 당신이 학습한 해당 기업의 최근 거시경제(금리, 인플레 등) 환경, 산업 트렌드(AI, 반도체 등),경쟁사 동향, 대규모 투자(CapEx) 현황을 융합하여 인과관계를 설명하세요.
@@ -986,4 +984,3 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"오류가 발생했습니다: {e}")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
-
