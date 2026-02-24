@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 from bs4 import BeautifulSoup
 import math
+import re # 숫자 코드 정규식을 위해 추가
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI Stock Terminal")
@@ -26,6 +27,8 @@ st.markdown("""
     /* 모바일 환경 폰트 사이즈 조절 */
     @media (max-width: 768px) {
         h1 { font-size: 1.5rem !important; word-break: keep-all; }
+        /* 모바일에서 언어 선택기 간격 띄우기 */
+        .mobile-lang-spacer { margin-top: 10px; }
     }
 
     /* 탭(항목) 기본 디자인 */
@@ -80,7 +83,7 @@ st.markdown("""
 lang_dict = {
     "한국어": {
         "title": "웅이의 AI 주식 분석 터미널",
-        "search_label": "분석할 종목명 또는 티커 (예: 삼성전자, AAPL)",
+        "search_label": "종목명 또는 티커 (한국/미국/일본 4자리 코드)",
         "tabs": ["차트 분석", "상세 재무", "최신 동향", "종합 리포트"],
         "cur_price_label": "현재가",
         "chart_interval": "차트 주기",
@@ -97,7 +100,7 @@ lang_dict = {
         "loading_sentiment": "시장 참여자들의 투심을 분석하는 중입니다...",
         "loading_report": "모든 데이터를 종합하여 분석하는 중입니다...",
         "err_503": "⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요!",
-        "err_notfound": "'{}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!",
+        "err_notfound": "'{}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 코드를 입력해 주세요!",
         "tone_prompt": "반드시 '~습니다', '~입니다' 형태의 정중한 한국어로 작성하세요.",
         "lang_prompt": "한국어",
         "sub_fin1": "1. 가치 및 안정성 지표",
@@ -107,13 +110,13 @@ lang_dict = {
         "date_base": "기준일",
         "news_ref": "**📌 참고한 실시간 뉴스 원문 (클릭해서 바로 이동)**",
         "no_news_link": "뉴스 링크를 불러올 수 없습니다.",
-        "currency_kr": "원", "currency_us": "달러",
+        "currency_kr": "원", "currency_us": "달러", "currency_jp": "엔",
         "metrics": ["시가총액", "Trailing PER", "Forward PER", "PBR", "PSR", "PEG", "EV/EBITDA", "ROE", "ROA", "ROIC", "매출총이익률", "영업이익률", "순이익률", "매출 성장률", "배당 수익률", "부채비율", "유동비율", "당좌비율", "이자보상배율", "52주 최고/최저"],
         "tables": ["손익계산서", "매출액", "매출원가", "매출총이익", "판매관리비", "영업이익", "법인세차감전순이익", "당기순이익", "기타포괄손익", "재무상태표", "자산총계", "유동자산", "현금및현금성자산", "매출채권", "재고자산", "비유동자산", "유형자산", "무형자산", "부채총계", "유동부채", "단기차입금", "비유동부채", "장기차입금", "자본총계", "자본금", "자본잉여금", "이익잉여금", "현금흐름표", "기초현금", "영업활동현금흐름", "투자활동현금흐름", "재무활동현금흐름", "배당금 지급", "기말현금"]
     },
     "English": {
         "title": "AI Stock Analysis Terminal",
-        "search_label": "Enter Stock Name or Ticker (e.g., AAPL, MSFT)",
+        "search_label": "Enter Stock Name or Ticker (US/KR/JP code)",
         "tabs": ["Chart Analysis", "Financials", "Latest Trends", "Comprehensive Report"],
         "cur_price_label": "Current Price",
         "chart_interval": "Chart Interval",
@@ -140,13 +143,13 @@ lang_dict = {
         "date_base": "As of",
         "news_ref": "**📌 Referenced Real-time News Articles (Click to open)**",
         "no_news_link": "Could not load news links.",
-        "currency_kr": "KRW", "currency_us": "USD",
+        "currency_kr": "KRW", "currency_us": "USD", "currency_jp": "JPY",
         "metrics": ["Market Cap", "Trailing PE", "Forward PE", "PBR", "PSR", "PEG", "EV/EBITDA", "ROE", "ROA", "ROIC", "Gross Margin", "Operating Margin", "Net Margin", "Revenue Growth", "Dividend Yield", "Debt to Equity", "Current Ratio", "Quick Ratio", "Int. Coverage", "52W High/Low"],
         "tables": ["Income Statement", "Total Revenue", "Cost Of Revenue", "Gross Profit", "SG&A", "Operating Income", "Pretax Income", "Net Income", "Other Comp. Income", "Balance Sheet", "Total Assets", "Current Assets", "Cash & Equivalents", "Receivables", "Inventory", "Non-Current Assets", "PPE", "Intangible Assets", "Total Liab.", "Current Liab.", "Short-Term Debt", "Non-Current Liab.", "Long-Term Debt", "Total Equity", "Capital Stock", "Capital Surplus", "Retained Earnings", "Cash Flow", "Beginning Cash", "Operating CF", "Investing CF", "Financing CF", "Dividends Paid", "Ending Cash"]
     },
     "日本語": {
         "title": "AI株式分析ターミナル",
-        "search_label": "分析する銘柄名またはティッカー (例: トヨタ, AAPL)",
+        "search_label": "銘柄名またはティッカー (日/米/韓コード)",
         "tabs": ["チャート分析", "詳細財務", "最新動向", "総合レポート"],
         "cur_price_label": "現在値",
         "chart_interval": "チャート周期",
@@ -173,16 +176,29 @@ lang_dict = {
         "date_base": "基準日",
         "news_ref": "**📌 参考にした最新ニュース記事 (クリックして移動)**",
         "no_news_link": "ニュースリンクを読み込めませんでした。",
-        "currency_kr": "ウォン", "currency_us": "ドル",
+        "currency_kr": "ウォン", "currency_us": "ドル", "currency_jp": "円",
         "metrics": ["時価総額", "実績PER", "予想PER", "PBR", "PSR", "PEG", "EV/EBITDA", "ROE", "ROA", "ROIC", "売上総利益率", "営業利益率", "純利益率", "売上成長率", "配当利回り", "負債比率", "流動比率", "当座比率", "インタレスト・カバレッジ", "52週高値/安値"],
         "tables": ["損益計算書", "売上高", "売上原価", "売上総利益", "販売管理費", "営業利益", "税引前当期純利益", "当期純利益", "その他の包括利益", "財務状態表", "資産合計", "流動資産", "現金及び現金同等物", "売掛金", "棚卸資産", "非流動資産", "有形固定資産", "無形資産", "負債合計", "流動負債", "短期借入金", "非流動負債", "長期借入金", "資本合計", "資本金", "資本剰余金", "利益剰余金", "キャッシュフロー表", "期首残高", "営業CF", "投資CF", "財務CF", "配当金支払", "期末残高"]
     }
 }
 
-# 사이드바 언어 선택
-st.sidebar.title("🌐 Language")
-selected_lang = st.sidebar.selectbox("언어 / Language / 言語", ["한국어", "English", "日本語"], index=0)
-t = lang_dict[selected_lang]
+# Session State로 언어 저장
+if 'lang' not in st.session_state:
+    st.session_state['lang'] = "한국어"
+
+# --- 화면 최상단 UI: 타이틀과 언어 선택 드롭다운을 깔끔하게 배치 ---
+col_title, col_lang = st.columns([7, 3])
+with col_title:
+    st.title(lang_dict[st.session_state['lang']]["title"])
+with col_lang:
+    st.markdown("<div class='mobile-lang-spacer'></div>", unsafe_allow_html=True)
+    selected_lang = st.selectbox("Language", ["한국어", "English", "日本語"], index=["한국어", "English", "日本語"].index(st.session_state['lang']), label_visibility="collapsed")
+    if selected_lang != st.session_state['lang']:
+        st.session_state['lang'] = selected_lang
+        st.rerun()
+
+t = lang_dict[st.session_state['lang']]
+st.markdown("---")
 
 try:
     MY_API_KEY = st.secrets["GEMINI_API_KEY"]
@@ -199,13 +215,27 @@ krx_df = load_krx_data()
 
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
+    
+    # 1. 일본 주식 4자리 숫자 코드 입력 처리 (예: 7203 -> 7203.T)
+    if re.match(r'^\d{4}$', search_term):
+        return f"{search_term}.T"
+        
+    # 2. 한국 주식 6자리 숫자 코드 입력 처리 (예: 005930 -> 005930.KS)
+    if re.match(r'^\d{6}$', search_term):
+        match = krx_df[krx_df['Code'] == search_term]
+        if not match.empty:
+            market = match.iloc[0]['Market']
+            return f"{search_term}.KS" if market == 'KOSPI' else f"{search_term}.KQ"
+        return f"{search_term}.KS" # 기본값 KOSPI
    
+    # 3. 한국어 종목명 검색
     match = krx_df[krx_df['Name'] == search_term]
     if not match.empty:
         code = match.iloc[0]['Code']
         market = match.iloc[0]['Market']
         if market == 'KOSPI': return f"{code}.KS"
         else: return f"{code}.KQ"
+        
     us_dict = {
         "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT",
         "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META",
@@ -225,8 +255,17 @@ def get_ticker_symbol(search_term):
             return data['quotes'][0]['symbol']
     except:
         pass
+        
+    # 4. 한/미/일 범용 AI 번역기
     try:
-        translate_prompt = f"Translate the following Korean stock name to its official English company name or ticker. Output ONLY the English name or ticker. Name: {search_term}"
+        translate_prompt = f"""
+        Find the official Yahoo Finance ticker symbol for the following company name.
+        - US companies: standard ticker (e.g., AAPL).
+        - Japanese companies: 4-digit code + '.T' (e.g., Toyota -> 7203.T, 任天堂 -> 7974.T).
+        - Korean companies: 6-digit code + '.KS' or '.KQ' (e.g., Samsung -> 005930.KS).
+        Output ONLY the ticker symbol. No markdown, no extra text.
+        Name: {search_term}
+        """
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=translate_prompt)
         eng_name = trans_response.text.strip()
         url_eng = f"https://query2.finance.yahoo.com/v1/finance/search?q={eng_name}"
@@ -309,6 +348,7 @@ def augment_korean_fundamentals(ticker, info):
                     if not th: continue
                     title = th.text.strip()
                     tds = row.find_all('td')
+                    
                     valid_vals = []
                     for td in tds:
                         txt = td.text.strip().replace(',', '')
@@ -316,6 +356,7 @@ def augment_korean_fundamentals(ticker, info):
                             valid_vals.append(float(txt))
                         except:
                             pass
+                    
                     if not valid_vals: continue
                     recent_val = valid_vals[-1] 
                     
@@ -336,7 +377,7 @@ def augment_korean_fundamentals(ticker, info):
     return info
 
 def augment_us_fundamentals(ticker, info):
-    if ticker.endswith('.KS') or ticker.endswith('.KQ'):
+    if ticker.endswith('.KS') or ticker.endswith('.KQ') or ticker.endswith('.T'):
         return info
     try:
         url = f"https://finviz.com/quote.ashx?t={ticker}"
@@ -401,10 +442,7 @@ def get_article_text(url):
     except:
         return ""
 
-# ====================== 메인 ======================
-st.title(t["title"])
-st.markdown("---")
-
+# 메인 검색창
 col_search, _ = st.columns([1, 2])
 with col_search:
     user_input = st.text_input(t["search_label"], "")
@@ -432,16 +470,27 @@ if user_input:
        
         news_list = []
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
-        currency = t["currency_kr"] if is_korean_stock else t["currency_us"]
+        is_japanese_stock = ticker.endswith('.T')
         
-        price_fmt = ",.0f" if is_korean_stock else ",.2f"
+        if is_korean_stock:
+            currency = t["currency_kr"]
+            price_fmt = ",.0f"
+        elif is_japanese_stock:
+            currency = t["currency_jp"]
+            price_fmt = ",.0f" # 엔화도 소수점 생략
+        else:
+            currency = t["currency_us"]
+            price_fmt = ",.2f"
         
-        # 뉴스 100개 수집
+        # 국가별 맞춤 뉴스 기사 100개 수집
         try:
             if is_korean_stock:
                 rss_url = f"https://news.google.com/rss/search?q={user_input}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
+            elif is_japanese_stock:
+                rss_url = f"https://news.google.com/rss/search?q={user_input}+株&hl=ja&gl=JP&ceid=JP:ja"
             else:
                 rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
+                
             response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
             root = ET.fromstring(response.content)
             for item in root.findall('.//item')[:100]:
@@ -596,7 +645,7 @@ if user_input:
             
             selected_start, selected_end = st.slider(
                 t["date_range"], min_value=min_date, max_value=max_date,
-                value=(default_start, max_date), format="YYYY-MM-DD", label_visibility="collapsed"
+                value=(default_start, max_date), format="YYYY-MM-DD", label_visibility="collapsed", key=f"slider_{ticker}" 
             )
             
             mask = (history.index.date >= selected_start) & (history.index.date <= selected_end)
