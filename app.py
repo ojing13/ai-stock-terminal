@@ -388,9 +388,9 @@ if user_input:
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         currency = "원" if is_korean_stock else "달러"
         
-        # 툴팁 'k' 문제 해결을 위한 숫자 포맷팅 강제 지정
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
+        # [수정] 뉴스 기사 수집량을 10개에서 100개로 대폭 증가
         try:
             if is_korean_stock:
                 rss_url = f"https://news.google.com/rss/search?q={user_input}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
@@ -398,7 +398,7 @@ if user_input:
                 rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
             response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
             root = ET.fromstring(response.content)
-            for item in root.findall('.//item')[:10]:
+            for item in root.findall('.//item')[:100]:
                 title = item.find('title').text if item.find('title') is not None else "No title"
                 link = item.find('link').text if item.find('link') is not None else "#"
                 desc = item.find('description').text if item.find('description') is not None else ""
@@ -412,7 +412,7 @@ if user_input:
         if not news_list:
             try:
                 raw_news = stock.news
-                for n in raw_news[:10]:
+                for n in raw_news[:100]:
                     if isinstance(n, dict) and 'title' in n and 'link' in n:
                         link = n['link']
                         title = n['title']
@@ -611,7 +611,6 @@ if user_input:
                 
                 fig = go.Figure()
                 
-                # 툴팁에서 k단위 나오는 것 방지를 위해 y축, hoverformat 완벽 셋팅
                 fig.add_trace(go.Candlestick(
                     x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                     low=filtered_history['Low'], close=filtered_history['Close'],
@@ -625,7 +624,7 @@ if user_input:
                         y=filtered_history[f'MA_{w}'], 
                         name=name,
                         line=dict(color=color, width=1.0),
-                        hovertemplate=f'%{{y:{price_fmt}}}' # 이동평균선 툴팁 강제 포맷팅
+                        hovertemplate=f'%{{y:{price_fmt}}}'
                     ))
                 
                 fig.add_annotation(
@@ -724,7 +723,6 @@ if user_input:
                     일/주/월봉을 아우르는 큰 흐름에서의 추세와 차트 구조를 분석합니다. 유의미할 경우에 한해 중장기 추세선, 거시적 가격대 돌파 여부 등을 언급하세요. 글머리 기호 없이 일반 문단으로 작성하세요.
                     """
                     try:
-                        # [수정] AI가 검색을 핑계로 헛소리를 하지 않도록 온도를 0.1(매우 논리적)로 세팅
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', 
                             contents=prompt,
@@ -857,7 +855,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
 """
                     try:
-                        # [수정] 철저히 숫자(팩트) 위주로 분석하도록 온도를 0.1로 고정
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', 
                             contents=prompt,
@@ -876,9 +873,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news1:
                 if st.button("AI 최신 동향 브리핑"):
                     with st.spinner("최신 뉴스를 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 핵심 기사 10개의 제목과 본문 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장(예: **호실적 발표**, **공급망 이슈** 등)은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지."
+                        # [수정] 기사 개수 관련 언급 제거 및 비밀 유지 지시사항 추가
+                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장(예: **호실적 발표**, **공급망 이슈** 등)은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다', '다수의 기사에서'와 같이 수집된 기사의 개수나 규모를 직접적으로 절대 언급하지 마세요."
                         try:
-                            # [수정] 팩트 기반 요약을 위해 온도 0.1 세팅
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', 
                                 contents=prompt,
@@ -891,7 +888,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.markdown("---")
                         st.markdown("**📌 참고한 실시간 뉴스 원문 (클릭해서 바로 이동)**")
                         if news_list:
-                            for item in news_list:
+                            # [수정] 100개를 수집했지만 화면에는 상위 10개만 보여주기
+                            for item in news_list[:10]:
                                 st.markdown(f"• <a href='{item['link']}' target='_blank'>{item['title']}</a>", unsafe_allow_html=True)
                         else:
                             st.write("뉴스 링크를 불러올 수 없습니다.")
@@ -899,9 +897,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 기사 10개의 제목과 본문 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. '수집된 뉴스에 의하면' 같은 어색한 말도 금지합니다. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지."
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. '수집된 뉴스에 의하면' 같은 어색한 말도 금지합니다. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다', '다수의 기사에서'와 같이 수집된 기사의 개수나 규모를 직접적으로 절대 언급하지 마세요."
                         try:
-                            # [수정] 팩트 기반 요약을 위해 온도 0.1 세팅
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', 
                                 contents=prompt,
@@ -915,7 +912,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
         with tab4:
             st.subheader("AI 퀀트 애널리스트 최종 브리핑")
             if st.button("원클릭 종합 분석 리포트 생성"):
-                with st.spinner('순수 기술적 관점에서 차트를 분석하는 중입니다...'):
+                # [수정] 탭 4 로딩 문구 변경
+                with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
                     prompt = f"""
                     오늘은 {today_date}입니다. {ticker} 종목을 종합적으로 분석해주세요.
                     
@@ -966,9 +964,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - [맹목적 긍정 금지 및 리스크 직시]: 부채비율이 높거나 자본잠식 상태일 때, 무조건 주주환원에 의한 '착한 부채'로 포장하지 마세요. '이자보상배율', '현금흐름', '동향'을 교차 검증하여, 과도한 인프라/M&A 투자로 인한 이자 부담이나 시장이 실제로 우려하는 치명적 리스크라면 아주 냉철하게 경고하세요.
                     - [시장 심리(Fear & Greed) 통찰]: 주가가 크게 하락했거나 변동성이 크다면, 동향의 행간 의미를 파악해 현재 시장 참여자들이 무엇에 공포를 느끼고 있는지 평가에 명확히 반영하세요.
                     - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
+                    - [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다', '다수의 기사에서'와 같이 수집된 기사의 개수나 규모를 직접적으로 절대 언급하지 마세요.
                     """
                     try:
-                        # [수정] 가장 중요한 최종 리포트이므로 온도 0.1 세팅
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', 
                             contents=prompt,
