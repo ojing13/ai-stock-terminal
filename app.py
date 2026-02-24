@@ -109,15 +109,29 @@ st.markdown("""
         line-height: 1.2 !important;
     }
     
-    /* === 모바일 4열 지표 2열 배치 강제 (가치 및 안정성 지표) === */
+    /* === 모바일 4열 지표 강제 2열 배치 및 폰트 최적화 === */
     @media (max-width: 768px) {
+        /* 부모 컨테이너를 가로 정렬로 강제 복구 (Streamlit은 모바일에서 column으로 바꿈) */
         div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(4)) {
+            flex-direction: row !important;
             flex-wrap: wrap !important;
+            row-gap: 10px !important; /* 상하 여백 */
         }
+        /* 각 컬럼을 50% 너비로 강제 분할 */
         div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(4)) > div[data-testid="column"] {
             width: calc(50% - 0.5rem) !important;
             flex: 0 0 calc(50% - 0.5rem) !important;
             min-width: calc(50% - 0.5rem) !important;
+        }
+        /* 모바일에서 숫자가 길면 잘리지 않고 줄바꿈되도록 폰트 크기 대폭 축소 */
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(4)) div[data-testid="stMetricValue"] {
+            font-size: 1.0rem !important; 
+            line-height: 1.3 !important;
+            word-break: break-all !important; 
+        }
+        /* 라벨 폰트 크기 축소 */
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(4)) [data-testid="stMetricLabel"] * {
+            font-size: 0.85rem !important;
         }
     }
 
@@ -912,11 +926,11 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         진입 추천가: 000 원
                         
-                        논리적 근거: 차트를 분석하여 유의미한 기술적 지표(이평선, 지지/저항선 등)나 재무적 근거가 있을 경우에만 이를 포함하여 논리적으로 작성합니다.
+                        논리적 근거: 차트를 분석하여 유의미한 기술적 지표(이평선, 지지/저항선 등)나 재무적 근거가 있을 경우에만 이를 포함하여 자연스럽게 작성합니다.
                         
                         1차 목표가: 000 원
                         
-                        논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 근거를 자연스럽게 엮어서 설명)
+                        논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 근거를 설명)
                         
                         🚨 [최고급 퀀트 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
                         - [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.
