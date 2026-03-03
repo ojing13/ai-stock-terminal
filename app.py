@@ -129,18 +129,32 @@ client = genai.Client(api_key=MY_API_KEY)
 
 @st.cache_data
 def load_krx_data():
-    return fdr.StockListing('KRX')
+    try:
+        # 1차 시도: 전체 KRX 데이터
+        return fdr.StockListing('KRX')
+    except Exception:
+        try:
+            # 2차 시도: KOSPI, KOSDAQ 분리해서 시도
+            kospi = fdr.StockListing('KOSPI')
+            kosdaq = fdr.StockListing('KOSDAQ')
+            return pd.concat([kospi, kosdaq], ignore_index=True)
+        except Exception:
+            # 모두 실패 시 빈 데이터프레임 반환 (앱 크래시 방지)
+            return pd.DataFrame(columns=['Code', 'Name', 'Market'])
+
 krx_df = load_krx_data()
 
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
-   
-    match = krx_df[krx_df['Name'] == search_term]
-    if not match.empty:
-        code = match.iloc[0]['Code']
-        market = match.iloc[0]['Market']
-        if market == 'KOSPI': return f"{code}.KS"
-        else: return f"{code}.KQ"
+    
+    if not krx_df.empty:
+        match = krx_df[krx_df['Name'] == search_term]
+        if not match.empty:
+            code = match.iloc[0]['Code']
+            market = match.iloc[0]['Market']
+            if market == 'KOSPI': return f"{code}.KS"
+            else: return f"{code}.KQ"
+            
     us_dict = {
         "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT",
         "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META",
@@ -160,6 +174,7 @@ def get_ticker_symbol(search_term):
             return data['quotes'][0]['symbol']
     except:
         pass
+        
     try:
         translate_prompt = f"""당신은 세계 최고의 주식 종목 번역 전문가입니다.
 다음 한국어 주식 종목명을 정확한 영어 공식명으로 번역해주세요.
@@ -376,14 +391,14 @@ if user_input:
         info = augment_us_fundamentals(ticker, info) 
         
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
-       
+        
         try: fin_df = stock.financials
         except: fin_df = pd.DataFrame()
         try: bs_df = stock.balance_sheet
         except: bs_df = pd.DataFrame()
         try: cf_df = stock.cashflow
         except: cf_df = pd.DataFrame()
-       
+        
         news_list = []
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         currency = "원" if is_korean_stock else "달러"
