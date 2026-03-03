@@ -381,17 +381,29 @@ with col_search:
 if user_input:
     ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
-    hist_basic = stock.history(period="1d")
+    
+    # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit 발생 시 빈 데이터프레임으로 넘기기
+    try:
+        hist_basic = stock.history(period="1d")
+    except Exception:
+        hist_basic = pd.DataFrame()
   
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
         
-        info = stock.info
+        # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit (주로 여기서 발생)
+        try:
+            info = stock.info
+        except Exception:
+            info = {}
+            st.warning("⚠️ 야후 파이낸스 일시적 접속 제한으로 일부 데이터를 불러오지 못했습니다. 대체 데이터를 활용합니다.")
+            
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
         
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
         
+        # ⚠️ 방어 코드: 재무제표 관련 데이터
         try: fin_df = stock.financials
         except: fin_df = pd.DataFrame()
         try: bs_df = stock.balance_sheet
@@ -571,116 +583,125 @@ if user_input:
                 interval_option = st.selectbox("차트 주기", ("일봉", "주봉", "월봉"), index=0)
             
             interval = "1d" if interval_option == "일봉" else "1wk" if interval_option == "주봉" else "1mo"
-            history = stock.history(period="max", interval=interval)
             
-            history = history[(history['Low'] > 0) & (history['High'] > 0) & (history['Close'] > 0)]
+            # ⚠️ 방어 코드: 차트 히스토리
+            try:
+                history = stock.history(period="max", interval=interval)
+            except Exception:
+                history = pd.DataFrame()
             
-            raw_min_date = history.index.min().to_pydatetime().date()
-            min_date = raw_min_date.replace(day=1) 
-            max_date = datetime.now().date()       
-            
-            ideal_start_date = max_date - timedelta(days=365*10)
-            default_start = ideal_start_date if ideal_start_date > min_date else min_date
-            
-            selected_start, selected_end = st.slider(
-                "조회 기간 설정",
-                min_value=min_date,
-                max_value=max_date,
-                value=(default_start, max_date),
-                format="YYYY-MM-DD",
-                label_visibility="collapsed",
-                key=f"slider_{ticker}" 
-            )
-            
-            mask = (history.index.date >= selected_start) & (history.index.date <= selected_end)
-            
-            if interval_option == "일봉":
-                ma_settings = [(5, "MA1(5일)", "#00b0ff"), (20, "MA2(20일)", "#ff9100"), (60, "MA3(60일)", "#ff4081"), (120, "MA4(120일)", "#aa00ff")]
-            elif interval_option == "주봉":
-                ma_settings = [(13, "MA1(13주)", "#00b0ff"), (26, "MA2(26주)", "#ff9100"), (52, "MA3(52주)", "#ff4081")]
-            else:
-                ma_settings = [(9, "MA1(9개월)", "#00b0ff"), (24, "MA2(24개월)", "#ff9100"), (60, "MA3(60개월)", "#ff4081")]
+            if not history.empty:
+                history = history[(history['Low'] > 0) & (history['High'] > 0) & (history['Close'] > 0)]
                 
-            for w, name, color in ma_settings:
-                history[f'MA_{w}'] = history['Close'].rolling(window=w).mean()
-
-            filtered_history = history.loc[mask].copy()
-            ma_context_str = "차트 데이터 부족"
-
-            if not filtered_history.empty:
-                price_min = filtered_history['Low'].min()
-                price_max = filtered_history['High'].max()
-                min_idx = filtered_history['Low'].idxmin()
-                max_idx = filtered_history['High'].idxmax()
+                raw_min_date = history.index.min().to_pydatetime().date()
+                min_date = raw_min_date.replace(day=1) 
+                max_date = datetime.now().date()       
                 
-                ma_last_vals_str = []
+                ideal_start_date = max_date - timedelta(days=365*10)
+                default_start = ideal_start_date if ideal_start_date > min_date else min_date
+                
+                selected_start, selected_end = st.slider(
+                    "조회 기간 설정",
+                    min_value=min_date,
+                    max_value=max_date,
+                    value=(default_start, max_date),
+                    format="YYYY-MM-DD",
+                    label_visibility="collapsed",
+                    key=f"slider_{ticker}" 
+                )
+                
+                mask = (history.index.date >= selected_start) & (history.index.date <= selected_end)
+                
+                if interval_option == "일봉":
+                    ma_settings = [(5, "MA1(5일)", "#00b0ff"), (20, "MA2(20일)", "#ff9100"), (60, "MA3(60일)", "#ff4081"), (120, "MA4(120일)", "#aa00ff")]
+                elif interval_option == "주봉":
+                    ma_settings = [(13, "MA1(13주)", "#00b0ff"), (26, "MA2(26주)", "#ff9100"), (52, "MA3(52주)", "#ff4081")]
+                else:
+                    ma_settings = [(9, "MA1(9개월)", "#00b0ff"), (24, "MA2(24개월)", "#ff9100"), (60, "MA3(60개월)", "#ff4081")]
+                    
                 for w, name, color in ma_settings:
-                    val = filtered_history[f'MA_{w}'].iloc[-1]
-                    val_str = f"{val:{price_fmt}} {currency}" if pd.notna(val) else "데이터 부족"
-                    ma_last_vals_str.append(f"{name}: {val_str}")
-                ma_context_str = " / ".join(ma_last_vals_str)
-                
-                padding = (price_max - price_min) * 0.1 if price_max != price_min else price_max * 0.1
-                min_y = price_min - padding
-                max_y = price_max + padding
-                
-                fig = go.Figure()
-                
-                fig.add_trace(go.Candlestick(
-                    x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
-                    low=filtered_history['Low'], close=filtered_history['Close'],
-                    increasing_line_color='#00ff9d', decreasing_line_color='#ff2d55',
-                    name="가격"
-                ))
+                    history[f'MA_{w}'] = history['Close'].rolling(window=w).mean()
 
-                for w, name, color in ma_settings:
-                    fig.add_trace(go.Scatter(
-                        x=filtered_history.index, 
-                        y=filtered_history[f'MA_{w}'], 
-                        name=name,
-                        line=dict(color=color, width=1.0),
-                        hovertemplate=f'%{{y:{price_fmt}}}' 
+                filtered_history = history.loc[mask].copy()
+                ma_context_str = "차트 데이터 부족"
+
+                if not filtered_history.empty:
+                    price_min = filtered_history['Low'].min()
+                    price_max = filtered_history['High'].max()
+                    min_idx = filtered_history['Low'].idxmin()
+                    max_idx = filtered_history['High'].idxmax()
+                    
+                    ma_last_vals_str = []
+                    for w, name, color in ma_settings:
+                        val = filtered_history[f'MA_{w}'].iloc[-1]
+                        val_str = f"{val:{price_fmt}} {currency}" if pd.notna(val) else "데이터 부족"
+                        ma_last_vals_str.append(f"{name}: {val_str}")
+                    ma_context_str = " / ".join(ma_last_vals_str)
+                    
+                    padding = (price_max - price_min) * 0.1 if price_max != price_min else price_max * 0.1
+                    min_y = price_min - padding
+                    max_y = price_max + padding
+                    
+                    fig = go.Figure()
+                    
+                    fig.add_trace(go.Candlestick(
+                        x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
+                        low=filtered_history['Low'], close=filtered_history['Close'],
+                        increasing_line_color='#00ff9d', decreasing_line_color='#ff2d55',
+                        name="가격"
                     ))
-                
-                fig.add_annotation(
-                    x=max_idx, y=price_max,
-                    text=f"최고: {price_max:{price_fmt}} {currency}",
-                    showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#ff2d55",
-                    ax=0, ay=-35,
-                    font=dict(color="white", size=13, family="Pretendard"),
-                    bgcolor="#ff2d55", bordercolor="#ff2d55", borderwidth=1, borderpad=4, opacity=0.9
-                )
-                fig.add_annotation(
-                    x=min_idx, y=price_min,
-                    text=f"최저: {price_min:{price_fmt}} {currency}",
-                    showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#00b0ff",
-                    ax=0, ay=35,
-                    font=dict(color="white", size=13, family="Pretendard"),
-                    bgcolor="#00b0ff", bordercolor="#00b0ff", borderwidth=1, borderpad=4, opacity=0.9
-                )
-                
-                fig.update_layout(
-                    title=dict(text=f"{user_input} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
-                    template="plotly_dark",
-                    dragmode=False, 
-                    xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
-                    yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
-                    height=520,
-                    margin=dict(l=0, r=0, t=40, b=0),
-                    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
-                    hovermode="x unified",
-                    clickmode="none",
-                    hoverlabel=dict(font_family="Pretendard")
-                )
-                
-                st.plotly_chart(fig, use_container_width=True, config={
-                    'displayModeBar': False,
-                    'scrollZoom': False,
-                    'showAxisDragHandles': False,
-                    'doubleClick': False
-                })
+
+                    for w, name, color in ma_settings:
+                        fig.add_trace(go.Scatter(
+                            x=filtered_history.index, 
+                            y=filtered_history[f'MA_{w}'], 
+                            name=name,
+                            line=dict(color=color, width=1.0),
+                            hovertemplate=f'%{{y:{price_fmt}}}' 
+                        ))
+                    
+                    fig.add_annotation(
+                        x=max_idx, y=price_max,
+                        text=f"최고: {price_max:{price_fmt}} {currency}",
+                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#ff2d55",
+                        ax=0, ay=-35,
+                        font=dict(color="white", size=13, family="Pretendard"),
+                        bgcolor="#ff2d55", bordercolor="#ff2d55", borderwidth=1, borderpad=4, opacity=0.9
+                    )
+                    fig.add_annotation(
+                        x=min_idx, y=price_min,
+                        text=f"최저: {price_min:{price_fmt}} {currency}",
+                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#00b0ff",
+                        ax=0, ay=35,
+                        font=dict(color="white", size=13, family="Pretendard"),
+                        bgcolor="#00b0ff", bordercolor="#00b0ff", borderwidth=1, borderpad=4, opacity=0.9
+                    )
+                    
+                    fig.update_layout(
+                        title=dict(text=f"{user_input} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
+                        template="plotly_dark",
+                        dragmode=False, 
+                        xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
+                        yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
+                        height=520,
+                        margin=dict(l=0, r=0, t=40, b=0),
+                        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
+                        hovermode="x unified",
+                        clickmode="none",
+                        hoverlabel=dict(font_family="Pretendard")
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True, config={
+                        'displayModeBar': False,
+                        'scrollZoom': False,
+                        'showAxisDragHandles': False,
+                        'doubleClick': False
+                    })
+                else:
+                    st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더를 조절해 주세요!")
             else:
-                st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더를 조절해 주세요!")
+                ma_context_str = "차트 데이터 부족"
+                st.warning("야후 파이낸스 접속 제한으로 차트 데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.")
             
             st.markdown("<br>", unsafe_allow_html=True)
             
@@ -688,18 +709,22 @@ if user_input:
                 with st.spinner("순수 기술적 관점에서 차트를 분석하는 중입니다..."):
                     
                     def get_formatted_history(interval_str, ma_config):
-                        temp_hist = stock.history(period="max", interval=interval_str)
-                        temp_hist = temp_hist[(temp_hist['Low'] > 0) & (temp_hist['High'] > 0) & (temp_hist['Close'] > 0)].copy()
-                        for w, _, _ in ma_config:
-                            temp_hist[f'MA_{w}'] = temp_hist['Close'].rolling(window=w).mean()
-                        
-                        temp_mask = (temp_hist.index.date >= selected_start) & (temp_hist.index.date <= selected_end)
-                        temp_filtered = temp_hist.loc[temp_mask].copy()
-                        
-                        cols_to_export = ['Open', 'High', 'Low', 'Close'] + [f'MA_{w}' for w, _, _ in ma_config]
-                        df_export = temp_filtered[cols_to_export].copy()
-                        df_export.index = df_export.index.strftime('%Y-%m-%d')
-                        return df_export.tail(150).round(2).to_csv(header=True)
+                        try:
+                            temp_hist = stock.history(period="max", interval=interval_str)
+                            if temp_hist.empty: return ""
+                            temp_hist = temp_hist[(temp_hist['Low'] > 0) & (temp_hist['High'] > 0) & (temp_hist['Close'] > 0)].copy()
+                            for w, _, _ in ma_config:
+                                temp_hist[f'MA_{w}'] = temp_hist['Close'].rolling(window=w).mean()
+                            
+                            temp_mask = (temp_hist.index.date >= selected_start) & (temp_hist.index.date <= selected_end)
+                            temp_filtered = temp_hist.loc[temp_mask].copy()
+                            
+                            cols_to_export = ['Open', 'High', 'Low', 'Close'] + [f'MA_{w}' for w, _, _ in ma_config]
+                            df_export = temp_filtered[cols_to_export].copy()
+                            df_export.index = df_export.index.strftime('%Y-%m-%d')
+                            return df_export.tail(150).round(2).to_csv(header=True)
+                        except Exception:
+                            return ""
 
                     daily_csv = get_formatted_history("1d", [(5, "", ""), (20, "", ""), (60, "", ""), (120, "", "")])
                     weekly_csv = get_formatted_history("1wk", [(13, "", ""), (26, "", ""), (52, "", "")])
@@ -867,10 +892,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 - [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.
 - [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 1, 2, 3번 각 평가 항목은 마크다운 헤딩(###)으로 크고 명확하게 달고, 세부 분석은 빈 줄(Enter 2번)로 단락을 나누어 시원시원한 일반 문단으로 작성하세요.
 - [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.
-- [재무 지표 중심의 서술]: 제공된 텍스트 동향은 오직 '재무 지표의 원인과 결과'를 파악하는 데만 조용히 참고하세요. 기술적 차트 이야기나 가십성 이슈는 철저히 배제하고, 철저히 '재무적 관점(수익성, 안정성, 현금흐름, 밸류에이션)'에만 집중해서 평가하세요.
-- [뉴스 및 기사 수 언급 절대 금지]: "제공된 데이터에 따르면", "수집된 기사/뉴스에서", "100개의 기사를 분석했습니다" 등의 표현을 완벽하게 금지합니다. '뉴스', '기사', '헤드라인', '100개'라는 단어 자체를 출력문에 쓰지 마세요. 오직 당신이 직접 팩트를 분석한 것처럼 유려하게 서술하세요.
-- [입체적 재무 해석]: 부채비율이 높거나 자본잠식 상태일 때, 무조건 '착한 부채'로 포장하지 마세요. 이자보상배율, 현금흐름, 대규모 투자(CapEx) 등의 맥락을 융합하여 실제 시장이 우려하는 재무적 리스크인지 성장을 위한 통과 의례인지 객관적으로 판단하세요.
-- [작위적 표현 금지]: "표면적 지표 이면의", "숫자 이면의 진짜 리스크", "숨겨진 리스크" 등 시스템 프롬프트의 지시어 느낌이 나는 단어를 절대 출력하지 마세요.
+- [재무 지표 중심의 서술]: 제공된 텍스트 동향은 오직 '재무 지표의 원인과 결과' 파악에만 조용히 참고하세요. 기술적 차트 이야기나 가십성 이슈는 배제하고, 철저히 '재무적 관점'에만 집중해서 평가하세요.
+- [뉴스 및 기사 수 언급 절대 금지]: "제공된 데이터에 따르면", "수집된 기사에서" 등의 표현을 완벽하게 금지합니다.
+- [입체적 재무 해석]: 부채비율이 높을 때 무조건 '착한 부채'로 포장하지 마세요. 이자보상배율, 현금흐름 등을 융합하여 객관적으로 판단하세요.
 - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
 """
                     try:
@@ -892,7 +916,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news1:
                 if st.button("AI 최신 동향 브리핑"):
                     with st.spinner("최신 뉴스를 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장(예: **호실적 발표**, **공급망 이슈** 등)은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다', '다수의 기사에서'와 같이 수집된 기사의 개수나 규모를 직접적으로 절대 언급하지 마세요."
+                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', 
@@ -906,7 +930,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.markdown("---")
                         st.markdown("**📌 참고한 실시간 뉴스 원문 (클릭해서 바로 이동)**")
                         if news_list:
-                            # 100개를 수집했지만 화면에는 상위 10개만 보여주기
                             for item in news_list[:10]:
                                 st.markdown(f"• <a href='{item['link']}' target='_blank'>{item['title']}</a>", unsafe_allow_html=True)
                         else:
@@ -915,7 +938,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. '수집된 뉴스에 의하면' 같은 어색한 말도 금지합니다. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다', '다수의 기사에서'와 같이 수집된 기사의 개수나 규모를 직접적으로 절대 언급하지 마세요."
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 직접적 언급 금지."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', 
@@ -976,12 +999,10 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - [가독성 철저]: 위 형식 가이드를 완벽히 지켜서, 땡땡 표시 없이 제목과 문단 구분을 통해 마치 잘 쓰여진 신문 기사나 리포트 본문처럼 보이게 하세요.
                     - [균형 잡힌 차트 분석]: 기술적 지표를 언급할 때 이동평균선에만 집착하지 말고, 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 자연스럽게 설명하세요.
                     - [핵심 강조]: 전체 리포트에서 핵심이 되는 주요 단어나 결과 문장은 반드시 **굵은 글씨(**)**로 강조해서 핵심을 짚어주세요. 폰트 변경은 불가합니다.
-                    - [직접 인용 및 작위적 표현 완벽 금지]: 리포트 내에 '뉴스', '기사', '헤드라인'이라는 단어를 아예 사용하지 마세요. 기사 문장을 절대 복사하지 마세요. 또한 "표면적 지표 이면의", "숨겨진 리스크" 같은 시스템 지시어 느낌의 단어 자체를 쓰지 마세요. 마치 당신이 현업에서 직접 시장을 모니터링하며 얻은 팩트인 것처럼 유려하게 서술하세요.
+                    - [직접 인용 및 작위적 표현 완벽 금지]: 리포트 내에 '뉴스', '기사', '헤드라인'이라는 단어를 아예 사용하지 마세요. 기사 문장을 절대 복사하지 마세요.
                     - [배경 지식 총동원]: 제공된 수치와 텍스트에만 갇히지 마세요. 당신이 학습한 해당 기업의 최근 거시경제(금리, 인플레 등) 환경, 산업 트렌드(AI, 반도체 등),경쟁사 동향, 대규모 투자(CapEx) 현황을 융합하여 인과관계를 설명하세요.
-                    - [맹목적 긍정 금지 및 리스크 직시]: 부채비율이 높거나 자본잠식 상태일 때, 무조건 주주환원에 의한 '착한 부채'로 포장하지 마세요. '이자보상배율', '현금흐름', '동향'을 교차 검증하여, 과도한 인프라/M&A 투자로 인한 이자 부담이나 시장이 실제로 우려하는 치명적 리스크라면 아주 냉철하게 경고하세요.
-                    - [시장 심리(Fear & Greed) 통찰]: 주가가 크게 하락했거나 변동성이 크다면, 동향의 행간 의미를 파악해 현재 시장 참여자들이 무엇에 공포를 느끼고 있는지 평가에 명확히 반영하세요.
                     - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
-                    - [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다', '다수의 기사에서'와 같이 수집된 기사의 개수나 규모를 직접적으로 절대 언급하지 마세요.
+                    - [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지.
                     """
                     try:
                         response = client.models.generate_content(
@@ -993,4 +1014,4 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     except Exception as e:
                         st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
     else:
-        st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 기업명이나 티커를 입력해 주세요!")
+        st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없거나 야후 파이낸스 접속 제한에 걸렸어요. 잠시 후 다시 시도해 주세요!")
