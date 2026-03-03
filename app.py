@@ -396,7 +396,6 @@ if user_input:
             info = stock.info
         except Exception:
             info = {}
-            st.warning("⚠️ 야후 파이낸스 일시적 접속 제한으로 일부 데이터를 불러오지 못했습니다. 대체 데이터를 활용합니다.")
             
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
@@ -701,7 +700,6 @@ if user_input:
                     st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더를 조절해 주세요!")
             else:
                 ma_context_str = "차트 데이터 부족"
-                st.warning("야후 파이낸스 접속 제한으로 차트 데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.")
             
             st.markdown("<br>", unsafe_allow_html=True)
             
@@ -1014,4 +1012,4 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     except Exception as e:
                         st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
     else:
-        st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없거나 야후 파이낸스 접속 제한에 걸렸어요. 잠시 후 다시 시도해 주세요!")
+        st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 종목명이나 티커를 입력해 주세요!")
