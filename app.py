@@ -199,7 +199,7 @@ def get_ticker_symbol(search_term):
         "QQQ": "QQQ",
         "스파이": "SPY",
         "SPY": "SPY",
-        "디어유": "376300.KQ"  # 디어유 명시적 추가
+        "디어유": "376300.KQ"  
     }
     
     if search_clean in custom_mapping:
@@ -915,7 +915,7 @@ if user_input:
                     3. 이동평균선 표기 규칙: 올바른 한국어로 작성하세요.
                     4. 달러 기호 사용 금지. (금액은 반드시 '{currency}'로 표기할 것)
                     5. 가독성 철저: 소제목은 마크다운 헤딩(###)으로 작성하고, 일반 문단으로 작성하세요.
-                    6. 핵심 강조: 주요 지지/저항 가격은 반드시 **굵은 글씨(**)**로 강조하세요. 
+                    6. 핵심 강조: 단순히 가격이나 숫자(예: 80 달러)에만 굵은 글씨를 쓰지 마세요!! 추세 전환의 신호, 지지/저항의 핵심적인 의미, 매수/매도 세력의 동향 등 **분석에서 가장 중요하고 유의미한 문장 전체나 키워드**를 **굵은 글씨(**)**로 강조하세요.
                     7. 어조 설정: 정중체 사용. 깔끔한 전문가 톤 유지.
                     8. 항목 제한: 분석 항목은 무조건 '1. 단기적인 추세', '2. 장기적인 추세' 두 가지만 출력.
                     9. 출처 표기 절대 금지: 괄호 안에 기사 번호(예: 1, 2)를 적거나 출처를 언급하는 행위 완벽 금지.
@@ -1051,7 +1051,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 - 각 평가 항목은 마크다운 헤딩(###)으로 작성.
 - 분석 내용 중 핵심 문장은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 임의로 변경하지 마세요.
 - 뉴스 데이터는 재무 관련 정보 파악에만 참고.
-- 뉴스 출처 표기 금지 (기사 번호 작성 금지).
+- [기사 번호 괄호 표기 절대 금지]: (예: 1, 12, 50), (60) 등 문장 끝이나 중간에 기사 번호를 괄호로 넣는 짓을 절대 하지 마세요. 출처 번호는 완전히 생략하고 자연스러운 문장으로만 작성하세요.
 - 달러 기호 금지. (금액은 '{currency}'으로 표기할 것).
 """
                     try:
@@ -1071,7 +1071,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news1:
                 if st.button("AI 최신 동향 브리핑"):
                     with st.spinner("최신 뉴스를 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용을 읽고, 현재 이 기업을 둘러싼 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 향후 실적에 미칠 파급력까지 전문가의 시선으로 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호 작성 및 인용구 완벽 금지."
+                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용을 읽고, 현재 이 기업을 둘러싼 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 향후 실적에 미칠 파급력까지 전문가의 시선으로 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호(예: 1, 3, 50)를 작성하거나 인용구를 쓰는 것을 완벽 금지합니다."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
@@ -1091,7 +1091,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터를 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 파악하고, 단기 및 중장기 주가 흐름에 미칠 영향을 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호 작성 및 인용구 완벽 금지."
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터를 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 파악하고, 단기 및 중장기 주가 흐름에 미칠 영향을 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호(예: 1, 3, 50)를 작성하거나 인용구를 쓰는 것을 완벽 금지합니다."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
@@ -1138,7 +1138,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 균형 잡힌 차트 분석: 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 설명.
                     - 핵심 강조: 핵심 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 
                     - 달러 기호 금지. 금액은 반드시 '{currency}'으로 표기할 것.
-                    - 출처 표기 절대 금지: 괄호 안에 기사 번호를 적거나 출처를 언급하는 행위 완벽 금지.
+                    - 출처 표기 절대 금지: 문장 끝에 (1, 5, 20) 같은 기사 번호를 괄호로 적는 행위를 완벽하게 금지합니다.
                     
                     🚨 [최종 스코어 산출 지시사항 - 매우 중요]
                     리포트 작성을 모두 마친 후, 맨 마지막 줄에 반드시 다음 세 가지 점수를 `[SCORE: 점수]`, `[RISK: 점수]`, `[RETURN: 점수]` 형태로 적어주세요.
@@ -1203,7 +1203,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             
                             bar_html = f"""<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;"><h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h4><div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);"><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div><div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div></div>{matrix_html}</div>"""
                             
-                            # 들여쓰기와 줄바꿈을 완벽히 제거하여 Streamlit 렌더링 오류 원천 차단
                             clean_html = bar_html.replace('\n', '')
                             st.markdown(clean_html, unsafe_allow_html=True)
                             
