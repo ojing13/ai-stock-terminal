@@ -189,7 +189,7 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 강력한 백업: 네이버 금융 자동완성 API (한글/영어 제한 해제)
+    # 2. 강력한 백업: 네이버 금융 자동완성 API (영문/한글 무조건 스캔 - TSMC 완벽 처리)
     try:
         encoded_term = urllib.parse.quote(search_term)
         ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
@@ -230,21 +230,25 @@ def get_ticker_symbol(search_term):
     except:
         pass
       
-    # 4. 야후 파이낸스 자체 검색망 강화 (미국 시장 우선 탐색 로직 추가)
+    # 4. 야후 파이낸스 자체 검색망 강화 (미국 시장 우선 스캔 로직 탑재)
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
         res = requests.get(url, headers=headers, timeout=5)
         data = res.json()
         if 'quotes' in data and len(data['quotes']) > 0:
-            # 1순위: 미국 거래소(NYQ, NMS, NAS) 우선 필터링
+            # 1순위: 미국 정규장 (NYQ, NMS, NYSE, NASDAQ) 강력 필터링
+            us_exchanges = ['NYQ', 'NMS', 'NYSE', 'NASDAQ']
             for quote in data['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange') in ['NYQ', 'NMS', 'NAS']:
+                if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange', '').upper() in us_exchanges:
                     return quote['symbol']
-            # 2순위: 그 외 일반 주식/ETF
+                    
+            # 2순위: 미국장이 아니더라도 정상적인 주식/ETF
             for quote in data['quotes']:
                 if quote.get('type') in ['EQUITY', 'ETF']:
                     return quote['symbol']
+                    
+            # 3순위: 그냥 첫 번째 결과
             return data['quotes'][0]['symbol']
     except:
         pass
@@ -260,6 +264,7 @@ def get_ticker_symbol(search_term):
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
+        # THOUGHT 과정이 섞여 들어오더라도 맨 마지막 줄의 진짜 티커만 걸러내는 필터망
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
             match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', lines[-1])
@@ -741,7 +746,6 @@ if user_input:
                 ma_context_str = "차트 데이터 부족"
 
                 if not filtered_history.empty:
-                    # 💡 주봉/월봉 비만 캔들 방지 로직 유지
                     xaxis_config = dict(
                         rangeslider=dict(visible=False), 
                         type="date", 
@@ -1141,3 +1145,5 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.info(response.text)
                     except Exception as e:
                         st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+    else:
+        st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 종목명이나 티커를 입력해 주세요!")
