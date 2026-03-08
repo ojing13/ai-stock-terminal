@@ -177,7 +177,7 @@ def get_ticker_symbol(search_term):
         
     try:
         translate_prompt = f"""당신은 세계 최고의 주식 종목 번역 전문가입니다.
-다음 한국어 주식 종목명을 정확한 영어 공식명으로 번역해주세요.
+다음 한국어 주식 종목명을 정확한 영어 공식명으로 번역해주세요. (오타가 있어도 찰떡같이 알아듣고 변환하세요)
 답변은 영어 종목명만 한 줄로 출력하세요. 다른 설명 절대 금지.
 종목명: {search_term}"""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=translate_prompt)
@@ -236,6 +236,16 @@ def augment_korean_fundamentals(ticker, info):
         url = f"https://finance.naver.com/item/main.naver?code={code}"
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
         soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 🇰🇷 네이버 증권에서 확실하게 한국어 종목명 가져오기
+        try:
+            title_tag = soup.find('title')
+            if title_tag:
+                k_name = title_tag.text.split(':')[0].strip()
+                if k_name and k_name != '네이버 증권':
+                    info['koreanName'] = k_name
+        except:
+            pass
         
         def get_val_by_id(eid):
             el = soup.find(id=eid)
@@ -405,14 +415,19 @@ if user_input:
         company_name = info.get('longName', info.get('shortName', ticker))
         display_name = company_name
         
-        # 🇰🇷 한국 주식일 경우 KRX 데이터에서 정확한 한국어 공식 명칭 가져오기
+        # 🇰🇷 한국 주식일 경우 한국어 명칭 최우선 반영
         if is_korean_stock:
             code_only = ticker.split('.')[0]
             if not krx_df.empty:
                 match = krx_df[krx_df['Code'] == code_only]
                 if not match.empty:
                     display_name = match.iloc[0]['Name']
-                    company_name = display_name # 프롬프트에도 정확한 명칭 사용
+            
+            # 네이버 증권에서 긁어온 진짜 한글 이름이 있다면 그걸 1순위로 덮어쓰기! (오타 방어)
+            if 'koreanName' in info:
+                display_name = info['koreanName']
+                
+            company_name = display_name # 프롬프트에도 완벽한 한글 명칭 사용
         
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
         
@@ -761,7 +776,7 @@ if user_input:
                     2. [정보 필터링]: 일봉, 주봉, 월봉을 모두 확인하되, 추세 설명에 꼭 필요한 유의미한 기술적 단서(특정 가격대, 매물대, 주요 돌파 지점 등)만 선별해서 자연스럽게 제시하세요.
                     3. [이동평균선 표기 규칙]: 이동평균선을 언급할 때 '13-주 이동평균선'처럼 숫자와 단위 사이에 하이픈(-)을 절대 넣지 마세요. 반드시 '13주 이동평균선', '20일 이동평균선'과 같이 올바른 한국어로 작성하세요.
                     4. 마크다운 수식 오류 방지: 가격 범위나 기간 표시 시 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'로 표기할 것)
-                    5. [가독성 철저]: 글머 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요. 소제목은 마크다운 헤딩(###)으로 작성하고, 문단과 문단 사이에는 빈 줄(Enter 2번)을 넣어 완벽하게 분리하세요.
+                    5. [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요. 소제목은 마크다운 헤딩(###)으로 작성하고, 문단과 문단 사이에는 빈 줄(Enter 2번)을 넣어 완벽하게 분리하세요.
                     6. [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장 및 주요 지지/저항 가격은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 절대 변경하지 마세요.
                     7. [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요.
                     8. [항목 제한]: 분석 항목은 무조건 '1. 단기적인 추세', '2. 장기적인 추세' 딱 두 가지만 출력하세요.
