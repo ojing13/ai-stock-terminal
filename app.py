@@ -9,10 +9,8 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 from bs4 import BeautifulSoup
 import math
-
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
-
 # 최고급 세련된 웹 폰트(Pretendard) 적용 및 테두리/밑줄 CSS, UI 커스텀
 st.markdown("""
 <style>
@@ -58,23 +56,23 @@ st.markdown("""
         user-select: none !important;
     }
  
-    /* === 슬라이더 전체 빨간색 테마 강력 적용 (봉 색상과 동일하게 맞춤) === */
+    /* === 슬라이더 전체 파란색 테마 강력 적용 === */
     div[data-testid="stSlider"] div[role="slider"] {
-        background-color: #ff2d55 !important;
-        border-color: #ff2d55 !important;
+        background-color: #007bff !important;
+        border-color: #007bff !important;
         box-shadow: none !important;
     }
     div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
     div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"],
     div[data-testid="stSlider"] div[style*="background: rgb(255, 75, 75)"],
     div[data-testid="stSlider"] div[style*="background: #ff4b4b"] {
-        background-color: #ff2d55 !important;
-        background: #ff2d55 !important;
+        background-color: #007bff !important;
+        background: #007bff !important;
     }
     [data-testid="stTickBarMin"],
     [data-testid="stTickBarMax"],
     [data-testid="stThumbValue"] {
-        color: #ff2d55 !important;
+        color: #007bff !important;
         font-weight: 700 !important;
     }
  
@@ -110,15 +108,13 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
 try:
     MY_API_KEY = st.secrets["GEMINI_API_KEY"]
 except:
     st.error("🚨 API 키를 찾을 수 없습니다. Streamlit Cloud의 Settings -> Secrets에 'GEMINI_API_KEY'를 등록해주세요.")
     st.stop()
-
+ 
 client = genai.Client(api_key=MY_API_KEY)
-
 @st.cache_data
 def load_krx_data():
     try:
@@ -130,12 +126,10 @@ def load_krx_data():
             return pd.concat([kospi, kosdaq], ignore_index=True)
         except Exception:
             return pd.DataFrame(columns=['Code', 'Name', 'Market'])
-
 krx_df = load_krx_data()
-
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
-
+ 
     if not krx_df.empty:
         match = krx_df[krx_df['Name'] == search_term]
         if not match.empty:
@@ -150,27 +144,27 @@ def get_ticker_symbol(search_term):
         "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD",
         "TSMC": "TSM", "티에스엠씨": "TSM", "ASML": "ASML", "ARM": "ARM"
     }
-
+ 
     for key, val in us_dict.items():
         if search_term.upper() == key.upper():
             return val
    
-    # ==================== Yahoo Finance 검색 (score 기준 최적 티커 선택 - ZIM 버그 완전 차단) ====================
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
         res = requests.get(url, headers=headers, timeout=5)
         data = res.json()
         if 'quotes' in data and len(data['quotes']) > 0:
-            candidates = [q for q in data['quotes'] if q.get('type') in ['EQUITY', 'ETF']]
-            if candidates:
-                # score(정확도) 내림차순 정렬 → 가장 관련성 높은 티커만 반환 (ZIM 같은 엉뚱한 종목 완전 배제)
-                candidates.sort(key=lambda q: q.get('score', 0), reverse=True)
-                return candidates[0]['symbol']
+            for quote in data['quotes']:
+                if quote.get('type') in ['EQUITY', 'ETF'] and '.' not in quote.get('symbol', ''):
+                    return quote['symbol']
+            for quote in data['quotes']:
+                if quote.get('type') in ['EQUITY', 'ETF']:
+                    return quote['symbol']
+            return data['quotes'][0]['symbol']
     except:
         pass
      
-    # ==================== Gemini 번역 후 재검색 ====================
     try:
         translate_prompt = f"""당신은 세계 최고의 주식 종목 번역 전문가입니다.
 다음 한국어 주식 종목명을 정확한 영어 공식명으로 번역해주세요.
@@ -182,15 +176,17 @@ def get_ticker_symbol(search_term):
         res_eng = requests.get(url_eng, headers=headers, timeout=5)
         data_eng = res_eng.json()
         if 'quotes' in data_eng and len(data_eng['quotes']) > 0:
-            candidates = [q for q in data_eng['quotes'] if q.get('type') in ['EQUITY', 'ETF']]
-            if candidates:
-                candidates.sort(key=lambda q: q.get('score', 0), reverse=True)
-                return candidates[0]['symbol']
+            for quote in data_eng['quotes']:
+                if quote.get('type') in ['EQUITY', 'ETF'] and '.' not in quote.get('symbol', ''):
+                    return quote['symbol']
+            for quote in data_eng['quotes']:
+                if quote.get('type') in ['EQUITY', 'ETF']:
+                    return quote['symbol']
+            return data_eng['quotes'][0]['symbol']
     except:
         pass
    
     return search_term.upper()
-
 def safe_get_fin(df, keys, default='N/A'):
     if df is None or df.empty: return default
     for k in keys:
@@ -199,10 +195,8 @@ def safe_get_fin(df, keys, default='N/A'):
             if pd.notna(val):
                 return f"{val:,.0f}"
     return default
-
 def format_large_number(num, currency):
     return f"{num:,.0f} {currency}"
-
 def get_52w_high_low(stock, info_high, info_low):
     high = info_high
     low = info_low
@@ -216,14 +210,12 @@ def get_52w_high_low(stock, info_high, info_low):
         except:
             pass
     return high, low
-
 def safe_info(info, keys, default='N/A'):
     for k in keys:
         v = info.get(k)
         if v is not None and v != '' and v != 0 and str(v).upper() != 'N/A':
             return v
     return default
-
 def augment_korean_fundamentals(ticker, info):
     if not (ticker.endswith('.KS') or ticker.endswith('.KQ')):
         return info
@@ -244,6 +236,7 @@ def augment_korean_fundamentals(ticker, info):
         pbr = get_val_by_id('_pbr')
         div = get_val_by_id('_dvr')
      
+        # 한국 주식은 야후 데이터가 빈칸이 아니더라도 무조건 네이버 데이터로 덮어씌움 (정확도 확보)
         if per is not None: info['trailingPE'] = per
         if pbr is not None: info['priceToBook'] = pbr
         if div is not None: info['dividendYield'] = div / 100.0
@@ -278,7 +271,6 @@ def augment_korean_fundamentals(ticker, info):
     except:
         pass
     return info
-
 def augment_us_fundamentals(ticker, info):
     if ticker.endswith('.KS') or ticker.endswith('.KQ'):
         return info
@@ -332,7 +324,6 @@ def augment_us_fundamentals(ticker, info):
     except:
         pass
     return info
-
 def get_article_text(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -343,7 +334,6 @@ def get_article_text(url):
         return text[:800] if text else ""
     except:
         return ""
-
 # ====================== 메인 ======================
 st.title("웅이의 AI 주식 분석 터미널")
 st.markdown("---")
@@ -353,7 +343,7 @@ with col_search:
 if user_input:
     ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
-
+ 
     try:
         hist_basic = stock.history(period="1d")
     except Exception:
@@ -482,10 +472,12 @@ if user_input:
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
      
+        # --- 배당 수익률 안전망 추가 ---
         div_yield = safe_info(info, ['dividendYield'])
         if div_yield not in ['N/A', None, '']:
             try:
                 dy = float(div_yield)
+                # 배당률이 30%를 초과하는 경우 비정상 데이터로 간주하여 보정 시도
                 if dy > 0.30 and current_price > 0:
                     div_rate = info.get('dividendRate')
                     if div_rate and float(div_rate) > 0:
@@ -496,6 +488,7 @@ if user_input:
             except:
                 pass
      
+        # --- 부채비율 소수점 포맷팅 추가 ---
         debt = safe_info(info, ['debtToEquity'])
         debt_str = f"{fmt_flt(debt)}%" if debt not in ['N/A', None, ''] else 'N/A'
      
@@ -618,14 +611,9 @@ if user_input:
                     fig = go.Figure()
                  
                     fig.add_trace(go.Candlestick(
-                        x=filtered_history.index, 
-                        open=filtered_history['Open'], 
-                        high=filtered_history['High'],
-                        low=filtered_history['Low'], 
-                        close=filtered_history['Close'],
-                        # === 수정 1: 양봉 빨간색(#ff2d55), 음봉 파란색(#00b0ff) ===
-                        increasing_line_color='#ff2d55',
-                        decreasing_line_color='#00b0ff',
+                        x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
+                        low=filtered_history['Low'], close=filtered_history['Close'],
+                        increasing_line_color='#00ff9d', decreasing_line_color='#ff2d55',
                         name="가격"
                     ))
                     for w, name, color in ma_settings:
@@ -658,13 +646,7 @@ if user_input:
                         title=dict(text=f"{company_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                         template="plotly_dark",
                         dragmode=False,
-                        # === 수정 2: 가로축 비거래일(주말/미국장 휴장일) 공간 완전 제거 ===
-                        xaxis=dict(
-                            rangeslider=dict(visible=False), 
-                            type="category",                    # date → category로 변경 (연속 표시)
-                            hoverformat="%Y-%m-%d", 
-                            fixedrange=True
-                        ),
+                        xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
                         yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
                         height=520,
                         margin=dict(l=0, r=0, t=40, b=0),
