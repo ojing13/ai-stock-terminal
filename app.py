@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 from bs4 import BeautifulSoup
 import math # nan 처리를 위해 추가
+import re # 영문 티커 감지용
 
 # --- [세션 상태(Session State) 초기화 - 검색 기록용] ---
 if 'search_history' not in st.session_state:
@@ -152,30 +153,39 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 💥 핵심 패치: 한 번 번역한 값은 무조건 캐싱해서 절대 이름이 바뀌지 않게 고정!
+# 💥 핵심 패치: 한 번 번역한 값은 무조건 캐싱, 그리고 AI 환각 절대 차단!
 @st.cache_data(show_spinner=False)
 def get_ticker_and_korean_name(search_term):
     search_term = search_term.strip()
+    search_upper = search_term.upper()
     
-    # 1. 한국 주식인지 먼저 로컬에서 확인
+    # 1. 한국 주식인지 로컬(KRX)에서 먼저 완벽하게 확인
     if not krx_df.empty:
-        match = krx_df[krx_df['Name'] == search_term]
-        if not match.empty:
-            code = match.iloc[0]['Code']
-            market = match.iloc[0]['Market']
+        # 이름으로 찾기
+        match_name = krx_df[krx_df['Name'] == search_term]
+        if not match_name.empty:
+            code = match_name.iloc[0]['Code']
+            market = match_name.iloc[0]['Market']
             ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
             return ticker, search_term
+        # 코드로 찾기
+        match_code = krx_df[krx_df['Code'] == search_upper]
+        if not match_code.empty:
+            code = match_code.iloc[0]['Code']
+            market = match_code.iloc[0]['Market']
+            ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
+            return ticker, match_code.iloc[0]['Name']
             
-    # 2. 유명한 주식/ETF 사전 매핑 (주인님 답답함 해소용 완벽 패치!)
+    # 2. 유명한 주식/ETF 사전 매핑 (알잘딱깔센 고정 데이터)
     quick_map = {
-        "애플": ("AAPL", "애플"), "AAPL": ("AAPL", "애플"),
-        "테슬라": ("TSLA", "테슬라"), "TSLA": ("TSLA", "테슬라"),
-        "엔비디아": ("NVDA", "엔비디아"), "NVDA": ("NVDA", "엔비디아"),
-        "마이크로소프트": ("MSFT", "마이크로소프트"), "MSFT": ("MSFT", "마이크로소프트"), "마소": ("MSFT", "마이크로소프트"),
+        "애플": ("AAPL", "애플"), "APPLE": ("AAPL", "애플"), "AAPL": ("AAPL", "애플"),
+        "테슬라": ("TSLA", "테슬라"), "TESLA": ("TSLA", "테슬라"), "TSLA": ("TSLA", "테슬라"),
+        "엔비디아": ("NVDA", "엔비디아"), "NVIDIA": ("NVDA", "엔비디아"), "NVDA": ("NVDA", "엔비디아"),
+        "마이크로소프트": ("MSFT", "마이크로소프트"), "MICROSOFT": ("MSFT", "마이크로소프트"), "MSFT": ("MSFT", "마이크로소프트"), "마소": ("MSFT", "마이크로소프트"),
         "알파벳": ("GOOGL", "구글(Alphabet)"), "구글": ("GOOGL", "구글(Alphabet)"), "GOOGL": ("GOOGL", "구글(Alphabet)"), "GOOG": ("GOOG", "구글(Alphabet)"),
-        "아마존": ("AMZN", "아마존"), "AMZN": ("AMZN", "아마존"),
-        "메타": ("META", "메타"), "META": ("META", "메타"),
-        "넷플릭스": ("NFLX", "넷플릭스"), "NFLX": ("NFLX", "넷플릭스"),
+        "아마존": ("AMZN", "아마존"), "AMAZON": ("AMZN", "아마존"), "AMZN": ("AMZN", "아마존"),
+        "메타": ("META", "메타"), "META": ("META", "메타"), "페이스북": ("META", "메타"),
+        "넷플릭스": ("NFLX", "넷플릭스"), "NETFLIX": ("NFLX", "넷플릭스"), "NFLX": ("NFLX", "넷플릭스"),
         "TSMC": ("TSM", "TSMC"), "TSM": ("TSM", "TSMC"), "대만반도체": ("TSM", "TSMC"),
         "ASML": ("ASML", "ASML"), "ARM": ("ARM", "ARM"), "AMD": ("AMD", "AMD"),
         "TQQQ": ("TQQQ", "TQQQ (나스닥 100 3배 ETF)"),
@@ -188,53 +198,54 @@ def get_ticker_and_korean_name(search_term):
         "IVV": ("IVV", "IVV (S&P 500 ETF)"),
         "SCHD": ("SCHD", "SCHD (미국 배당 다우존스 ETF)"),
         "JEPI": ("JEPI", "JEPI (JP모건 커버드콜 ETF)"),
-        "오라클": ("ORCL", "오라클"), "ORCL": ("ORCL", "오라클"),
+        "오라클": ("ORCL", "오라클"), "ORACLE": ("ORCL", "오라클"), "ORCL": ("ORCL", "오라클"),
         "팔란티어": ("PLTR", "팔란티어"), "PLTR": ("PLTR", "팔란티어"),
         "KORU": ("KORU", "KORU (한국 MSCI 3배 ETF)"), "코루": ("KORU", "KORU (한국 MSCI 3배 ETF)"),
         "BULZ": ("BULZ", "BULZ (빅테크 3배 ETN)"), "FNGU": ("FNGU", "FNGU (빅테크 3배 ETN)"),
         "UPRO": ("UPRO", "UPRO (S&P 500 3배 ETF)"), "UDOW": ("UDOW", "UDOW (다우존스 3배 ETF)")
     }
     
-    search_upper = search_term.upper()
-    
-    # 완전 일치 확인
-    if search_term in quick_map:
-        return quick_map[search_term]
-    elif search_upper in quick_map:
-        return quick_map[search_upper]
+    if search_term in quick_map: return quick_map[search_term]
+    elif search_upper in quick_map: return quick_map[search_upper]
         
     # 과거 잘못된 검색기록 클릭 시(예: "KORU (한국 인버스 어쩌고)") 괄호 앞 티커만 뽑아서 재교정
     if "(" in search_term:
         possible_ticker = search_term.split("(")[0].strip().upper()
         if possible_ticker in quick_map:
             return quick_map[possible_ticker]
+
+    # 3. 🚨 철통 가드레일: 영문 1~5글자는 무조건 티커로 간주! AI가 멋대로 셉톤, 크립토 등으로 바꾸지 못하게 원천 차단
+    is_pure_english_short = bool(re.match(r'^[A-Za-z]{1,5}$', search_term))
+    if is_pure_english_short:
+        return search_upper, search_upper
             
-    # 3. 그 외의 경우 AI에게 번역 위임 (하지만 창의성은 0%로 고정시켜서 헛소리 방지!)
+    # 4. 그 외의 경우 AI에게 번역 위임 (창의성은 0.0으로 완벽 고정시켜서 헛소리 방지!)
     try:
-        prompt = f"""당신은 센스있는 주식/ETF 종목명 번역 전문가입니다.
+        prompt = f"""당신은 주식/ETF 종목 식별 전문가입니다.
 사용자의 검색어: "{search_term}"
-이 검색어에 해당하는 종목의 '정확한 야후 파이낸스 티커'와 '한국 투자자들이 가장 흔하고 자연스럽게 부르는 종목명'을 반환해주세요.
 
-[🚨 알잘딱깔센(센스있게) 명칭 정제 규칙]
-1. 일반 기업: 오타가 있어도 찰떡같이 교정해서 한국어 공식 명칭을 반환 (예: AAPL -> 애플)
-2. 약어/영문 이름이 더 유명한 기업: 억지로 한국어로 직역하지 말고 익숙한 이름 사용 (예: 대만반도체제조회사(X) -> TSMC(O), 에이에스엠엘(X) -> ASML(O))
-3. ETF 종목: '프로셰어즈 울트라프로...' 처럼 길고 지저분하게 번역하지 말고, [티커 (주요 테마 간략 설명)] 형태로 깔끔하게 작성 (예: TQQQ -> TQQQ (나스닥 100 3배 ETF), SOXL -> SOXL (반도체 3배 ETF))
+[🚨 절대 규칙]
+1. 사용자가 한글(예: 삼셩전자, 오랴클)이나 긴 영문 기업명(예: palantir, microsoft)으로 검색한 경우에만 올바른 주식 티커로 변환하세요.
+2. 기업명/종목명은 한국어로 자연스럽게 번역하되, 잘 모르는 중소형 주식은 영문명 그대로 두세요.
+3. ETF의 경우 '티커명 (테마 간략 설명)' 형태로 작성하세요.
 
-출력 형식은 무조건 "티커|깔끔한종목명" 이어야 합니다. 다른 설명은 절대 금지합니다.
-예시: AAPL|애플, 005930.KS|삼성전자, TSM|TSMC, TQQQ|TQQQ (나스닥 100 3배 ETF)"""
+출력 형식은 무조건 "티커|표시할종목명" 이어야 합니다. (다른 설명 절대 금지)
+예시 1: "마소" 입력 시 -> MSFT|마이크로소프트
+예시 2: "palantir" 입력 시 -> PLTR|팔란티어
+"""
         trans_response = client.models.generate_content(
             model='gemini-2.5-flash', 
             contents=prompt,
-            config={"temperature": 0.0} # 💥 창의성 차단! 환각 완벽 방지
+            config={"temperature": 0.0} 
         )
         result = trans_response.text.strip()
         if "|" in result:
             t, k = result.split("|")
-            return t.strip(), k.strip()
+            return t.strip().upper(), k.strip()
     except:
         pass
         
-    return search_term.upper(), search_term.upper()
+    return search_upper, search_upper
 
 def safe_get_fin(df, keys, default='N/A'):
     if df is None or df.empty: return default
@@ -421,27 +432,49 @@ with col_search:
 
 ticker = None
 display_name = ""
+info = {}
+hist_basic = pd.DataFrame()
 
-# 검색어 처리 및 정제 (오타 -> 알잘딱깔센 공식 명칭 변환 후 검색 기록 저장)
+# 1. 입력이 들어오면 티커와 기본 데이터만 우선 확보
 if user_input:
-    # 완전히 개조된 함수가 찰떡같이 티커와 이쁜 종목명을 물어옵니다.
+    # 찰떡같이 티커와 이쁜 종목명을 물어옵니다. (영문 1~5글자는 AI 무시)
     ticker, display_name = get_ticker_and_korean_name(user_input)
+    is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
+    
+    stock = yf.Ticker(ticker)
+    
+    try:
+        hist_basic = stock.history(period="1d")
+    except Exception:
+        pass
 
-    # 🕒 완벽하게 교정된 예쁜 이름(display_name)으로 검색 기록 업데이트!
-    if display_name in st.session_state['search_history']:
-        st.session_state['search_history'].remove(display_name)
-    st.session_state['search_history'].insert(0, display_name)
-    st.session_state['search_history'] = st.session_state['search_history'][:5]
+    if not hist_basic.empty:
+        try:
+            info = stock.info
+        except Exception:
+            pass
+        
+        # 🚨 [가드레일 작동] 영문 티커를 쳐서 AI를 강제로 통과한 경우 (예: CEPT|CEPT),
+        # 야후 파이낸스에서 실제 등록된 기업명(Cantor Equity Partners II)으로 깔끔하게 덮어써줍니다!
+        if display_name.upper() == ticker.upper() and info:
+            display_name = info.get('shortName', info.get('longName', ticker))
+            
+        company_name = display_name
+            
+        # 🕒 완벽하게 정제된 진짜 이름으로 검색 기록 업데이트!
+        if display_name in st.session_state['search_history']:
+            st.session_state['search_history'].remove(display_name)
+        st.session_state['search_history'].insert(0, display_name)
+        st.session_state['search_history'] = st.session_state['search_history'][:5]
 
-# 🕒 검색창 바로 아래에 세련된 검색 기록 UI 렌더링
+# 2. 🕒 검색창 바로 아래에 세련된 검색 기록 UI 렌더링
 if st.session_state['search_history']:
     st.markdown("<div style='font-size: 14px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
-    hist_cols = st.columns(6) # 화면을 6등분하여 배치 (최대 5개까지 널찍하게 표시)
+    hist_cols = st.columns(6) # 화면을 6등분하여 배치
     
     for i, term in enumerate(st.session_state['search_history']):
         if i < 5:
             with hist_cols[i]:
-                # 버튼을 클릭 영역(7)과 삭제 영역(3)으로 분할
                 c1, c2 = st.columns([7, 3], gap="small")
                 with c1:
                     st.button(term, key=f"hist_btn_{term}_{i}", on_click=set_search_input, args=(term,), use_container_width=True)
@@ -450,35 +483,16 @@ if st.session_state['search_history']:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 메인 주식 분석 로직
-if user_input and ticker:
-    stock = yf.Ticker(ticker)
-    is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
-    
-    # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit 발생 시 빈 데이터프레임으로 넘기기
-    try:
-        hist_basic = stock.history(period="1d")
-    except Exception:
-        hist_basic = pd.DataFrame()
-  
+# 3. 메인 주식 분석 로직 렌더링
+if user_input:
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
-        
-        # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit
-        try:
-            info = stock.info
-        except Exception:
-            info = {}
             
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
-        
-        # 🚨 무조건 고정! 야후 파이낸스 이상한 이름 덮어쓰기 원천 차단
-        company_name = display_name
             
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
         
-        # ⚠️ 방어 코드: 재무제표 관련 데이터
         try: fin_df = stock.financials
         except: fin_df = pd.DataFrame()
         try: bs_df = stock.balance_sheet
@@ -495,7 +509,6 @@ if user_input and ticker:
             if is_korean_stock:
                 rss_url = f"https://news.google.com/rss/search?q={display_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
             else:
-                # 미국 주식은 영어 티커명으로 검색해야 영문 외신도 놓치지 않고 긁어옵니다.
                 rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
             response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
             root = ET.fromstring(response.content)
@@ -651,7 +664,7 @@ if user_input and ticker:
         with tab1:
             col_price, col_interval = st.columns([3, 1])
             with col_price:
-                # 💥 이제 상단 제목에도 무조건 100% 예쁜 한글 종목명이 뜹니다!
+                # 💥 완벽하게 교정/복구된 종목명이 출력됩니다.
                 st.markdown(f"### {company_name} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
             
             with col_interval:
@@ -659,11 +672,7 @@ if user_input and ticker:
             
             interval = "1d" if interval_option == "일봉" else "1wk" if interval_option == "주봉" else "1mo"
             
-            # ⚠️ 방어 코드: 차트 히스토리
-            try:
-                history = stock.history(period="max", interval=interval)
-            except Exception:
-                history = pd.DataFrame()
+            history = stock.history(period="max", interval=interval)
             
             if not history.empty:
                 history = history[(history['Low'] > 0) & (history['High'] > 0) & (history['Close'] > 0)]
@@ -1012,7 +1021,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {company_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [종목 혼동 완벽 차단]: 현재 분석 타겟은 무조건 '{company_name} ({ticker})'입니다. 수집된 기사 중 티커 철자나 이름이 비슷해서 섞여 들어온 전혀 다른 기업/ETF의 정보가 있다면 완전히 배제하세요.\n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 직접적 언급 금지."
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {company_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [종목 혼동 완벽 차단]: 현재 분석 타겟은 무조건 '{company_name} ({ticker})'입니다. 수집된 기사 중 티커 철자나 이름이 비슷해서 섞여 들어온 전혀 다른 기업/ETF의 정보가 있다면 완전히 배제하세요.\n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 직접적 언급 금지."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', 
