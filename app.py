@@ -197,6 +197,7 @@ def get_ticker_symbol(search_term):
         "AMD": "AMD",
         "INTEL": "INTC",
         "인텔": "INTC",
+        "슈드": "SCHD",
         "SCHD": "SCHD",
         "큐큐큐": "QQQ",
         "QQQ": "QQQ",
@@ -631,7 +632,6 @@ if user_input:
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
         
-        # --- [오류 100% 차단 무적의 배당수익률 로직] ---
         def get_robust_dividend_yield(info_dict, div_data, current_p):
             for key in ['finviz_div_yield', 'naver_div_yield']:
                 val = info_dict.get(key)
@@ -680,7 +680,6 @@ if user_input:
             return 'N/A'
 
         div_yield = get_robust_dividend_yield(info, div_series, current_price)
-        # -----------------------------------------------
         
         debt = safe_info(info, ['debtToEquity'])
         current_ratio = safe_info(info, ['currentRatio'])
@@ -935,7 +934,7 @@ if user_input:
                     """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
                         )
                         st.info(response.text)
                     except Exception as e:
@@ -964,7 +963,6 @@ if user_input:
             c3.metric("매출 성장률", fmt_pct(rev_growth))
             c3.metric("배당 수익률", fmt_pct(div_yield)) 
             
-            # 부채비율 소수점 완벽 수정
             try:
                 debt_val = float(debt)
                 debt_str = f"{debt_val:.2f}%"
@@ -1072,7 +1070,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
                         )
                         st.info(response.text)
                     except Exception as e:
@@ -1090,7 +1088,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지.\n- [출처 표기 절대 금지]: 괄호 안에 기사 번호를 적는 행위(예: 1, 2, 3)나 출처를 짐작할 수 있는 인용구를 완벽하게 금지합니다."
                         try:
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
+                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
                             )
                             st.info(response.text)
                         except Exception as e:
@@ -1110,7 +1108,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 직접적 언급 금지.\n- [출처 표기 절대 금지]: 괄호 안에 기사 번호를 적는 행위(예: 1, 2, 3)나 출처를 짐작할 수 있는 인용구를 완벽하게 금지합니다."
                         try:
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
+                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
                             )
                             st.info(response.text)
                         except Exception as e:
@@ -1185,12 +1183,13 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 하락폭은 제한적인데 상승 여력(먹을 자리)이 많다면 과감하게 점수를 크게 높이세요.
                     - 재무상황과 최신 동향도 손익비 판단의 핵심 근거로 활용하세요.
                     - 무조건 중립을 피하라는 것은 아닙니다. 현재 자리가 방향성을 알 수 없는 진정한 관망 구간이거나, 호재/악재가 팽팽하다면 당연히 '중립' 의견(41~60점)을 내어도 좋습니다.
+                    - [숨은 진주 발굴(성장주/턴어라운드) 우대]: 시가총액이 작고 현재 적자이거나 재무 지표(PER, 부채비율 등)가 나쁘더라도, 차트상 손익비가 극대화되는 바닥 구간이거나 폭발적인 턴어라운드 및 성장 모멘텀이 보인다면 대형 우량주 못지않게 과감히 '강력 매수(81~100점)'를 부여하세요. 리스크가 있더라도 보상이 압도적으로 크다면 높은 점수를 주어야 합니다.
                     
                     예시: [SCORE: 85]
                     """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
                         )
                         
                         report_text = response.text
