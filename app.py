@@ -619,8 +619,8 @@ if user_input:
             try: 
                 f = float(v)
                 if math.isnan(f) or math.isinf(f): return 'N/A'
-                # PER 값이 비정상적으로 높을 경우 필터링 추가
-                if is_per and f > 1000: return 'N/A (확인 불가)'
+                # PER 값이 비정상적으로 높을 경우 필터링 추가 (확인 불가 텍스트 제거)
+                if is_per and f > 1000: return 'N/A'
                 return f"{f:,.2f}"
             except: return 'N/A'
             
@@ -671,7 +671,7 @@ if user_input:
         net_margin = safe_info(info, ['profitMargins', 'netMargin'])
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
-        div_yield = safe_info(info, ['trailingAnnualDividendYield', 'yield', 'dividendYield'])
+        div_yield = safe_info(info, ['dividendYield', 'trailingAnnualDividendYield', 'yield'])
         
         debt = safe_info(info, ['debtToEquity'])
         current_ratio = safe_info(info, ['currentRatio'])
@@ -859,7 +859,7 @@ if user_input:
                         'doubleClick': False
                     })
                 else:
-                    st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더를 조절해 주세요!")
+                    st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더 조절해 주세요!")
             else:
                 ma_context_str = "차트 데이터 부족"
             
