@@ -352,7 +352,9 @@ def augment_korean_fundamentals(ticker, info):
         
         if per is not None: info['trailingPE'] = per
         if pbr is not None: info['priceToBook'] = pbr
-        if div is not None: info['dividendYield'] = div / 100.0
+        if div is not None: 
+            info['dividendYield'] = div / 100.0
+            info['naver_div_yield'] = div / 100.0 # 확실한 데이터 라벨링
 
         table = soup.find('table', {'class': 'tb_type1 tb_num tb_type1_ifrs'})
         if table:
@@ -436,7 +438,9 @@ def augment_us_fundamentals(ticker, info):
             if (v := parse_finviz_val(data_dict.get('Gross Margin', '-'), True)) is not None: info['grossMargins'] = v
             if (v := parse_finviz_val(data_dict.get('Oper. Margin', '-'), True)) is not None: info['operatingMargins'] = v
             if (v := parse_finviz_val(data_dict.get('Profit Margin', '-'), True)) is not None: info['profitMargins'] = v
-            if (v := parse_finviz_val(data_dict.get('Dividend %', '-'), True)) is not None: info['dividendYield'] = v
+            if (v := parse_finviz_val(data_dict.get('Dividend %', '-'), True)) is not None: 
+                info['dividendYield'] = v
+                info['finviz_div_yield'] = v # 확실한 데이터 라벨링
             if (v_debt := parse_finviz_val(data_dict.get('Debt/Eq', '-'))) is not None: info['debtToEquity'] = v_debt * 100
             if (v := parse_finviz_val(data_dict.get('Current Ratio', '-'))) is not None: info['currentRatio'] = v
             if (v := parse_finviz_val(data_dict.get('Quick Ratio', '-'))) is not None: info['quickRatio'] = v
@@ -628,40 +632,63 @@ if user_input:
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
         
+        # --- [오류 100% 차단 무적의 배당수익률 로직] ---
         def get_robust_dividend_yield(info_dict, div_data, current_p):
-            candidates = []
-            
-            for key in ['dividendYield', 'yield']:
+            # 0순위: 확실한 외부 소스(핀비즈, 네이버)에서 먼저 긁어온 데이터
+            for key in ['finviz_div_yield', 'naver_div_yield']:
                 val = info_dict.get(key)
                 if val is not None and str(val).strip() != '' and str(val).upper() != 'N/A':
-                    try: candidates.append(float(val))
+                    try:
+                        v = float(val)
+                        if 0 < v < 0.50: return v
                     except: pass
-            
+                    
+            # 1순위: 야후 배당금 히스토리를 직접 최근 1년치 합산하여 주가로 나눔 (가장 안전)
             try:
                 if not div_data.empty and current_p > 0:
                     one_year_ago = div_data.index[-1] - pd.Timedelta(days=365)
                     recent_divs = div_data[div_data.index > one_year_ago]
                     if not recent_divs.empty:
-                        candidates.append(float(recent_divs.sum()) / float(current_p))
-            except Exception:
-                pass
+                        history_yield = float(recent_divs.sum()) / float(current_p)
+                        if 0 < history_yield < 0.50: 
+                            return history_yield
+            except: pass
+                
+            # 2순위: 야후 API의 '배당금(Dollar)'을 주가로 나눔
+            for key in ['dividendRate', 'trailingAnnualDividendRate']:
+                r = info_dict.get(key)
+                if r is not None and str(r).strip() != '' and str(r).upper() != 'N/A':
+                    try:
+                        r_val = float(r)
+                        if r_val > 0 and current_p > 0:
+                            rate_yield = r_val / float(current_p)
+                            if 0 < rate_yield < 0.50: return rate_yield
+                    except: pass
             
-            tdy = info_dict.get('trailingAnnualDividendYield')
-            if tdy is not None and str(tdy).strip() != '' and str(tdy).upper() != 'N/A':
-                try: 
-                    curr = info_dict.get('currency', 'USD')
-                    f_curr = info_dict.get('financialCurrency', 'USD')
-                    val = float(tdy)
-                    if curr != f_curr and val > 0.05: pass
-                    else: candidates.append(val)
-                except: pass
-                
-            for val in candidates:
-                if 0 < val < 0.3: return val
-                
+            # 3순위: 야후 API가 제공하는 '배당수익률' (버그가 제일 많음)
+            for key in ['dividendYield', 'trailingAnnualDividendYield', 'yield']:
+                y = info_dict.get(key)
+                if y is not None and str(y).strip() != '' and str(y).upper() != 'N/A':
+                    try:
+                        y_val = float(y)
+                        
+                        # 버그 1: ADR 종목 환율 불일치로 인한 뻥튀기 차단
+                        curr = info_dict.get('currency', 'USD')
+                        f_curr = info_dict.get('financialCurrency', 'USD')
+                        if curr != f_curr and y_val > 0.05: continue
+                        
+                        if 0 < y_val < 0.50:
+                            # 버그 2: 구글처럼 배당금(달러)을 수익률로 잘못 보낸 경우 (y_val > 0.15면 의심)
+                            if y_val > 0.15: 
+                                assumed_yield = y_val / current_p
+                                if 0 < assumed_yield < 0.15: return assumed_yield
+                            return y_val
+                    except: pass
+            
             return 'N/A'
 
         div_yield = get_robust_dividend_yield(info, div_series, current_price)
+        # -----------------------------------------------
         
         debt = safe_info(info, ['debtToEquity'])
         current_ratio = safe_info(info, ['currentRatio'])
@@ -893,7 +920,7 @@ if user_input:
                     6. [핵심 강조]: 중요한 단어나 문장은 반드시 **굵은 글씨(**)**로 강조.
                     7. [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요.
                     8. [항목 제한]: 분석 항목은 '1. 단기적인 추세', '2. 장기적인 추세' 두 가지만 출력하세요.
-                    9. [기사 수 언급 금지]: 기사 개수나 기사 출처를 직접 언급하지 마세요.
+                    9. [출처 표기 절대 금지]: 괄호 안에 기사 번호(예: 1, 2)를 적거나 출처를 언급하는 행위 완벽 금지.
 
                     [출력 형식 가이드]
                     ### 1. 단기적인 추세 (Short-term trend)
@@ -1041,7 +1068,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news1:
                 if st.button("AI 최신 동향 브리핑"):
                     with st.spinner("최신 뉴스를 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n{news_context}\n\n위 데이터의 본문 내용을 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요.\n- 글머리 기호 금지. 마크다운 헤딩(###)과 숫자로 제목을 달 것.\n- 기사의 제목이나 본문을 직접 인용/복사하지 말 것.\n- 달러 기호 금지."
+                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n{news_context}\n\n위 데이터의 본문 내용을 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요.\n- 글머리 기호 금지. 마크다운 헤딩(###)과 숫자로 제목을 달 것.\n- 기사의 제목이나 본문을 직접 인용/복사하지 말 것.\n- 달러 기호 금지.\n- [출처 표기 절대 금지]: 괄호 안에 기사 번호(예: 1, 2)를 적거나 출처를 언급하는 행위 완벽 금지."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
@@ -1061,7 +1088,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n{news_context}\n\n현재 시장 참여자들의 투자 심리(Fear & Greed)를 꿰뚫어 보고, 단기 및 중장기 주가 흐름에 미칠 영향을 분석해주세요.\n- 글머리 기호 금지. 마크다운 헤딩(###)으로 소제목을 달 것.\n- 달러 기호 금지."
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n{news_context}\n\n현재 시장 참여자들의 투자 심리(Fear & Greed)를 꿰뚫어 보고, 단기 및 중장기 주가 흐름에 미칠 영향을 분석해주세요.\n- 글머리 기호 금지. 마크다운 헤딩(###)으로 소제목을 달 것.\n- 달러 기호 금지.\n- [출처 표기 절대 금지]: 괄호 안에 기사 번호(예: 1, 2)를 적거나 출처를 언급하는 행위 완벽 금지."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
@@ -1092,7 +1119,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     [지시사항]
                     - 글머리 기호 금지. 각 항목 제목은 마크다운 헤딩(###) 사용.
                     - 달러 기호 금지. 금액은 반드시 '{currency}'으로 표기할 것.
-                    - 기사 수 언급, 직접 인용 절대 금지.
+                    - [출처 표기 절대 금지]: 괄호 안에 기사 번호(예: 1, 2)를 적거나 출처를 언급하는 행위 완벽 금지.
                     """
                     try:
                         response = client.models.generate_content(
