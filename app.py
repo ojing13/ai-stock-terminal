@@ -189,55 +189,59 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 강력한 백업: 네이버 금융 자동완성 API (한국/해외 주식 모두 스캔)
-    if bool(re.search('[가-힣]', search_term)):
-        try:
-            encoded_term = urllib.parse.quote(search_term)
-            ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                'Referer': 'https://finance.naver.com/'
-            }
-            ac_res = requests.get(ac_url, headers=headers, timeout=5)
-            ac_data = ac_res.json()
+    # 2. 강력한 백업: 네이버 금융 자동완성 API (한글/영어 제한 해제)
+    try:
+        encoded_term = urllib.parse.quote(search_term)
+        ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            'Referer': 'https://finance.naver.com/'
+        }
+        ac_res = requests.get(ac_url, headers=headers, timeout=5)
+        ac_data = ac_res.json()
+        
+        if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
+            item = ac_data['items'][0][0]
+            code = item[0]
+            market_str = item[2] if len(item) > 2 else ""
             
-            if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
-                item = ac_data['items'][0][0]
-                code = item[0]
-                market_str = item[2] if len(item) > 2 else ""
-                
+            if '코스피' in market_str: return f"{code}.KS"
+            elif '코스닥' in market_str: return f"{code}.KQ"
+            else: return code # 해외 주식은 티커 그대로 반환
+    except:
+        pass
+            
+    # 3. 네이버 HTML 검색 백업 (API 차단 시)
+    try:
+        encoded_term_euc = urllib.parse.quote(search_term.encode('euc-kr'))
+        html_url = f"https://finance.naver.com/search/searchList.naver?query={encoded_term_euc}"
+        html_res = requests.get(html_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
+        soup = BeautifulSoup(html_res.text, 'html.parser')
+        a_tag = soup.select_one('td.tit a')
+        if a_tag and 'code=' in a_tag['href']:
+            code = a_tag['href'].split('code=')[1]
+            tr = a_tag.find_parent('tr')
+            tds = tr.find_all('td')
+            if len(tds) > 2:
+                market_str = tds[2].text.strip()
                 if '코스피' in market_str: return f"{code}.KS"
                 elif '코스닥' in market_str: return f"{code}.KQ"
-                else: return code # 해외 주식은 티커 그대로 반환
-        except:
-            pass
-            
-        # 3. 네이버 HTML 검색 백업 (API 차단 시)
-        try:
-            encoded_term_euc = urllib.parse.quote(search_term.encode('euc-kr'))
-            html_url = f"https://finance.naver.com/search/searchList.naver?query={encoded_term_euc}"
-            html_res = requests.get(html_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
-            soup = BeautifulSoup(html_res.text, 'html.parser')
-            a_tag = soup.select_one('td.tit a')
-            if a_tag and 'code=' in a_tag['href']:
-                code = a_tag['href'].split('code=')[1]
-                tr = a_tag.find_parent('tr')
-                tds = tr.find_all('td')
-                if len(tds) > 2:
-                    market_str = tds[2].text.strip()
-                    if '코스피' in market_str: return f"{code}.KS"
-                    elif '코스닥' in market_str: return f"{code}.KQ"
-                    else: return code
-        except:
-            pass
+                else: return code
+    except:
+        pass
       
-    # 4. 야후 파이낸스 자체 검색망 강화 (영어, 한글 모두 시도)
+    # 4. 야후 파이낸스 자체 검색망 강화 (미국 시장 우선 탐색 로직 추가)
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
         res = requests.get(url, headers=headers, timeout=5)
         data = res.json()
         if 'quotes' in data and len(data['quotes']) > 0:
+            # 1순위: 미국 거래소(NYQ, NMS, NAS) 우선 필터링
+            for quote in data['quotes']:
+                if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange') in ['NYQ', 'NMS', 'NAS']:
+                    return quote['symbol']
+            # 2순위: 그 외 일반 주식/ETF
             for quote in data['quotes']:
                 if quote.get('type') in ['EQUITY', 'ETF']:
                     return quote['symbol']
@@ -256,7 +260,6 @@ def get_ticker_symbol(search_term):
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
-        # THOUGHT 과정이 섞여 들어오더라도 맨 마지막 줄의 진짜 티커만 걸러내는 필터망
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
             match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', lines[-1])
@@ -1138,5 +1141,3 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.info(response.text)
                     except Exception as e:
                         st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
-    else:
-        st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 종목명이나 티커를 입력해 주세요!")
