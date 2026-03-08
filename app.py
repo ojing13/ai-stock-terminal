@@ -57,7 +57,7 @@ st.markdown("""
         box-shadow: 0 0 0 1px #007bff !important;
     }
    
-    /* Selectbox 포커스 */
+    /* === Selectbox(차트 주기 등) 타이핑(편집) 방지 및 테두리 파란색 === */
     div[data-baseweb="select"] > div:hover,
     div[data-baseweb="select"] > div:focus-within {
         border-color: #007bff !important;
@@ -198,7 +198,8 @@ def get_ticker_symbol(search_term):
         "큐큐큐": "QQQ",
         "QQQ": "QQQ",
         "스파이": "SPY",
-        "SPY": "SPY"
+        "SPY": "SPY",
+        "디어유": "376300.KQ"  # 디어유 명시적 추가
     }
     
     if search_clean in custom_mapping:
@@ -231,7 +232,7 @@ def get_ticker_symbol(search_term):
             
             if '코스피' in market_str: return f"{code}.KS"
             elif '코스닥' in market_str: return f"{code}.KQ"
-            else: return code
+            else: return f"{code}.KS"
     except:
         pass
             
@@ -509,7 +510,7 @@ def fetch_news_data(ticker, official_name, search_korean_news):
     return news_list
 
 # ====================== 메인 ======================
-st.title("AI 주식 분석 터미널")
+st.title("웅이의 AI 주식 분석 터미널")
 st.markdown("---")
 
 col_search, _ = st.columns([1, 2])
@@ -1198,40 +1199,13 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 r_s = max(0, min(100, risk_score))
                                 ret_s = max(0, min(100, return_score))
                                 
-                                matrix_html = f"""
-<div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;">
-<h4 style="text-align: center; margin-bottom: 25px; color: #333; font-weight: 700;">
-리스크 대비 기대수익 매트릭스
-</h4>
-<div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 1px solid #dcdcdc; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
-<div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #d0d0d0;"></div>
-<div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #d0d0d0;"></div>
-<div style="position: absolute; top: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #ff6b6b;">저위험 고수익</div>
-<div style="position: absolute; top: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #ff2d55;">고위험 고수익</div>
-<div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div>
-<div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div>
-<div style="position: absolute; bottom: calc({ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div>
-</div>
-</div>
-"""
+                                matrix_html = f"""<div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;"><h4 style="text-align: center; margin-bottom: 25px; color: #333; font-weight: 700;">리스크 대비 기대수익 매트릭스</h4><div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 1px solid #dcdcdc; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);"><div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #d0d0d0;"></div><div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #d0d0d0;"></div><div style="position: absolute; top: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #ff6b6b;">저위험 고수익</div><div style="position: absolute; top: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #ff2d55;">고위험 고수익</div><div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div><div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div><div style="position: absolute; bottom: calc({ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div></div></div>"""
                             
-                            bar_html = f"""
-<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;">
-<h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
-AI 투자의견: <span style="color: {text_color};">{opinion_text}</span>
-</h4>
-<div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
-<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div>
-<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div>
-<div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div>
-<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div>
-<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div>
-<div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
-</div>
-{matrix_html}
-</div>
-"""
-                            st.markdown(bar_html, unsafe_allow_html=True)
+                            bar_html = f"""<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;"><h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h4><div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);"><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div><div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div></div>{matrix_html}</div>"""
+                            
+                            # 들여쓰기와 줄바꿈을 완벽히 제거하여 Streamlit 렌더링 오류 원천 차단
+                            clean_html = bar_html.replace('\n', '')
+                            st.markdown(clean_html, unsafe_allow_html=True)
                             
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
