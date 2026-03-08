@@ -76,11 +76,19 @@ st.markdown("""
         user-select: none !important;
     }
     
-    /* === 💥 슬라이더 바/손잡이 통일 (빨간색) === */
+    /* === 💥 슬라이더 바 & 손잡이 모두 빨간색으로 완벽 통일 === */
     div[data-testid="stSlider"] div[role="slider"] {
         background-color: #ff4b4b !important;
         border-color: #ff4b4b !important;
         box-shadow: none !important;
+    }
+    div[data-testid="stSlider"] div[role="slider"]:hover,
+    div[data-testid="stSlider"] div[role="slider"]:focus {
+        box-shadow: 0 0 0 0.2rem rgba(255, 75, 75, 0.25) !important;
+    }
+    div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
+    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"] {
+        background-color: #ff4b4b !important;
     }
     [data-testid="stTickBarMin"],
     [data-testid="stTickBarMax"],
@@ -108,57 +116,61 @@ st.markdown("""
         line-height: 1.2 !important;
     }
 
-    /* === 💥 모바일/웹 완벽 대응: 검색기록 알약(Pill) UI 세팅 === */
-    /* 1. 세로로 쌓이는 현상 방지 & 가로로 꽉 차면 줄바꿈 (flex-wrap) */
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="stHorizontalBlock"] {
-        flex-wrap: wrap !important;
+    /* === 💥 모바일 웹 완벽 대응: 검색기록 알약(Pill) UI (가로 나열 & 자동 줄바꿈) === */
+    /* 1. 가로 정렬 및 자리가 없으면 자동 줄바꿈 (모바일 세로 나열 완벽 방지) */
+    div.element-container:has(.history-anchor) + div.element-container > div[data-testid="stHorizontalBlock"] {
         flex-direction: row !important;
+        flex-wrap: wrap !important;
         gap: 0px !important;
+        row-gap: 8px !important;
     }
-    /* 2. 각 컬럼의 너비를 내용물 크기에 딱 맞게 축소 (불필요한 공간 제거) */
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"] {
-        width: auto !important;
+    /* 2. 각 컬럼(버튼) 너비를 내용물에 딱 맞춤 */
+    div.element-container:has(.history-anchor) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
         flex: 0 0 auto !important;
+        width: auto !important;
         min-width: 0 !important;
         padding: 0 !important;
         margin: 0 !important;
     }
-    /* 3. [왼쪽] 종목명 버튼 디자인 (하나의 박스처럼 보이게 둥근 모서리 처리) */
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(odd) button {
-        border-radius: 20px 0 0 20px !important;
+    /* 3. 버튼 자체의 기본 여백/테두리 초기화 */
+    div.element-container:has(.history-anchor) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] button {
         border: 1px solid #ddd !important;
-        border-right: none !important;
-        background-color: #ffffff !important;
-        color: #333 !important;
-        font-size: 13px !important;
-        font-weight: 600 !important;
-        padding: 2px 4px 2px 14px !important;
+        background-color: #f8f9fa !important;
         height: 32px !important;
         min-height: 32px !important;
-        margin-bottom: 8px !important;
+        margin: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: none !important;
     }
-    /* 4. [오른쪽] '✖' 버튼 디자인 (박스 안에 작게 포함된 느낌) */
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(even) button {
-        border-radius: 0 20px 20px 0 !important;
-        border: 1px solid #ddd !important;
-        border-left: none !important;
-        background-color: #ffffff !important;
-        color: #aaa !important;
-        font-size: 10px !important;
-        padding: 2px 12px 2px 4px !important;
-        height: 32px !important;
-        min-height: 32px !important;
-        margin-right: 8px !important; /* 다음 알약과의 간격 */
-        margin-bottom: 8px !important;
-    }
-    /* 5. 마우스를 올렸을 때 전체가 하나의 박스인 것처럼 색상 통일 */
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(odd) button:hover,
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(even) button:hover {
-        background-color: #f1f3f5 !important;
+    /* 4. 마우스 호버 효과 */
+    div.element-container:has(.history-anchor) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] button:hover {
+        background-color: #e9ecef !important;
         border-color: #ccc !important;
     }
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(even) button:hover {
+    /* 5. [왼쪽] 종목명 부분 (모서리를 왼쪽만 둥글게) */
+    div.element-container:has(.history-anchor) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(odd) button {
+        border-radius: 16px 0 0 16px !important;
+        border-right: none !important;
+        padding: 0 4px 0 12px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        color: #333 !important;
+    }
+    /* 6. [오른쪽] '✖' 삭제 버튼 부분 (작고 귀엽게, 모서리 오른쪽 둥글게) */
+    div.element-container:has(.history-anchor) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(even) button {
+        border-radius: 0 16px 16px 0 !important;
+        border-left: none !important;
+        padding: 0 10px 0 4px !important;
+        font-size: 11px !important;
+        color: #aaa !important;
+        margin-right: 8px !important; /* 다음 알약과의 간격 띄우기 */
+    }
+    /* ✖ 버튼에 마우스 올렸을 때만 빨간색 강조 */
+    div.element-container:has(.history-anchor) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(even) button:hover {
         color: #ff4b4b !important;
+        font-weight: 900 !important;
     }
 
     /* === 불필요한 UI 완벽 숨기기 === */
@@ -478,6 +490,7 @@ display_name = ""
 info = {}
 hist_basic = pd.DataFrame()
 
+# 1. 입력 처리 및 검색어 정제
 if user_input:
     ticker, display_name = get_ticker_and_korean_name(user_input)
     is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
@@ -495,34 +508,36 @@ if user_input:
         except Exception:
             pass
         
+        # 야후 파이낸스에서 실제 기업명 덮어쓰기 (티커를 입력한 경우)
         if display_name.upper() == ticker.upper() and info:
             display_name = info.get('shortName', info.get('longName', ticker))
             
         company_name = display_name
             
+        # 검색 기록 업데이트
         if display_name in st.session_state['search_history']:
             st.session_state['search_history'].remove(display_name)
         st.session_state['search_history'].insert(0, display_name)
         st.session_state['search_history'] = st.session_state['search_history'][:10]
 
-# 💥 검색기록 알약(Pill) UI 렌더링 (모바일 화면 자동 줄바꿈)
+# 2. 💥 완벽한 검색기록 알약(Pill) UI 렌더링
 if st.session_state['search_history']:
-    with st.container():
-        st.markdown('<div class="search-history-container"></div>', unsafe_allow_html=True)
-        st.markdown("<div style='font-size: 13px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
-        
-        # 각각의 아이템당 2개의 컬럼(이름, X버튼) 생성
-        history_items = st.session_state['search_history'][:5]
-        cols = st.columns(len(history_items) * 2)
-        
-        for i, term in enumerate(history_items):
-            with cols[i*2]:
-                st.button(term, key=f"hist_btn_{term}_{i}", on_click=set_search_input, args=(term,), use_container_width=True)
-            with cols[i*2 + 1]:
-                st.button("✖", key=f"del_btn_{term}_{i}", on_click=remove_from_history, args=(term,), use_container_width=True)
+    st.markdown("<div style='font-size: 13px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
+    # 이 마커를 기준으로 바로 밑의 stHorizontalBlock을 CSS로 타겟팅합니다.
+    st.markdown('<div class="history-anchor"></div>', unsafe_allow_html=True)
+    
+    history_items = st.session_state['search_history'][:5]
+    cols = st.columns(len(history_items) * 2)
+    
+    for i, term in enumerate(history_items):
+        with cols[i*2]:
+            st.button(term, key=f"hist_btn_{term}_{i}", on_click=set_search_input, args=(term,), use_container_width=True)
+        with cols[i*2 + 1]:
+            st.button("✖", key=f"del_btn_{term}_{i}", on_click=remove_from_history, args=(term,), use_container_width=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
+# 3. 메인 주식 분석 로직 렌더링
 if user_input:
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
@@ -543,6 +558,7 @@ if user_input:
         currency = "원" if is_korean_stock else "달러"
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
+        # 뉴스 기사 수집
         try:
             if is_korean_stock:
                 rss_url = f"https://news.google.com/rss/search?q={display_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
@@ -765,11 +781,13 @@ if user_input:
                     
                     fig = go.Figure()
                     
-                    # 💥 상승 양봉은 빨간색, 하락 음봉은 파란색 패치 완료!
+                    # 💥 상승 양봉은 빨간색, 하락 음봉은 파란색 한국식 패치 완료!
+                    # 속 안(fillcolor)까지 꽉꽉 채웠습니다.
                     fig.add_trace(go.Candlestick(
                         x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                         low=filtered_history['Low'], close=filtered_history['Close'],
-                        increasing_line_color='#ff4b4b', decreasing_line_color='#00b0ff',
+                        increasing_line_color='#ff4b4b', increasing_fillcolor='#ff4b4b',
+                        decreasing_line_color='#00b0ff', decreasing_fillcolor='#00b0ff',
                         name="가격"
                     ))
 
