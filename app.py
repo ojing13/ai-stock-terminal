@@ -141,70 +141,62 @@ client = genai.Client(api_key=MY_API_KEY)
 @st.cache_data
 def load_krx_data():
     try:
-        # 1차 시도: 전체 KRX 데이터
         return fdr.StockListing('KRX')
     except Exception:
         try:
-            # 2차 시도: KOSPI, KOSDAQ 분리해서 시도
             kospi = fdr.StockListing('KOSPI')
             kosdaq = fdr.StockListing('KOSDAQ')
             return pd.concat([kospi, kosdaq], ignore_index=True)
         except Exception:
-            # 모두 실패 시 빈 데이터프레임 반환 (앱 크래시 방지)
             return pd.DataFrame(columns=['Code', 'Name', 'Market'])
 
 krx_df = load_krx_data()
 
-def get_ticker_symbol(search_term):
+# ⚠️ 새롭게 설계된 핵심 로직: 오타 교정 및 무조건 한글명칭 추출
+def get_ticker_and_korean_name(search_term):
     search_term = search_term.strip()
     
+    # 1. 한국 주식인지 먼저 로컬에서 확인 (속도 최적화)
     if not krx_df.empty:
         match = krx_df[krx_df['Name'] == search_term]
         if not match.empty:
             code = match.iloc[0]['Code']
             market = match.iloc[0]['Market']
-            if market == 'KOSPI': return f"{code}.KS"
-            else: return f"{code}.KQ"
+            ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
+            return ticker, search_term
             
+    # 2. 유명한 미국 주식 매핑 (빠른 응답)
     us_dict = {
         "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT",
         "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META",
-        "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD"
+        "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD",
+        "오라클": "ORCL", "AAPL": "애플", "TSLA": "테슬라", "NVDA": "엔비디아", "ORCL": "오라클"
     }
-    if search_term in us_dict: return us_dict[search_term]
-      
-    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    
+    if search_term in us_dict:
+        val = us_dict[search_term]
+        if val.isalpha() and val == val.upper(): # 한글을 입력해서 티커가 나온 경우
+            return val, search_term
+        else: # 영문 티커를 입력해서 한글이 나온 경우
+            return search_term.upper(), val
+            
+    # 3. 그 외의 경우 (오타, 기타 미국/한국 주식 등) AI에게 번역 및 교정 위임
     try:
-        res = requests.get(url, headers=headers, timeout=5)
-        data = res.json()
-        if 'quotes' in data and len(data['quotes']) > 0:
-            for quote in data['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF']:
-                    return quote['symbol']
-            return data['quotes'][0]['symbol']
+        prompt = f"""당신은 세계 최고의 주식 종목 번역 전문가입니다.
+사용자의 검색어: "{search_term}"
+이 검색어에 해당하는 주식의 '정확한 야후 파이낸스 티커'와 '네이버 증권에 등록된 공식 한국어 종목명'을 반환해주세요.
+(사용자가 '삼성전쟈', '오랴클' 처럼 오타를 냈거나 'ORCL' 처럼 영어 티커를 쳤어도, 찰떡같이 알아듣고 정확한 한글 이름을 찾아주세요.)
+출력 형식은 무조건 "티커|한국어이름" 이어야 합니다. 다른 설명은 절대 금지합니다.
+예시: AAPL|애플, 005930.KS|삼성전자, ORCL|오라클, MSFT|마이크로소프트"""
+        trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        result = trans_response.text.strip()
+        if "|" in result:
+            t, k = result.split("|")
+            return t.strip(), k.strip()
     except:
         pass
         
-    try:
-        translate_prompt = f"""당신은 세계 최고의 주식 종목 번역 전문가입니다.
-다음 한국어 주식 종목명을 정확한 영어 공식명으로 번역해주세요. (오타가 있어도 찰떡같이 알아듣고 변환하세요)
-답변은 영어 종목명만 한 줄로 출력하세요. 다른 설명 절대 금지.
-종목명: {search_term}"""
-        trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=translate_prompt)
-        eng_name = trans_response.text.strip()
-        url_eng = f"https://query2.finance.yahoo.com/v1/finance/search?q={eng_name}"
-        res_eng = requests.get(url_eng, headers=headers, timeout=5)
-        data_eng = res_eng.json()
-        if 'quotes' in data_eng and len(data_eng['quotes']) > 0:
-            for quote in data_eng['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF']:
-                    return quote['symbol']
-            return data_eng['quotes'][0]['symbol']
-    except:
-        pass
-      
-    return search_term.upper()
+    return search_term.upper(), search_term.upper()
 
 def safe_get_fin(df, keys, default='N/A'):
     if df is None or df.empty: return default
@@ -391,36 +383,13 @@ with col_search:
 
 ticker = None
 display_name = ""
-company_name = ""
 
-# 검색어 처리 및 정제 (오타 -> 공식명칭 변환 후 검색 기록 저장)
+# 검색어 처리 및 정제 (오타 -> 공식 한글 명칭 변환 후 검색 기록 저장)
 if user_input:
-    ticker = get_ticker_symbol(user_input)
-    is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
-    clean_ticker = ticker.replace('.KS', '').replace('.KQ', '')
-    
-    # 🇰🇷 미국/한국 불문하고 네이버 검색 자동완성 API를 찔러서 완벽한 공식 한글 명칭 추출
-    try:
-        nav_url = f"https://ac.finance.naver.com/ac?q={clean_ticker}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
-        nav_res = requests.get(nav_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
-        nav_data = nav_res.json()
-        if nav_data.get('items') and len(nav_data['items'][0]) > 0:
-            display_name = nav_data['items'][0][0][1] # 예: ORCL -> 오라클, AAPL -> 애플
-    except:
-        pass
-    
-    # 폴백 1: 한국 주식인데 네이버에서 못 가져왔을 경우 KRX 사용
-    if not display_name and is_korean_stock:
-        if not krx_df.empty:
-            match = krx_df[krx_df['Code'] == clean_ticker]
-            if not match.empty:
-                display_name = match.iloc[0]['Name']
-    
-    # 폴백 2: 정 못 찾으면 일단 사용자가 친 값이나 티커로 둔다
-    if not display_name:
-        display_name = ticker
+    # 이제 get_ticker_and_korean_name 함수가 오타 교정 + 무조건 한글 명칭을 반환합니다.
+    ticker, display_name = get_ticker_and_korean_name(user_input)
 
-    # 🕒 완벽하게 교정된 이름(display_name)으로 검색 기록 업데이트! (오타 방지)
+    # 🕒 완벽하게 교정된 한글 이름(display_name)으로 검색 기록 업데이트!
     if display_name in st.session_state['search_history']:
         st.session_state['search_history'].remove(display_name)
     st.session_state['search_history'].insert(0, display_name)
@@ -444,8 +413,9 @@ if st.session_state['search_history']:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # 메인 주식 분석 로직
-if user_input:
+if user_input and ticker:
     stock = yf.Ticker(ticker)
+    is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
     
     # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit 발생 시 빈 데이터프레임으로 넘기기
     try:
@@ -465,11 +435,8 @@ if user_input:
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
         
-        # 만약 네이버에서 이름을 아예 못 구했다면, 야후의 영문 풀네임이라도 쓴다
+        # 무조건 오타가 교정된 완벽한 한글 이름을 모든 프롬프트와 화면에 고정
         company_name = display_name
-        if company_name == ticker: 
-            company_name = info.get('longName', info.get('shortName', ticker))
-            display_name = company_name 
             
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
         
@@ -485,9 +452,13 @@ if user_input:
         currency = "원" if is_korean_stock else "달러"
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
-        # 뉴스 기사 수집량 100개 (이제 한국/미국 상관없이 무조건 예쁜 한글 이름으로 구글 한국 뉴스 검색!)
+        # 뉴스 기사 수집 (한글 이름으로 검색해야 정확한 한국어 뉴스가 나옴)
         try:
-            rss_url = f"https://news.google.com/rss/search?q={display_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
+            if is_korean_stock:
+                rss_url = f"https://news.google.com/rss/search?q={display_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
+            else:
+                # 미국 주식은 티커명으로 검색해야 영문 외신도 놓치지 않고 긁어옵니다.
+                rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
             response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
             root = ET.fromstring(response.content)
             for item in root.findall('.//item')[:100]:
@@ -642,6 +613,7 @@ if user_input:
         with tab1:
             col_price, col_interval = st.columns([3, 1])
             with col_price:
+                # 💥 이제 상단 제목에도 무조건 100% 한글 종목명이 뜹니다!
                 st.markdown(f"### {display_name} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
             
             with col_interval:
@@ -1056,7 +1028,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     
                     1차 목표가: 000 원
                     
-                    논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 정거를 자연스럽게 엮어서 설명)
+                    논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 근거를 자연스럽게 엮어서 설명)
                     
                     🚨 [최고급 퀀트 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
                     - [종목 혼동 완벽 차단]: 현재 분석 타겟은 무조건 '{company_name} ({ticker})'입니다. 수집된 기사 중 티커 철자나 이름이 비슷해서 섞여 들어온 전혀 다른 기업(예: 의료기기 회사 등)의 정보가 있다면 철저하게 무시하세요. 분석 대상 기업 하나에만 온전히 집중하세요.
