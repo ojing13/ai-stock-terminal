@@ -1141,16 +1141,15 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     
                     🚨 [최종 스코어 산출 지시사항 - 매우 중요]
                     리포트 작성을 모두 마친 후, 맨 마지막 줄에 반드시 다음 두 가지 점수를 `[SCORE: 점수]`, `[TENBAGGER: 점수]` 형태로 적어주세요.
-                    **주의: 동일한 재무 데이터, 주가 위치, 최신 동향이 주어지면 항상 동일한 점수를 도출하도록 감정을 철저히 배제하고 객관적 수치 기반으로 기계적이고 일관된 평가를 진행하세요.**
+                    **주의: 동일한 재무 데이터와 주가 위치가 주어지면 항상 동일한 점수를 도출하도록, 감정을 배제하고 수치 기반의 기계적이고 일관된 잣대로 점수를 평가하세요.**
 
                     1. [SCORE: 0~100] (AI 투자의견)
-                    - 철저한 트레이더 관점에서 현재 주가 자리의 '손익비(Risk/Reward)'와 '최신 시장 동향(호재/악재)'을 종합적으로 가장 중요하게 반영합니다.
-                    - 상승 여력과 하락 리스크, 뉴스의 파급력을 계산하여 객관적인 점수를 부여하세요.
+                    - 철저한 트레이더 관점에서 '손익비(Risk/Reward)'를 가장 중요하게 봅니다.
+                    - 상승 여력과 하락 리스크를 고려하여 객관적인 점수를 부여하세요.
                     
                     2. [TENBAGGER: 0~100] (텐배거 지수)
-                    - 장기적인 성장 잠재력과 폭발력을 수치화합니다.
-                    - 단, 기업이 아무리 좋아도 '현재 주가(시가총액)'가 이미 너무 고평가되어 있다면 텐배거 달성 확률은 낮으므로 점수를 깎아야 합니다.
-                    - 현재 주가 바닥 구간의 턴어라운드 기대주나, 시총 대비 폭발적 성장 모멘텀이 있는 종목에 높은 점수를 부여하세요. 안정적인 대형 가치주는 낮게 줍니다.
+                    - 장기적인 성장 잠재력과 폭발력을 수치화합니다. 격식을 유지하여 평가하세요.
+                    - 안정적인 대형 가치주는 낮게, 혁신 성장주 및 턴어라운드 기대주는 높게 부여하세요.
                     """
                     try:
                         response = client.models.generate_content(
@@ -1212,7 +1211,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             bar_html = f"""
 <div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;">
 <h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
-AI 투자의견: <span style="color: {text_color};">{opinion_text}</span>
+AI 독자적 투자의견: <span style="color: {text_color};">{opinion_text}</span>
 </h4>
 <div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
 <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div>
