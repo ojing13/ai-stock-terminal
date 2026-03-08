@@ -12,6 +12,7 @@ import math
 import re
 import urllib.parse
 import copy
+import textwrap
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석 터미널")
@@ -56,7 +57,7 @@ st.markdown("""
         box-shadow: 0 0 0 1px #007bff !important;
     }
    
-    /* 슬라이더 디자인 개편 (이모티콘 제거) */
+    /* 슬라이더 디자인 개편 */
     div[data-testid="stSlider"] div[role="slider"] {
         background-color: #ff2d55 !important;
         border-color: #ff2d55 !important;
@@ -112,7 +113,7 @@ st.markdown("""
 try:
     MY_API_KEY = st.secrets["GEMINI_API_KEY"]
 except:
-    st.error("🚨 API 키를 찾을 수 없습니다. Streamlit Cloud의 Settings -> Secrets에 'GEMINI_API_KEY'를 등록해주세요.")
+    st.error("API 키를 찾을 수 없습니다. Streamlit Cloud의 Settings -> Secrets에 'GEMINI_API_KEY'를 등록해주세요.")
     st.stop()
     
 client = genai.Client(api_key=MY_API_KEY)
@@ -263,7 +264,7 @@ def get_ticker_symbol(search_term):
         [엄격한 규칙]
         1. 미국 주식: 영문 티커 (예: AAPL, HIMS, TSLA)
         2. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
-        3. 🚨치명적 경고🚨: 확신할 수 없다면 절대 임의의 숫자를 지어내지 마세요.
+        3. 확신할 수 없다면 절대 임의의 숫자를 지어내지 마세요.
         4. 사고 과정 추가 설명 없이 오직 '티커 기호' 하나만 출력하세요."""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
@@ -497,7 +498,7 @@ def fetch_news_data(ticker, official_name, search_korean_news):
     return news_list
 
 # ====================== 메인 ======================
-st.title("웅이의 AI 주식 분석 터미널")
+st.title("AI 주식 분석 터미널")
 st.markdown("---")
 
 col_search, _ = st.columns([1, 2])
@@ -894,27 +895,18 @@ if user_input:
                     [월봉 차트 데이터 내역]
                     {monthly_csv}
                     
-                    위 데이터를 바탕으로 실전 트레이더 수준의 깊이 있는 '기술적 분석(Technical Analysis)' 리포트를 작성해주세요. 
+                    위 데이터를 바탕으로 실전 트레이더 수준의 깊이 있는 기술적 분석 리포트를 작성해주세요. 
                     
-                    [🚨 기술적 분석 핵심 지시사항 🚨]
-                    1. [프라이스 액션 중심 분석]: 이동평균선(MA) 수치만 기계적으로 나열하지 마세요!! 제공된 시가(Open), 고가(High), 저가(Low), 종가(Close) 데이터를 종합하여 캔들의 형태, 고점/저점의 돌파 여부, 심리적 지지와 저항선, 변동성 등 실전적인 **'프라이스 액션(Price Action)'** 관점으로 폭넓게 분석하세요.
-                    2. [정보 필터링]: 일봉, 주봉, 월봉을 모두 확인하되, 추세 설명에 꼭 필요한 유의미한 기술적 단서(특정 가격대, 매물대, 주요 돌파 지점 등)만 선별해서 자연스럽게 제시하세요.
-                    3. [이동평균선 표기 규칙]: 이동평균선을 언급할 때 '13-주 이동평균선'처럼 숫자와 단위 사이에 하이픈(-)을 절대 넣지 마세요. 반드시 '13주 이동평균선', '20일 이동평균선'과 같이 올바른 한국어로 작성하세요.
-                    4. 마크다운 수식 오류 방지: 가격 범위나 기간 표시 시 물결표 및 달러 기호를 사용하지 마세요. (금액은 '{currency}'로 표기할 것)
-                    5. [가독성 철저]: 소제목은 마크다운 헤딩(###)으로 작성하고, 문단과 문단 사이에는 빈 줄(Enter 2번)을 넣어 완벽하게 분리하세요.
-                    6. [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장 및 주요 지지/저항 가격은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 변경하지 마세요.
-                    7. [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요.
-                    8. [항목 제한]: 분석 항목은 무조건 '1. 단기적인 추세', '2. 장기적인 추세' 딱 두 가지만 출력하세요.
-                    9. [출처 표기 절대 금지]: 괄호 안에 기사 번호(예: 1, 2)를 적거나 출처를 언급하는 행위 완벽 금지.
-                    
-                    [출력 형식 가이드]
-                    ### 1. 단기적인 추세 (Short-term trend)
-
-                    단기적인 가격 흐름과 매수/매도 모멘텀을 분석합니다. 유의미할 경우에 한해 프라이스 액션(캔들 흐름), 주요 지지/저항 가격, 단기 이평선 등을 근거로 자연스럽게 제시하세요. 일반 문단으로 작성하세요.
-
-                    ### 2. 장기적인 추세 (Long-term trend)
-
-                    일/주/월봉을 아우르는 큰 흐름에서의 추세와 차트 구조를 분석합니다. 유의미할 경우에 한해 중장기 추세선, 거시적 가격대 돌파 여부 등을 언급하세요. 일반 문단으로 작성하세요.
+                    [분석 핵심 지시사항]
+                    1. 프라이스 액션 중심 분석: 이동평균선 수치만 나열하지 말고, 캔들의 형태, 주요 지지와 저항선, 변동성 등 실전적인 관점으로 폭넓게 분석하세요.
+                    2. 정보 필터링: 유의미한 기술적 단서만 선별해서 자연스럽게 제시하세요.
+                    3. 이동평균선 표기 규칙: 올바른 한국어로 작성하세요.
+                    4. 달러 기호 사용 금지. (금액은 반드시 '{currency}'로 표기할 것)
+                    5. 가독성 철저: 소제목은 마크다운 헤딩(###)으로 작성하고, 일반 문단으로 작성하세요.
+                    6. 핵심 강조: 주요 지지/저항 가격은 반드시 **굵은 글씨(**)**로 강조하세요. 
+                    7. 어조 설정: 정중체 사용. 깔끔한 전문가 톤 유지.
+                    8. 항목 제한: 분석 항목은 무조건 '1. 단기적인 추세', '2. 장기적인 추세' 두 가지만 출력.
+                    9. 출처 표기 절대 금지: 괄호 안에 기사 번호(예: 1, 2)를 적거나 출처를 언급하는 행위 완벽 금지.
                     """
                     try:
                         response = client.models.generate_content(
@@ -947,7 +939,6 @@ if user_input:
             c3.metric("매출 성장률", fmt_pct(rev_growth))
             c3.metric("배당 수익률", fmt_pct(div_yield)) 
             
-            # 부채비율 소수점 완벽 수정
             try:
                 debt_val = float(debt)
                 debt_str = f"{debt_val:.2f}%"
@@ -1032,9 +1023,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 [손익계산서]
 매출액: {v_rev}, 매출원가: {v_cogs}, 매출총이익: {v_gp}, 판매관리비: {v_sga}, 영업이익: {v_op}, 법인세차감전순이익: {v_pretax}, 당기순이익: {v_net}, 기타포괄손익: {v_oci}
 [재무상태표]
-자산총계: {v_tot_assets} (유동자산: {v_cur_assets} [현금성자산: {v_cash}, 매출채권: {v_receiv}, 재고자산: {v_inv}], 비유동자산: {v_ncur_assets} [유형자산: {v_tangible}, 무형자산: {v_intangible}])
-부채총계: {v_tot_liab} (유동부채: {v_cur_liab} [단기차입금: {v_s_debt}], 비유동부채: {v_ncur_liab} [장기차입금: {v_l_debt}])
-자본총계: {v_tot_eq} (자본금: {v_cap_stock}, 자본잉여금: {v_cap_surplus}, 이익잉여금: {v_retained})
+자산총계: {v_tot_assets} 
+부채총계: {v_tot_liab} 
+자본총계: {v_tot_eq}
 [현금흐름표]
 기초현금: {v_cf_beg}, 영업활동현금흐름: {v_cf_op}, 투자활동현금흐름: {v_cf_inv}, 재무활동현금흐름: {v_cf_fin}, 배당금지급: {v_dividend}, 기말현금: {v_cf_end}
 
@@ -1043,15 +1034,13 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 2. 기업의 재무적 안전성 및 리스크 판단
 3. 기업의 수익성 및 미래 성장 가능성
 
-🚨 [최고급 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
-- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 깔끔한 전문가 톤을 유지하세요.
-- [가독성 철저]: 1, 2, 3번 각 평가 항목은 마크다운 헤딩(###)으로 달고, 세부 분석은 빈 줄(Enter 2번)로 단락을 나누어 시원시원한 일반 문단으로 작성하세요.
-- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 임의로 변경하지 마세요.
-- [재무 지표 중심의 서술]: 제공된 텍스트 동향은 오직 '재무 지표의 원인과 결과' 파악에만 참고하세요. 기술적 차트 이야기나 가십성 이슈는 배제하고, 철저히 '재무적 관점'에만 집중해서 평가하세요.
-- [뉴스 및 기사 수 언급 절대 금지]: "제공된 데이터에 따르면", "수집된 기사에서" 등의 표현을 완벽하게 금지합니다.
-- [입체적 재무 해석]: 부채비율이 높을 때 이자보상배율, 현금흐름 등을 융합하여 객관적으로 판단하세요.
-- 마크다운 렌더링 오류를 막기 위해 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
-- [출처 표기 절대 금지]: 괄호 안에 기사 번호를 적는 행위(예: 1, 2, 3)나 출처를 짐작할 수 있는 인용구를 완벽하게 금지합니다.
+[분석 지침]
+- 정중체 사용. 깔끔한 전문가 톤 유지.
+- 각 평가 항목은 마크다운 헤딩(###)으로 작성.
+- 분석 내용 중 핵심 문장은 반드시 **굵은 글씨(**)**로 강조.
+- 뉴스 데이터는 재무 관련 정보 파악에만 참고.
+- 뉴스 출처 표기 금지 (기사 번호 작성 금지).
+- 달러 기호 금지. (금액은 '{currency}'으로 표기할 것).
 """
                     try:
                         response = client.models.generate_content(
@@ -1070,7 +1059,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news1:
                 if st.button("AI 최신 동향 브리핑"):
                     with st.spinner("최신 뉴스를 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지.\n- [출처 표기 절대 금지]: 괄호 안에 기사 번호를 적는 행위(예: 1, 2, 3)나 출처를 짐작할 수 있는 인용구를 완벽하게 금지합니다."
+                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용을 읽고, 현재 이 기업을 둘러싼 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 향후 실적에 미칠 파급력까지 전문가의 시선으로 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호 작성 및 인용구 완벽 금지."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
@@ -1090,7 +1079,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. 당신의 지식인 것처럼 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 직접적 언급 금지.\n- [출처 표기 절대 금지]: 괄호 안에 기사 번호를 적는 행위(예: 1, 2, 3)나 출처를 짐작할 수 있는 인용구를 완벽하게 금지합니다."
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터를 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 파악하고, 단기 및 중장기 주가 흐름에 미칠 영향을 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호 작성 및 인용구 완벽 금지."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
@@ -1129,42 +1118,26 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가)
                     
                     [출력 형식 가이드]
-                    - 각 항목의 제목(1, 2, 3, 4번)은 마크다운 헤딩(## 또는 ###)을 사용하여 크게 작성하세요.
-                    - 제목 아래에는 반드시 빈 줄(Enter 2번)을 띄우고 일반 문단으로 줄글을 작성하세요.
+                    - 각 항목의 제목(1, 2, 3, 4번)은 마크다운 헤딩(## 또는 ###)을 사용하여 작성하세요.
+                    - 제목 아래에는 일반 문단으로 줄글을 작성하세요.
                     
-                    [4번 항목 작성 예시]
-                    ### 4. 구체적인 가격 제시
-                    
-                    진입 추천가: 000 원
-                    
-                    논리적 근거: 차트를 분석하여 유의미한 기술적 지표(이평선, 지지/저항선 등)나 재무적 근거가 있을 경우에만 자연스럽게 설명
-                    
-                    1차 목표가: 000 원
-                    
-                    논리적 근거: ... 
-                    
-                    🚨 [최고급 퀀트 애널리스트 수준의 분석 지침 - 반드시 엄수할 것]
-                    - [어조 설정]: 반드시 정중체를 사용하세요. 깔끔한 전문가 톤을 유지하세요.
-                    - [가독성 철저]: 위 형식 가이드를 완벽히 지켜서, 일반 문단으로 줄글을 작성하세요.
-                    - [균형 잡힌 차트 분석]: 기술적 지표를 언급할 때 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 자연스럽게 설명하세요.
-                    - [핵심 강조]: 전체 리포트에서 핵심이 되는 주요 단어나 결과 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 폰트 변경은 불가합니다.
-                    - [직접 인용 및 작위적 표현 완벽 금지]: 리포트 내에 '뉴스', '기사', '헤드라인'이라는 단어를 아예 사용하지 마세요. 기사 문장을 절대 복사하지 마세요.
-                    - [배경 지식 총동원]: 거시경제(금리, 인플레 등) 환경, 산업 트렌드, 경쟁사 동향, 대규모 투자 capEx 현황을 융합하여 인과관계를 설명하세요.
-                    - 마크다운 렌더링 오류를 막기 위해 물결표 및 달러 기호를 사용하지 마세요. (금액은 '{currency}'으로 표기할 것)
-                    - [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지.
-                    - [출처 표기 절대 금지]: 괄호 안에 기사 번호를 적는 행위(예: 1, 2, 3)나 출처를 짐작할 수 있는 인용구를 완벽하게 금지합니다.
+                    [분석 지침]
+                    - 어조: 정중체 사용. 깔끔한 전문가 톤을 유지하세요. 이모티콘은 절대 사용하지 마세요.
+                    - 균형 잡힌 차트 분석: 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 설명.
+                    - 핵심 강조: 핵심 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 
+                    - 달러 기호 금지. 금액은 반드시 '{currency}'으로 표기할 것.
+                    - 출처 표기 절대 금지: 괄호 안에 기사 번호를 적거나 출처를 언급하는 행위 완벽 금지.
                     
                     🚨 [최종 스코어 산출 지시사항 - 매우 중요]
                     리포트 작성을 모두 마친 후, 맨 마지막 줄에 반드시 다음 두 가지 점수를 `[SCORE: 점수]`, `[TENBAGGER: 점수]` 형태로 적어주세요.
 
-                    1. [SCORE: 0~100] (AI 독자적 투자의견)
+                    1. [SCORE: 0~100] (AI 투자의견)
                     - 철저한 트레이더 관점에서 '손익비(Risk/Reward)'를 가장 중요하게 봅니다.
-                    - 상승 여력(먹을 자리)이 부족하면 깎고, 먹을 자리가 많으면 높이세요. 재무와 동향도 고려하되, 팽팽한 관망 자리면 '중립(41~60)'을 줍니다.
+                    - 상승 여력과 하락 리스크를 고려하여 객관적인 점수를 부여하세요.
                     
-                    2. [TENBAGGER: 0~100] (미래 가치 지수)
-                    - 주식의 로망이자 장기적인 성장 잠재력의 크기를 수치화합니다. 하이리스크-하이리턴, 혹은 턴어라운드 가능성을 평가합니다. 격식을 유지하세요.
-                    - 무겁고 안정적인 대형 가치주/안정형(예: 코카콜라, 존슨앤존슨 등)은 10~30점 수준으로 낮게 줍니다.
-                    - 적자라도 혁신 수혜주이거나, 바닥에서 성장주/미래형으로 전환 시 압도적인 수익률을 가져갈 폭발력이 있다면 80~100점을 과감히 줍니다.
+                    2. [TENBAGGER: 0~100] (텐배거 지수)
+                    - 장기적인 성장 잠재력과 폭발력을 수치화합니다. 격식을 유지하여 평가하세요.
+                    - 안정적인 대형 가치주는 낮게, 혁신 성장주 및 턴어라운드 기대주는 높게 부여하세요.
                     """
                     try:
                         response = client.models.generate_content(
@@ -1173,7 +1146,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         report_text = response.text
                         
-                        # AI가 남긴 점수들을 추출
                         score_match = re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
                         tenbagger_match = re.search(r'\[TENBAGGER:\s*(\d+)\s*\]', report_text)
                         
@@ -1188,10 +1160,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             tenbagger_score = int(tenbagger_match.group(1))
                             report_text = report_text.replace(tenbagger_match.group(0), "")
                             
-                        # 리포트 본문 출력
                         st.info(report_text.strip())
                         
-                        # 깔끔한 투자의견 바(Bar) 및 미래 가치 지수 바(Bar) 출력
                         if final_score is not None:
                             final_score = max(0, min(100, final_score)) 
                             
@@ -1201,50 +1171,47 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             elif final_score <= 80: opinion_text, text_color = "매수", "#ff6b6b"
                             else: opinion_text, text_color = "강력 매수", "#ff2d55"
                             
-                            # 미래 가치 지수 바 디자인 개편 및 에러 해결 (unsafe_allow_html=True)
-                            tenbagger_html = ""
+                            tb_html = ""
                             if tenbagger_score is not None:
                                 tb_score = max(0, min(100, tenbagger_score))
-                                # 5단계 gradient: 저채도 회색 -> 황금색 -> 주황색 -> 연한 분홍색 -> 진한 분홍색
-                                if tb_score <= 20: tb_text, tb_color = "가치주/고안정형", "#888888"
-                                elif tb_score <= 40: tb_text, tb_color = "안정형 성장주", "#b2aa3a" # 연한 황금색 톤
-                                elif tb_score <= 60: tb_text, tb_color = "성장 동력 잉태", "#f2994a" # 주황색
-                                elif tb_score <= 80: tb_text, tb_color = "폭발적 성장기", "#f25287" # 연한 분홍색
-                                else: tb_text, tb_color = "미래 혁신형", "#ff007f" # 진한 분홍색
+                                if tb_score <= 20: tb_text, tb_color = "가치주/안정형", "#888888"
+                                elif tb_score <= 40: tb_text, tb_color = "안정형 성장주", "#b2aa3a" 
+                                elif tb_score <= 60: tb_text, tb_color = "성장 동력 잉태", "#f2994a" 
+                                elif tb_score <= 80: tb_text, tb_color = "폭발적 성장기", "#f25287" 
+                                else: tb_text, tb_color = "성장주/미래형", "#ff007f" 
                                 
-                                tenbagger_html = f"""
-                                <div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;">
-                                    <h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
-                                        🤖 미래 가치 지수: <span style="color: {tb_color};">{tb_score}점 ({tb_text})</span>
-                                    </h4>
-                                    <div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #e0e0e0 0%, #b2aa3a 20%, #f2994a 40%, #f25287 60%, #ff007f 80%, #ff007f 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
-                                        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">가치주/안정형</div>
-                                        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">안정형 성장주</div>
-                                        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">성장 동력 잉태</div>
-                                        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">폭발적 성장기</div>
-                                        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">미래 혁신형</div>
-                                        <div style="position: absolute; top: -28px; left: calc({tb_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
-                                    </div>
-                                </div>
-                                """
+                                tb_html = f"""
+<div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;">
+    <h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
+        텐배거 지수: <span style="color: {tb_color};">{tb_score}점 ({tb_text})</span>
+    </h4>
+    <div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #e0e0e0 0%, #b2aa3a 20%, #f2994a 40%, #f25287 60%, #ff007f 80%, #ff007f 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
+        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">가치주/안정형</div>
+        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">안정형 성장주</div>
+        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">성장 동력 잉태</div>
+        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">폭발적 성장기</div>
+        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">성장주/미래형</div>
+        <div style="position: absolute; top: -28px; left: calc({tb_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
+    </div>
+</div>
+"""
                             
                             bar_html = f"""
-                            <div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;">
-                                <h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
-                                    🤖 AI 독자적 투자의견: <span style="color: {text_color};">{opinion_text}</span>
-                                </h4>
-                                <div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
-                                    <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div>
-                                    <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div>
-                                    <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">중립</div>
-                                    <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div>
-                                    <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div>
-                                    <div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
-                                </div>
-                                {tenbagger_html}
-                            </div>
-                            """
-                            # 에러 해결: unsafe_allow_html=True 추가
+<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;">
+    <h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
+        AI 독자적 투자의견: <span style="color: {text_color};">{opinion_text}</span>
+    </h4>
+    <div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
+        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div>
+        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div>
+        <div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div>
+        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div>
+        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div>
+        <div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
+    </div>
+    {tb_html}
+</div>
+"""
                             st.markdown(bar_html, unsafe_allow_html=True)
                             
                     except Exception as e:
