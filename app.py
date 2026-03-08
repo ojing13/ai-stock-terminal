@@ -145,30 +145,29 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 자주 찾는 주식 딕셔너리를 전역 변수로 분리 (TSMC 등 오탐 방지 및 인기종목 추가)
+# 자주 찾는 주식 딕셔너리를 전역 변수로 분리 (넥슨 등 추가)
 COMMON_SEARCH_DICT = {
     "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT", "마소": "MSFT",
     "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META", "페이스북": "META",
     "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD", 
     "TSMC": "TSM", "티에스엠씨": "TSM", "디어유": "376300.KQ", "QQQ": "QQQ",
-    "오클로": "OKLO", "팔란티어": "PLTR", "아이온큐": "IONQ"
+    "오클로": "OKLO", "팔란티어": "PLTR", "아이온큐": "IONQ", "넥슨": "3659.T"
 }
 
-# 💡 AI 번역 전면 제거! 네이버 해외주식 공식 DB 직접 연동
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
-    # 1. 속도를 위해 가장 자주 찾는 해외 주식은 즉시 매핑
+    # 속도를 위해 가장 자주 찾는 해외 주식은 즉시 매핑
     display_dict = {
         "AAPL": "애플", "TSLA": "테슬라", "NVDA": "엔비디아", "MSFT": "마이크로소프트",
         "GOOGL": "알파벳", "GOOG": "알파벳", "AMZN": "아마존", "META": "메타",
         "NFLX": "넷플릭스", "MU": "마이크론", "INTC": "인텔", "AMD": "AMD",
         "TSM": "TSMC", "QCOM": "퀄컴", "AVGO": "브로드컴", "ASML": "ASML",
-        "OKLO": "오클로", "PLTR": "팔란티어", "IONQ": "아이온큐"
+        "OKLO": "오클로", "PLTR": "팔란티어", "IONQ": "아이온큐", "3659.T": "넥슨"
     }
     if ticker in display_dict:
         return display_dict[ticker]
     
-    # 2. 사전에 없으면 네이버 금융 자동완성 API를 호출하여 증권사 공식 등록명(한글) 추출
+    # 사전에 없으면 네이버 금융 자동완성 API를 호출하여 증권사 공식 등록명(한글) 추출
     try:
         ac_url = f"https://ac.finance.naver.com/ac?q={ticker}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -176,19 +175,19 @@ def get_korean_display_name(ticker, english_name):
         ac_data = ac_res.json()
 
         if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
-            korean_name = ac_data['items'][0][0][1] # 배열의 이 위치에 정확한 공식 한글 종목명이 있음
+            korean_name = ac_data['items'][0][0][1] 
             if korean_name:
                 return korean_name
     except:
         pass
 
-    return english_name # 검색 실패 시 원래 영어 이름 반환
+    return english_name
 
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     
-    # 1. 딕셔너리 매칭 (대소문자 무시) - TSMC 오류 원천 차단
+    # 1. 딕셔너리 매칭
     search_upper = search_term.upper()
     for key, val in COMMON_SEARCH_DICT.items():
         if search_upper == key.upper():
@@ -206,7 +205,7 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 3. 강력한 백업: 한글 검색어일 경우 네이버 금융 최신 API 활용 (해외망 차단 우회 및 미국주식 에러 해결)
+    # 3. 강력한 백업: 네이버 금융 최신 API 활용
     if bool(re.search('[가-힣]', search_term)):
         try:
             encoded_term = urllib.parse.quote(search_term)
@@ -222,7 +221,6 @@ def get_ticker_symbol(search_term):
                 code = ac_data['items'][0][0][0]
                 market_str = ac_data['items'][0][0][2] 
                 
-                # 💡 오클로 검색 에러 완벽 해결: 한국시장이면 뒤에 .KS나 .KQ를 붙이고 해외주식이면 티커 원형 그대로 반환!
                 if '코스피' in market_str:
                     return f"{code}.KS"
                 elif '코스닥' in market_str:
@@ -232,7 +230,7 @@ def get_ticker_symbol(search_term):
         except:
             pass
       
-    # 4. 한글이 없는 영어 검색어인 경우 Yahoo Finance 자체 검색
+    # 4. Yahoo Finance 자체 검색
     if not bool(re.search('[가-힣]', search_term)):
         url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -460,10 +458,10 @@ def fetch_chart_history(ticker, interval):
         return pd.DataFrame()
 
 @st.cache_data(ttl=600)
-def fetch_news_data(ticker, official_name, is_korean_stock):
+def fetch_news_data(ticker, official_name, search_korean_news):
     news_list = []
     try:
-        if is_korean_stock:
+        if search_korean_news:
             rss_url = f"https://news.google.com/rss/search?q={official_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
         else:
             rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
@@ -549,12 +547,23 @@ if user_input:
         
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
         
+        # 💡 화폐 단위 및 가격 포맷 수정: 일본 주식(.T)은 '엔'으로 표시하고 소수점 없애기
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
-        currency = "원" if is_korean_stock else "달러"
+        is_japanese_stock = ticker.endswith('.T')
         
-        price_fmt = ",.0f" if is_korean_stock else ",.2f"
+        if is_korean_stock:
+            currency = "원"
+            price_fmt = ",.0f"
+        elif is_japanese_stock:
+            currency = "엔"
+            price_fmt = ",.0f"
+        else:
+            currency = "달러"
+            price_fmt = ",.2f"
         
-        news_list = fetch_news_data(ticker, display_name, is_korean_stock)
+        # 한국 뉴스 검색 조건에 일본 주식(넥슨 등 한글 검색어)도 포함되도록 개선
+        search_korean_news = is_korean_stock or is_japanese_stock
+        news_list = fetch_news_data(ticker, display_name, search_korean_news)
                 
         news_context_list = []
         for idx, item in enumerate(news_list):
