@@ -131,7 +131,6 @@ except:
     
 client = genai.Client(api_key=MY_API_KEY)
 
-# 빈 데이터 저장 방지를 위해 1시간 단위 캐시 설정
 @st.cache_data(ttl=3600)
 def load_krx_data():
     try:
@@ -146,6 +145,7 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
+@st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     
@@ -161,20 +161,20 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 강력하고 안정적인 백업: 네이버 자동완성 및 모바일 JSON API 활용 (에러 확률 극히 낮음)
+    # 2. 강력한 백업: 한글 검색어일 경우 네이버 금융 API 활용 (오류 완벽 해결)
     if bool(re.search('[가-힣]', search_term)):
         try:
-            # 네이버 금융 자동완성 API 호출
-            ac_url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(search_term)}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
+            encoded_term = urllib.parse.quote(search_term)
+            ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
             ac_res = requests.get(ac_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
             ac_data = ac_res.json()
             
             if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
-                code = ac_data['items'][0][0][0] # 6자리 종목코드 추출
+                code = ac_data['items'][0][0][0]
                 
-                # 종목코드를 이용해 네이버 모바일 API에서 코스피/코스닥 판별
                 basic_url = f"https://m.stock.naver.com/api/stock/{code}/basic"
                 basic_res = requests.get(basic_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+                
                 if basic_res.status_code == 200:
                     basic_data = basic_res.json()
                     market = basic_data.get('stockType', '')
@@ -195,7 +195,7 @@ def get_ticker_symbol(search_term):
     }
     if search_term in us_dict: return us_dict[search_term]
       
-    # 4. 한글이 없는 영어 검색어인 경우 Yahoo Finance 자체 검색
+    # 4. 한글이 없는 영어 검색어인 경우 Yahoo Finance 검색
     if not bool(re.search('[가-힣]', search_term)):
         url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -403,6 +403,73 @@ def get_article_text(url):
     except:
         return ""
 
+# --- 버튼 누를 때 야후 데이터 날아가는 오류 방지용 캐시 함수 추가 ---
+@st.cache_data(ttl=600)
+def fetch_yf_data(ticker):
+    stock = yf.Ticker(ticker)
+    
+    try: hist_basic = stock.history(period="1d")
+    except Exception: hist_basic = pd.DataFrame()
+        
+    try: info = stock.info
+    except Exception: info = {}
+        
+    try: fin_df = stock.financials
+    except: fin_df = pd.DataFrame()
+        
+    try: bs_df = stock.balance_sheet
+    except: bs_df = pd.DataFrame()
+        
+    try: cf_df = stock.cashflow
+    except: cf_df = pd.DataFrame()
+        
+    return hist_basic, info, fin_df, bs_df, cf_df
+
+@st.cache_data(ttl=600)
+def fetch_chart_history(ticker, interval):
+    try:
+        return yf.Ticker(ticker).history(period="max", interval=interval)
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=600)
+def fetch_news_data(ticker, user_input, is_korean_stock):
+    news_list = []
+    try:
+        if is_korean_stock:
+            rss_url = f"https://news.google.com/rss/search?q={user_input}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
+        else:
+            rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
+        response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
+        root = ET.fromstring(response.content)
+        for item in root.findall('.//item')[:100]:
+            title = item.find('title').text if item.find('title') is not None else "No title"
+            link = item.find('link').text if item.find('link') is not None else "#"
+            desc = item.find('description').text if item.find('description') is not None else ""
+            
+            content = BeautifulSoup(desc, "html.parser").get_text() if desc else get_article_text(link)
+            content = content[:800].replace('\n', ' ')
+            news_list.append({"title": title, "link": link, "content": content})
+    except:
+        pass
+      
+    if not news_list:
+        try:
+            stock = yf.Ticker(ticker)
+            raw_news = stock.news
+            for n in raw_news[:100]:
+                if isinstance(n, dict) and 'title' in n and 'link' in n:
+                    link = n['link']
+                    title = n['title']
+                    content = n.get('summary', '') 
+                    if not content:
+                        content = get_article_text(link)
+                    news_list.append({"title": title, "link": link, "content": content[:800].replace('\n', ' ')})
+        except:
+            pass
+    return news_list
+# -------------------------------------------------------------------
+
 # ====================== 메인 ======================
 st.title("웅이의 AI 주식 분석 터미널")
 st.markdown("---")
@@ -413,73 +480,26 @@ with col_search:
 
 if user_input:
     ticker = get_ticker_symbol(user_input)
+    stock = yf.Ticker(ticker) # 세션 주입 코드 완벽히 제거
     
-    # ⚠️ 중요: YFDataException을 막기 위해 session 인자를 절대 넣지 않습니다.
-    stock = yf.Ticker(ticker)
-    
-    # 야후 파이낸스 Rate Limit 발생 시 빈 데이터프레임으로 넘기기
-    try:
-        hist_basic = stock.history(period="1d")
-    except Exception:
-        hist_basic = pd.DataFrame()
+    # 캐시 함수를 통해 데이터 불러오기 (버튼 클릭 시 증발 방지)
+    hist_basic, info, fin_df, bs_df, cf_df = fetch_yf_data(ticker)
   
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
         
-        try:
-            info = stock.info
-        except Exception:
-            info = {}
-            
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
         
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
         
-        try: fin_df = stock.financials
-        except: fin_df = pd.DataFrame()
-        try: bs_df = stock.balance_sheet
-        except: bs_df = pd.DataFrame()
-        try: cf_df = stock.cashflow
-        except: cf_df = pd.DataFrame()
-        
-        news_list = []
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         currency = "원" if is_korean_stock else "달러"
         
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
-        try:
-            if is_korean_stock:
-                rss_url = f"https://news.google.com/rss/search?q={user_input}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
-            else:
-                rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
-            response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
-            root = ET.fromstring(response.content)
-            for item in root.findall('.//item')[:100]:
-                title = item.find('title').text if item.find('title') is not None else "No title"
-                link = item.find('link').text if item.find('link') is not None else "#"
-                desc = item.find('description').text if item.find('description') is not None else ""
-                
-                content = BeautifulSoup(desc, "html.parser").get_text() if desc else get_article_text(link)
-                content = content[:800].replace('\n', ' ')
-                news_list.append({"title": title, "link": link, "content": content})
-        except:
-            pass
-          
-        if not news_list:
-            try:
-                raw_news = stock.news
-                for n in raw_news[:100]:
-                    if isinstance(n, dict) and 'title' in n and 'link' in n:
-                        link = n['link']
-                        title = n['title']
-                        content = n.get('summary', '') 
-                        if not content:
-                            content = get_article_text(link)
-                        news_list.append({"title": title, "link": link, "content": content[:800].replace('\n', ' ')})
-            except:
-                pass
+        # 캐시된 뉴스 불러오기
+        news_list = fetch_news_data(ticker, user_input, is_korean_stock)
                 
         news_context_list = []
         for idx, item in enumerate(news_list):
@@ -615,10 +635,8 @@ if user_input:
             
             interval = "1d" if interval_option == "일봉" else "1wk" if interval_option == "주봉" else "1mo"
             
-            try:
-                history = stock.history(period="max", interval=interval)
-            except Exception:
-                history = pd.DataFrame()
+            # 캐시된 차트 함수 사용
+            history = fetch_chart_history(ticker, interval)
             
             if not history.empty:
                 history = history[(history['Low'] > 0) & (history['High'] > 0) & (history['Close'] > 0)]
@@ -749,7 +767,7 @@ if user_input:
                     
                     def get_formatted_history(interval_str, ma_config):
                         try:
-                            temp_hist = stock.history(period="max", interval=interval_str)
+                            temp_hist = fetch_chart_history(ticker, interval_str)
                             if temp_hist.empty: return ""
                             temp_hist = temp_hist[(temp_hist['Low'] > 0) & (temp_hist['High'] > 0) & (temp_hist['Close'] > 0)].copy()
                             for w, _, _ in ma_config:
