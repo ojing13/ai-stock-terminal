@@ -130,16 +130,13 @@ client = genai.Client(api_key=MY_API_KEY)
 @st.cache_data
 def load_krx_data():
     try:
-        # 1차 시도: 전체 KRX 데이터
         return fdr.StockListing('KRX')
     except Exception:
         try:
-            # 2차 시도: KOSPI, KOSDAQ 분리해서 시도
             kospi = fdr.StockListing('KOSPI')
             kosdaq = fdr.StockListing('KOSDAQ')
             return pd.concat([kospi, kosdaq], ignore_index=True)
         except Exception:
-            # 모두 실패 시 빈 데이터프레임 반환 (앱 크래시 방지)
             return pd.DataFrame(columns=['Code', 'Name', 'Market'])
 
 krx_df = load_krx_data()
@@ -158,9 +155,13 @@ def get_ticker_symbol(search_term):
     us_dict = {
         "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT",
         "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META",
-        "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD"
+        "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD",
+        "TSMC": "TSM", "티에스엠씨": "TSM", "ASML": "ASML", "ARM": "ARM"
     }
-    if search_term in us_dict: return us_dict[search_term]
+    
+    for key, val in us_dict.items():
+        if search_term.upper() == key.upper():
+            return val
       
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -168,6 +169,9 @@ def get_ticker_symbol(search_term):
         res = requests.get(url, headers=headers, timeout=5)
         data = res.json()
         if 'quotes' in data and len(data['quotes']) > 0:
+            for quote in data['quotes']:
+                if quote.get('type') in ['EQUITY', 'ETF'] and '.' not in quote.get('symbol', ''):
+                    return quote['symbol']
             for quote in data['quotes']:
                 if quote.get('type') in ['EQUITY', 'ETF']:
                     return quote['symbol']
@@ -186,6 +190,9 @@ def get_ticker_symbol(search_term):
         res_eng = requests.get(url_eng, headers=headers, timeout=5)
         data_eng = res_eng.json()
         if 'quotes' in data_eng and len(data_eng['quotes']) > 0:
+            for quote in data_eng['quotes']:
+                if quote.get('type') in ['EQUITY', 'ETF'] and '.' not in quote.get('symbol', ''):
+                    return quote['symbol']
             for quote in data_eng['quotes']:
                 if quote.get('type') in ['EQUITY', 'ETF']:
                     return quote['symbol']
@@ -324,37 +331,23 @@ def augment_us_fundamentals(ticker, info):
                 except:
                     return None
 
-            if info.get('trailingPE') in [None, 'N/A', 0, '']:
-                info['trailingPE'] = parse_finviz_val(data_dict.get('P/E', '-'))
-            if info.get('forwardPE') in [None, 'N/A', 0, '']:
-                info['forwardPE'] = parse_finviz_val(data_dict.get('Forward P/E', '-'))
-            if info.get('priceToBook') in [None, 'N/A', 0, '']:
-                info['priceToBook'] = parse_finviz_val(data_dict.get('P/B', '-'))
-            if info.get('priceToSalesTrailing12Months') in [None, 'N/A', 0, '']:
-                info['priceToSalesTrailing12Months'] = parse_finviz_val(data_dict.get('P/S', '-'))
-            if info.get('pegRatio') in [None, 'N/A', 0, '']:
-                info['pegRatio'] = parse_finviz_val(data_dict.get('PEG', '-'))
-            if info.get('returnOnEquity') in [None, 'N/A', 0, '']:
-                info['returnOnEquity'] = parse_finviz_val(data_dict.get('ROE', '-'), True)
-            if info.get('returnOnAssets') in [None, 'N/A', 0, '']:
-                info['returnOnAssets'] = parse_finviz_val(data_dict.get('ROA', '-'), True)
-            if info.get('returnOnCapitalEmployed') in [None, 'N/A', 0, '']:
-                info['returnOnCapitalEmployed'] = parse_finviz_val(data_dict.get('ROI', '-'), True)
-            if info.get('grossMargins') in [None, 'N/A', 0, '']:
-                info['grossMargins'] = parse_finviz_val(data_dict.get('Gross Margin', '-'), True)
-            if info.get('operatingMargins') in [None, 'N/A', 0, '']:
-                info['operatingMargins'] = parse_finviz_val(data_dict.get('Oper. Margin', '-'), True)
-            if info.get('profitMargins') in [None, 'N/A', 0, '']:
-                info['profitMargins'] = parse_finviz_val(data_dict.get('Profit Margin', '-'), True)
-            if info.get('dividendYield') in [None, 'N/A', 0, '']:
-                info['dividendYield'] = parse_finviz_val(data_dict.get('Dividend %', '-'), True)
+            if info.get('trailingPE') in [None, 'N/A', 0, '']: info['trailingPE'] = parse_finviz_val(data_dict.get('P/E', '-'))
+            if info.get('forwardPE') in [None, 'N/A', 0, '']: info['forwardPE'] = parse_finviz_val(data_dict.get('Forward P/E', '-'))
+            if info.get('priceToBook') in [None, 'N/A', 0, '']: info['priceToBook'] = parse_finviz_val(data_dict.get('P/B', '-'))
+            if info.get('priceToSalesTrailing12Months') in [None, 'N/A', 0, '']: info['priceToSalesTrailing12Months'] = parse_finviz_val(data_dict.get('P/S', '-'))
+            if info.get('pegRatio') in [None, 'N/A', 0, '']: info['pegRatio'] = parse_finviz_val(data_dict.get('PEG', '-'))
+            if info.get('returnOnEquity') in [None, 'N/A', 0, '']: info['returnOnEquity'] = parse_finviz_val(data_dict.get('ROE', '-'), True)
+            if info.get('returnOnAssets') in [None, 'N/A', 0, '']: info['returnOnAssets'] = parse_finviz_val(data_dict.get('ROA', '-'), True)
+            if info.get('returnOnCapitalEmployed') in [None, 'N/A', 0, '']: info['returnOnCapitalEmployed'] = parse_finviz_val(data_dict.get('ROI', '-'), True)
+            if info.get('grossMargins') in [None, 'N/A', 0, '']: info['grossMargins'] = parse_finviz_val(data_dict.get('Gross Margin', '-'), True)
+            if info.get('operatingMargins') in [None, 'N/A', 0, '']: info['operatingMargins'] = parse_finviz_val(data_dict.get('Oper. Margin', '-'), True)
+            if info.get('profitMargins') in [None, 'N/A', 0, '']: info['profitMargins'] = parse_finviz_val(data_dict.get('Profit Margin', '-'), True)
+            if info.get('dividendYield') in [None, 'N/A', 0, '']: info['dividendYield'] = parse_finviz_val(data_dict.get('Dividend %', '-'), True)
             if info.get('debtToEquity') in [None, 'N/A', 0, '']:
                 val = parse_finviz_val(data_dict.get('Debt/Eq', '-'))
                 if val is not None: info['debtToEquity'] = val * 100
-            if info.get('currentRatio') in [None, 'N/A', 0, '']:
-                info['currentRatio'] = parse_finviz_val(data_dict.get('Current Ratio', '-'))
-            if info.get('quickRatio') in [None, 'N/A', 0, '']:
-                info['quickRatio'] = parse_finviz_val(data_dict.get('Quick Ratio', '-'))
+            if info.get('currentRatio') in [None, 'N/A', 0, '']: info['currentRatio'] = parse_finviz_val(data_dict.get('Current Ratio', '-'))
+            if info.get('quickRatio') in [None, 'N/A', 0, '']: info['quickRatio'] = parse_finviz_val(data_dict.get('Quick Ratio', '-'))
     except:
         pass
     return info
@@ -382,7 +375,6 @@ if user_input:
     ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
     
-    # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit 발생 시 빈 데이터프레임으로 넘기기
     try:
         hist_basic = stock.history(period="1d")
     except Exception:
@@ -391,7 +383,6 @@ if user_input:
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
         
-        # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit (주로 여기서 발생)
         try:
             info = stock.info
         except Exception:
@@ -400,12 +391,9 @@ if user_input:
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
         
-        # ⚠️ 종목 혼동 방지용 회사 풀네임 변수
         company_name = info.get('longName', info.get('shortName', ticker))
-        
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
         
-        # ⚠️ 방어 코드: 재무제표 관련 데이터
         try: fin_df = stock.financials
         except: fin_df = pd.DataFrame()
         try: bs_df = stock.balance_sheet
@@ -416,10 +404,8 @@ if user_input:
         news_list = []
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         currency = "원" if is_korean_stock else "달러"
-        
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
-        # 뉴스 기사 수집량 100개
         try:
             if is_korean_stock:
                 rss_url = f"https://news.google.com/rss/search?q={user_input}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
@@ -457,12 +443,11 @@ if user_input:
             news_context_list.append(f"[{idx+1}] 제목: {item['title']}\n본문: {item.get('content', '본문 없음')}")
         news_context = "\n\n".join(news_context_list) if news_context_list else "수집된 실시간 데이터가 없습니다."
         
-        def fmt_pct(v, is_dividend=False):
+        # --- 수정된 % 포맷 함수 ---
+        def fmt_pct(v):
             if v == 'N/A' or v is None: return 'N/A'
             try: 
                 val = float(v)
-                if is_dividend and val >= 1.0:
-                    val = val / 100.0
                 return f"{val*100:.2f}%"
             except: return 'N/A'
             
@@ -521,7 +506,17 @@ if user_input:
         net_margin = safe_info(info, ['profitMargins', 'netMargin'])
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
+        
+        # --- 배당 수익률 버그 수정 구역 ---
         div_yield = safe_info(info, ['dividendYield'])
+        if div_yield not in ['N/A', None, '']:
+            try:
+                dy = float(div_yield)
+                # 야후 파이낸스가 배당수익률(%) 대신 1주당 배당금(원)을 반환하는 오류 처리
+                if dy >= 1.0 and current_price > 0:
+                    div_yield = dy / current_price
+            except:
+                pass
         
         debt = safe_info(info, ['debtToEquity'])
         current_ratio = safe_info(info, ['currentRatio'])
@@ -586,7 +581,6 @@ if user_input:
             
             interval = "1d" if interval_option == "일봉" else "1wk" if interval_option == "주봉" else "1mo"
             
-            # ⚠️ 방어 코드: 차트 히스토리
             try:
                 history = stock.history(period="max", interval=interval)
             except Exception:
@@ -798,7 +792,8 @@ if user_input:
             c3.metric("영업이익률", fmt_pct(op_margin))
             c3.metric("순이익률", fmt_pct(net_margin))
             c3.metric("매출 성장률", fmt_pct(rev_growth))
-            c3.metric("배당 수익률", fmt_pct(div_yield, is_dividend=True))
+            # fmt_pct 호출 시 is_dividend 인자 제거됨
+            c3.metric("배당 수익률", fmt_pct(div_yield))
             
             c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
             c4.metric("유동비율", fmt_flt(current_ratio))
@@ -871,7 +866,7 @@ if user_input:
 
 [가치 및 수익성 지표]
 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PSR: {fmt_flt(psr)}, PEG: {fmt_flt(peg)}, EV/EBITDA: {fmt_flt(ev_ebitda)}
-ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장률: {fmt_pct(rev_growth)}, 배당 수익률: {fmt_pct(div_yield, is_dividend=True)}
+ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장률: {fmt_pct(rev_growth)}, 배당 수익률: {fmt_pct(div_yield)}
 매출총이익률: {fmt_pct(gross_margin)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}
 [안정성 지표]
 부채비율: {debt}%, 유동비율: {fmt_flt(current_ratio)}, 당좌비율: {fmt_flt(quick_ratio)}, 이자보상배율: {interest_cov}
@@ -967,7 +962,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
                     - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt}%
                     - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}, 영업활동현금흐름: {v_cf_op}
-                    - 배당 수익률: {fmt_pct(div_yield, is_dividend=True)}
+                    - 배당 수익률: {fmt_pct(div_yield)}
                     
                     [3. 최신 시장 동향 및 기사 본문 요약]
                     \n{news_context}
