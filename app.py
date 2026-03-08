@@ -229,7 +229,6 @@ def augment_korean_fundamentals(ticker, info):
         pbr = get_val_by_id('_pbr')
         div = get_val_by_id('_dvr')
     
-        # 한국 주식은 야후 데이터가 빈칸이 아니더라도 무조건 네이버 데이터로 덮어씌움 (정확도 확보)
         if per is not None: info['trailingPE'] = per
         if pbr is not None: info['priceToBook'] = pbr
         if div is not None: info['dividendYield'] = div / 100.0
@@ -464,12 +463,10 @@ if user_input:
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
     
-        # --- 배당 수익률 안전망 추가 ---
         div_yield = safe_info(info, ['dividendYield'])
         if div_yield not in ['N/A', None, '']:
             try:
                 dy = float(div_yield)
-                # 배당률이 30%를 초과하는 경우 비정상 데이터로 간주하여 보정 시도
                 if dy > 0.30 and current_price > 0:
                     div_rate = info.get('dividendRate')
                     if div_rate and float(div_rate) > 0:
@@ -480,7 +477,6 @@ if user_input:
             except:
                 pass
     
-        # --- 부채비율 소수점 포맷팅 추가 ---
         debt = safe_info(info, ['debtToEquity'])
         debt_str = f"{fmt_flt(debt)}%" if debt not in ['N/A', None, ''] else 'N/A'
     
@@ -584,10 +580,16 @@ if user_input:
                 filtered_history = history.loc[mask].copy()
                 ma_context_str = "차트 데이터 부족"
                 if not filtered_history.empty:
+                    # === 날짜 표시 방식은 원래 그대로 유지하면서 미국장 쉬는 날 공간 제거 ===
+                    filtered_history = filtered_history.reset_index()
+                    filtered_history['Date_str'] = filtered_history['Date'].dt.strftime('%Y-%m-%d')
+                    
                     price_min = filtered_history['Low'].min()
                     price_max = filtered_history['High'].max()
-                    min_idx = filtered_history['Low'].idxmin()
-                    max_idx = filtered_history['High'].idxmax()
+                    min_row = filtered_history.loc[filtered_history['Low'].idxmin()]
+                    max_row = filtered_history.loc[filtered_history['High'].idxmax()]
+                    min_date_str = min_row['Date_str']
+                    max_date_str = max_row['Date_str']
                 
                     ma_last_vals_str = []
                     for w, name, color in ma_settings:
@@ -603,17 +605,20 @@ if user_input:
                     fig = go.Figure()
                 
                     fig.add_trace(go.Candlestick(
-                        x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
-                        low=filtered_history['Low'], close=filtered_history['Close'],
-                        increasing_line_color='#ff2d55',      # 양봉(상승) 빨간색
-                        increasing_fillcolor='#ff2d55',       # 몸통 + 손잡이 동일 빨간색
-                        decreasing_line_color='#00b0ff',      # 음봉(하락) 파란색
-                        decreasing_fillcolor='#00b0ff',       # 몸통 + 손잡이 동일 파란색
+                        x=filtered_history['Date_str'],
+                        open=filtered_history['Open'],
+                        high=filtered_history['High'],
+                        low=filtered_history['Low'],
+                        close=filtered_history['Close'],
+                        increasing_line_color='#ff2d55',      # 양봉 몸통 + 손잡이 모두 빨간색
+                        increasing_fillcolor='#ff2d55',
+                        decreasing_line_color='#00b0ff',      # 음봉 몸통 + 손잡이 모두 파란색
+                        decreasing_fillcolor='#00b0ff',
                         name="가격"
                     ))
                     for w, name, color in ma_settings:
                         fig.add_trace(go.Scatter(
-                            x=filtered_history.index,
+                            x=filtered_history['Date_str'],
                             y=filtered_history[f'MA_{w}'],
                             name=name,
                             line=dict(color=color, width=1.0),
@@ -621,27 +626,33 @@ if user_input:
                         ))
                 
                     fig.add_annotation(
-                        x=max_idx, y=price_max,
-                        text=f"최고: {price_max:{price_fmt}} {currency}",
-                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#ff2d55",
-                        ax=0, ay=-35,
-                        font=dict(color="white", size=13, family="Pretendard"),
-                        bgcolor="#ff2d55", bordercolor="#ff2d55", borderwidth=1, borderpad=4, opacity=0.9
-                    )
-                    fig.add_annotation(
-                        x=min_idx, y=price_min,
+                        x=min_date_str, y=price_min,
                         text=f"최저: {price_min:{price_fmt}} {currency}",
                         showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#00b0ff",
                         ax=0, ay=35,
                         font=dict(color="white", size=13, family="Pretendard"),
                         bgcolor="#00b0ff", bordercolor="#00b0ff", borderwidth=1, borderpad=4, opacity=0.9
                     )
+                    fig.add_annotation(
+                        x=max_date_str, y=price_max,
+                        text=f"최고: {price_max:{price_fmt}} {currency}",
+                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#ff2d55",
+                        ax=0, ay=-35,
+                        font=dict(color="white", size=13, family="Pretendard"),
+                        bgcolor="#ff2d55", bordercolor="#ff2d55", borderwidth=1, borderpad=4, opacity=0.9
+                    )
                 
                     fig.update_layout(
                         title=dict(text=f"{company_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                         template="plotly_dark",
                         dragmode=False,
-                        xaxis=dict(rangeslider=dict(visible=False), type="category", hoverformat="%Y-%m-%d", fixedrange=True),
+                        xaxis=dict(
+                            rangeslider=dict(visible=False),
+                            type="category",                  # 미국장 쉬는 날 공간 제거 (원래 날짜 표시 방식 유지)
+                            hoverformat="%Y-%m-%d",
+                            fixedrange=True,
+                            tickangle=0
+                        ),
                         yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
                         height=520,
                         margin=dict(l=0, r=0, t=40, b=0),
@@ -729,7 +740,7 @@ if user_input:
                     except Exception as e:
                         st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
       
-        # --- [탭 2: 상세 재무] ---
+        # --- [탭 2~4는 이전과 동일] ---
         with tab2:
             st.subheader("1. 가치 및 안정성 지표")
             c1, c2, c3, c4 = st.columns(4)
@@ -856,7 +867,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     except Exception as e:
                         st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
                 
-        # --- [탭 3: 최신 동향] ---
         with tab3:
             st.subheader("실시간 동향 및 투심 분석")
             st.write(f"기준일: **{today_date}**")
@@ -897,7 +907,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             st.info(response.text)
                         except Exception as e:
                             st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
-        # --- [탭 4: 종합 리포트] ---
         with tab4:
             st.subheader("AI 퀀트 애널리스트 최종 브리핑")
             if st.button("원클릭 종합 분석 리포트 생성"):
