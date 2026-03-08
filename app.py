@@ -25,7 +25,7 @@ def remove_from_history(term):
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
 
-# 최고급 세련된 웹 폰트(Pretendard) 적용 및 테두리/밑줄 CSS, 모바일 최적화 UI 커스텀
+# 최고급 세련된 웹 폰트(Pretendard) 적용 및 테두리/밑줄 CSS, UI 커스텀
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -54,7 +54,7 @@ st.markdown("""
         box-shadow: none !important;
     }
    
-    /* 일반 버튼 디자인 */
+    /* 버튼 디자인 */
     .stButton>button { border-radius: 6px; font-weight: 600; border: 1px solid #cccccc; width: 100%; transition: 0.3s; }
     .stButton>button:hover { border-color: #007bff; color: #007bff; background-color: #f8f8f8; }
     div[data-baseweb="select"] { cursor: pointer; }
@@ -65,7 +65,7 @@ st.markdown("""
         box-shadow: 0 0 0 1px #007bff !important;
     }
    
-    /* === Selectbox 편집 방지 및 테두리 파란색 === */
+    /* === Selectbox(차트 주기 등) 타이핑(편집) 방지 및 테두리 파란색 === */
     div[data-baseweb="select"] > div:hover,
     div[data-baseweb="select"] > div:focus-within {
         border-color: #007bff !important;
@@ -76,16 +76,23 @@ st.markdown("""
         user-select: none !important;
     }
     
-    /* === 💥 슬라이더 바/손잡이 통일 (빨간색) === */
+    /* === 슬라이더 전체 파란색 테마 강력 적용 === */
     div[data-testid="stSlider"] div[role="slider"] {
-        background-color: #ff4b4b !important;
-        border-color: #ff4b4b !important;
+        background-color: #007bff !important;
+        border-color: #007bff !important;
         box-shadow: none !important;
+    }
+    div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
+    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"],
+    div[data-testid="stSlider"] div[style*="background: rgb(255, 75, 75)"],
+    div[data-testid="stSlider"] div[style*="background: #ff4b4b"] {
+        background-color: #007bff !important;
+        background: #007bff !important;
     }
     [data-testid="stTickBarMin"],
     [data-testid="stTickBarMax"],
     [data-testid="stThumbValue"] {
-        color: #ff4b4b !important;
+        color: #007bff !important;
         font-weight: 700 !important;
     }
     
@@ -106,59 +113,6 @@ st.markdown("""
         word-break: break-all !important;
         font-size: 1.4rem !important; 
         line-height: 1.2 !important;
-    }
-
-    /* === 💥 모바일/웹 완벽 대응: 검색기록 알약(Pill) UI 세팅 === */
-    /* 1. 세로로 쌓이는 현상 방지 & 가로로 꽉 차면 줄바꿈 (flex-wrap) */
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="stHorizontalBlock"] {
-        flex-wrap: wrap !important;
-        flex-direction: row !important;
-        gap: 0px !important;
-    }
-    /* 2. 각 컬럼의 너비를 내용물 크기에 딱 맞게 축소 (불필요한 공간 제거) */
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"] {
-        width: auto !important;
-        flex: 0 0 auto !important;
-        min-width: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-    /* 3. [왼쪽] 종목명 버튼 디자인 (하나의 박스처럼 보이게 둥근 모서리 처리) */
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(odd) button {
-        border-radius: 20px 0 0 20px !important;
-        border: 1px solid #ddd !important;
-        border-right: none !important;
-        background-color: #ffffff !important;
-        color: #333 !important;
-        font-size: 13px !important;
-        font-weight: 600 !important;
-        padding: 2px 4px 2px 14px !important;
-        height: 32px !important;
-        min-height: 32px !important;
-        margin-bottom: 8px !important;
-    }
-    /* 4. [오른쪽] '✖' 버튼 디자인 (박스 안에 작게 포함된 느낌) */
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(even) button {
-        border-radius: 0 20px 20px 0 !important;
-        border: 1px solid #ddd !important;
-        border-left: none !important;
-        background-color: #ffffff !important;
-        color: #aaa !important;
-        font-size: 10px !important;
-        padding: 2px 12px 2px 4px !important;
-        height: 32px !important;
-        min-height: 32px !important;
-        margin-right: 8px !important; /* 다음 알약과의 간격 */
-        margin-bottom: 8px !important;
-    }
-    /* 5. 마우스를 올렸을 때 전체가 하나의 박스인 것처럼 색상 통일 */
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(odd) button:hover,
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(even) button:hover {
-        background-color: #f1f3f5 !important;
-        border-color: #ccc !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(even) button:hover {
-        color: #ff4b4b !important;
     }
 
     /* === 불필요한 UI 완벽 숨기기 === */
@@ -207,12 +161,14 @@ def get_ticker_and_korean_name(search_term):
     
     # 1. 한국 주식인지 로컬(KRX)에서 먼저 완벽하게 확인
     if not krx_df.empty:
+        # 이름으로 찾기
         match_name = krx_df[krx_df['Name'] == search_term]
         if not match_name.empty:
             code = match_name.iloc[0]['Code']
             market = match_name.iloc[0]['Market']
             ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
             return ticker, search_term
+        # 코드로 찾기
         match_code = krx_df[krx_df['Code'] == search_upper]
         if not match_code.empty:
             code = match_code.iloc[0]['Code']
@@ -252,17 +208,18 @@ def get_ticker_and_korean_name(search_term):
     if search_term in quick_map: return quick_map[search_term]
     elif search_upper in quick_map: return quick_map[search_upper]
         
+    # 과거 잘못된 검색기록 클릭 시(예: "KORU (한국 인버스 어쩌고)") 괄호 앞 티커만 뽑아서 재교정
     if "(" in search_term:
         possible_ticker = search_term.split("(")[0].strip().upper()
         if possible_ticker in quick_map:
             return quick_map[possible_ticker]
 
-    # 3. 🚨 철통 가드레일: 영문 1~5글자는 무조건 티커로 간주!
+    # 3. 🚨 철통 가드레일: 영문 1~5글자는 무조건 티커로 간주! AI가 멋대로 셉톤, 크립토 등으로 바꾸지 못하게 원천 차단
     is_pure_english_short = bool(re.match(r'^[A-Za-z]{1,5}$', search_term))
     if is_pure_english_short:
         return search_upper, search_upper
             
-    # 4. 그 외의 경우 AI에게 번역 위임
+    # 4. 그 외의 경우 AI에게 번역 위임 (창의성은 0.0으로 완벽 고정시켜서 헛소리 방지!)
     try:
         prompt = f"""당신은 주식/ETF 종목 식별 전문가입니다.
 사용자의 검색어: "{search_term}"
@@ -478,7 +435,9 @@ display_name = ""
 info = {}
 hist_basic = pd.DataFrame()
 
+# 1. 입력이 들어오면 티커와 기본 데이터만 우선 확보
 if user_input:
+    # 찰떡같이 티커와 이쁜 종목명을 물어옵니다. (영문 1~5글자는 AI 무시)
     ticker, display_name = get_ticker_and_korean_name(user_input)
     is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
     
@@ -495,34 +454,36 @@ if user_input:
         except Exception:
             pass
         
+        # 🚨 [가드레일 작동] 영문 티커를 쳐서 AI를 강제로 통과한 경우 (예: CEPT|CEPT),
+        # 야후 파이낸스에서 실제 등록된 기업명(Cantor Equity Partners II)으로 깔끔하게 덮어써줍니다!
         if display_name.upper() == ticker.upper() and info:
             display_name = info.get('shortName', info.get('longName', ticker))
             
         company_name = display_name
             
+        # 🕒 완벽하게 정제된 진짜 이름으로 검색 기록 업데이트!
         if display_name in st.session_state['search_history']:
             st.session_state['search_history'].remove(display_name)
         st.session_state['search_history'].insert(0, display_name)
-        st.session_state['search_history'] = st.session_state['search_history'][:10]
+        st.session_state['search_history'] = st.session_state['search_history'][:5]
 
-# 💥 검색기록 알약(Pill) UI 렌더링 (모바일 화면 자동 줄바꿈)
+# 2. 🕒 검색창 바로 아래에 세련된 검색 기록 UI 렌더링
 if st.session_state['search_history']:
-    with st.container():
-        st.markdown('<div class="search-history-container"></div>', unsafe_allow_html=True)
-        st.markdown("<div style='font-size: 13px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
-        
-        # 각각의 아이템당 2개의 컬럼(이름, X버튼) 생성
-        history_items = st.session_state['search_history'][:5]
-        cols = st.columns(len(history_items) * 2)
-        
-        for i, term in enumerate(history_items):
-            with cols[i*2]:
-                st.button(term, key=f"hist_btn_{term}_{i}", on_click=set_search_input, args=(term,), use_container_width=True)
-            with cols[i*2 + 1]:
-                st.button("✖", key=f"del_btn_{term}_{i}", on_click=remove_from_history, args=(term,), use_container_width=True)
+    st.markdown("<div style='font-size: 14px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
+    hist_cols = st.columns(6) # 화면을 6등분하여 배치
+    
+    for i, term in enumerate(st.session_state['search_history']):
+        if i < 5:
+            with hist_cols[i]:
+                c1, c2 = st.columns([7, 3], gap="small")
+                with c1:
+                    st.button(term, key=f"hist_btn_{term}_{i}", on_click=set_search_input, args=(term,), use_container_width=True)
+                with c2:
+                    st.button("✖", key=f"del_btn_{term}_{i}", on_click=remove_from_history, args=(term,), use_container_width=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
+# 3. 메인 주식 분석 로직 렌더링
 if user_input:
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
@@ -543,6 +504,7 @@ if user_input:
         currency = "원" if is_korean_stock else "달러"
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
+        # 뉴스 기사 수집
         try:
             if is_korean_stock:
                 rss_url = f"https://news.google.com/rss/search?q={display_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
@@ -702,6 +664,7 @@ if user_input:
         with tab1:
             col_price, col_interval = st.columns([3, 1])
             with col_price:
+                # 💥 완벽하게 교정/복구된 종목명이 출력됩니다.
                 st.markdown(f"### {company_name} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
             
             with col_interval:
@@ -765,11 +728,10 @@ if user_input:
                     
                     fig = go.Figure()
                     
-                    # 💥 상승 양봉은 빨간색, 하락 음봉은 파란색 패치 완료!
                     fig.add_trace(go.Candlestick(
                         x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                         low=filtered_history['Low'], close=filtered_history['Close'],
-                        increasing_line_color='#ff4b4b', decreasing_line_color='#00b0ff',
+                        increasing_line_color='#00ff9d', decreasing_line_color='#ff2d55',
                         name="가격"
                     ))
 
