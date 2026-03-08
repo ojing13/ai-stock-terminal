@@ -57,6 +57,17 @@ st.markdown("""
         box-shadow: 0 0 0 1px #007bff !important;
     }
    
+    /* === Selectbox(차트 주기 등) 타이핑(편집) 방지 및 테두리 파란색 === */
+    div[data-baseweb="select"] > div:hover,
+    div[data-baseweb="select"] > div:focus-within {
+        border-color: #007bff !important;
+        box-shadow: 0 0 0 1px #007bff !important;
+    }
+    div[data-baseweb="select"] input {
+        caret-color: transparent !important; 
+        user-select: none !important;
+    }
+    
     /* 슬라이더 디자인 개편 */
     div[data-testid="stSlider"] div[role="slider"] {
         background-color: #ff2d55 !important;
@@ -910,7 +921,7 @@ if user_input:
                     """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                         )
                         st.info(response.text)
                     except Exception as e:
@@ -1044,7 +1055,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                         )
                         st.info(response.text)
                     except Exception as e:
@@ -1062,7 +1073,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용을 읽고, 현재 이 기업을 둘러싼 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 향후 실적에 미칠 파급력까지 전문가의 시선으로 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호 작성 및 인용구 완벽 금지."
                         try:
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
+                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                             )
                             st.info(response.text)
                         except Exception as e:
@@ -1082,7 +1093,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터를 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 파악하고, 단기 및 중장기 주가 흐름에 미칠 영향을 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호 작성 및 인용구 완벽 금지."
                         try:
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
+                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                             )
                             st.info(response.text)
                         except Exception as e:
@@ -1130,6 +1141,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     
                     🚨 [최종 스코어 산출 지시사항 - 매우 중요]
                     리포트 작성을 모두 마친 후, 맨 마지막 줄에 반드시 다음 두 가지 점수를 `[SCORE: 점수]`, `[TENBAGGER: 점수]` 형태로 적어주세요.
+                    **주의: 동일한 재무 데이터와 주가 위치가 주어지면 항상 동일한 점수를 도출하도록, 감정을 배제하고 수치 기반의 기계적이고 일관된 잣대로 점수를 평가하세요.**
 
                     1. [SCORE: 0~100] (AI 투자의견)
                     - 철저한 트레이더 관점에서 '손익비(Risk/Reward)'를 가장 중요하게 봅니다.
@@ -1141,7 +1153,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.05}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                         )
                         
                         report_text = response.text
@@ -1174,14 +1186,12 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             tb_html = ""
                             if tenbagger_score is not None:
                                 tb_score = max(0, min(100, tenbagger_score))
-                                # 색상 매핑 로직은 유지
                                 if tb_score <= 20: tb_color = "#888888"
                                 elif tb_score <= 40: tb_color = "#b2aa3a" 
                                 elif tb_score <= 60: tb_color = "#f2994a" 
                                 elif tb_score <= 80: tb_color = "#f25287" 
                                 else: tb_color = "#ff007f" 
                                 
-                                # HTML 코드에서 들여쓰기를 모두 제거
                                 tb_html = f"""
 <div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;">
 <h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
@@ -1206,7 +1216,7 @@ AI 독자적 투자의견: <span style="color: {text_color};">{opinion_text}</sp
 <div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
 <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div>
 <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div>
-<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">중립</div>
+<div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div>
 <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div>
 <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div>
 <div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
