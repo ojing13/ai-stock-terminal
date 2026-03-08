@@ -145,7 +145,7 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 💡 지시사항 완벽 준수: 내부 사전(Dictionary) 100% 삭제 완료! 오직 API로만 승부합니다.
+# 💡 지시사항 완벽 준수: 내부 사전(Dictionary) 및 AI 번역 100% 삭제 완료
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
@@ -186,8 +186,7 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 💡 새로운 혁신 솔루션: 네이버 자동완성 API를 '전 세계 만능 검색기'로 활용
-    # "tsmc", "마소", "애플"을 검색해도 네이버가 알아서 "TSM", "MSFT", "AAPL"로 번역해주는 것을 훔쳐옵니다.
+    # 2. 💡 한글/영어 조건문 삭제: 영문 'tsmc'도 네이버 API가 TSM으로 번역해 주도록 조건 해제!
     try:
         encoded_term = urllib.parse.quote(search_term)
         ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
@@ -201,42 +200,52 @@ def get_ticker_symbol(search_term):
         if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
             item = ac_data['items'][0][0]
             code = item[0]
-            market_str = item[2].upper() if len(item) > 2 else ""
+            market_str = str(item[2]).upper() if len(item) > 2 else ""
             
-            # 검색된 국가의 시장에 맞게 야후 파이낸스용 꼬리표 부착!
-            if '코스피' in market_str or 'KOSPI' in market_str:
-                return f"{code}.KS"
-            elif '코스닥' in market_str or 'KOSDAQ' in market_str:
-                return f"{code}.KQ"
-            elif 'TSE' in market_str or '도쿄' in market_str or 'TOKYO' in market_str:
-                return f"{code}.T"
-            elif 'HK' in market_str or '홍콩' in market_str:
-                return f"{code}.HK"
-            elif 'SZ' in market_str or '심천' in market_str:
-                return f"{code}.SZ"
-            elif 'SS' in market_str or '상해' in market_str:
-                return f"{code}.SS"
-            else:
-                # 미국 주식(NYSE, NASDAQ 등)은 꼬리표 없이 티커 원형(TSM, MSFT 등) 그대로 반환
-                return code
+            if '코스피' in market_str or 'KOSPI' in market_str: return f"{code}.KS"
+            elif '코스닥' in market_str or 'KOSDAQ' in market_str: return f"{code}.KQ"
+            elif 'TSE' in market_str or '도쿄' in market_str or 'TOKYO' in market_str: return f"{code}.T"
+            elif 'HK' in market_str or '홍콩' in market_str: return f"{code}.HK"
+            elif 'SZ' in market_str or '심천' in market_str: return f"{code}.SZ"
+            elif 'SS' in market_str or '상해' in market_str: return f"{code}.SS"
+            else: return code # 해외 주식은 티커 그대로 반환
     except:
         pass
+        
+    # 3. 네이버 HTML 검색 백업 (API 차단 시, 한글만 시도)
+    if bool(re.search('[가-힣]', search_term)):
+        try:
+            encoded_term_euc = urllib.parse.quote(search_term.encode('euc-kr'))
+            html_url = f"https://finance.naver.com/search/searchList.naver?query={encoded_term_euc}"
+            html_res = requests.get(html_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
+            soup = BeautifulSoup(html_res.text, 'html.parser')
+            a_tag = soup.select_one('td.tit a')
+            if a_tag and 'code=' in a_tag['href']:
+                code = a_tag['href'].split('code=')[1]
+                tr = a_tag.find_parent('tr')
+                tds = tr.find_all('td')
+                if len(tds) > 2:
+                    market_str = tds[2].text.strip()
+                    if '코스피' in market_str: return f"{code}.KS"
+                    elif '코스닥' in market_str: return f"{code}.KQ"
+                    else: return code
+        except:
+            pass
       
-    # 3. 야후 파이낸스 자체 검색망 (💡 오타 수정 완료: 미국 거래소 철통 필터링)
+    # 4. 야후 파이낸스 자체 검색망 (💡 치명적 버그 수정: 미국 거래소 철통 필터링)
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
         res = requests.get(url, headers=headers, timeout=5)
         data = res.json()
         if 'quotes' in data and len(data['quotes']) > 0:
-            # 1순위: 미국 거래소에 상장된 종목 무조건 최우선 (브라질 TSMC34.SA 차단!)
+            # 1순위: 미국 주요 거래소 상장 주식 무조건 최우선 선별
             us_exchanges = ['NYQ', 'NMS', 'NASDAQ', 'NYSE', 'ASE', 'PCX']
             for quote in data['quotes']:
-                # 이전 코드의 치명적 오타(type)를 'quoteType'으로 수정하여 완벽히 작동하게 함
                 if quote.get('quoteType') in ['EQUITY', 'ETF'] and quote.get('exchange') in us_exchanges:
                     return quote['symbol']
             
-            # 미국 주식이 없으면 일반 주식/ETF 반환
+            # 2순위: 미국 주식이 없으면 일반 주식/ETF 반환
             for quote in data['quotes']:
                 if quote.get('quoteType') in ['EQUITY', 'ETF']:
                     return quote['symbol']
@@ -244,7 +253,7 @@ def get_ticker_symbol(search_term):
     except:
         pass
         
-    # 4. 최후의 수단: Gemini에게 티커 추론 요청 (🚨 환각 방지 철통 프롬프트)
+    # 5. 최후의 수단: Gemini에게 티커 추론 요청 (🚨 숫자 환각 엄격 금지 적용)
     try:
         ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스(Yahoo Finance) 주식 티커(Ticker) 딱 1개만 출력하세요.
         [엄격한 규칙]
@@ -737,6 +746,7 @@ if user_input:
                 ma_context_str = "차트 데이터 부족"
 
                 if not filtered_history.empty:
+                    # 💡 주봉/월봉 비만 캔들 방지 로직 완벽 유지
                     xaxis_config = dict(
                         rangeslider=dict(visible=False), 
                         type="date", 
