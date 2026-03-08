@@ -161,41 +161,37 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 강력한 백업: 한글 검색어일 경우 네이버 금융 API 활용 (오류 완벽 해결)
+    # 2. 강력한 백업: 한글 검색어일 경우 네이버 금융 최신 API 활용 (해외망 차단 우회)
     if bool(re.search('[가-힣]', search_term)):
         try:
             encoded_term = urllib.parse.quote(search_term)
             ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
-            ac_res = requests.get(ac_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                'Referer': 'https://finance.naver.com/'
+            }
+            ac_res = requests.get(ac_url, headers=headers, timeout=5)
             ac_data = ac_res.json()
             
             if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
                 code = ac_data['items'][0][0][0]
-                
-                basic_url = f"https://m.stock.naver.com/api/stock/{code}/basic"
-                basic_res = requests.get(basic_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
-                
-                if basic_res.status_code == 200:
-                    basic_data = basic_res.json()
-                    market = basic_data.get('stockType', '')
-                    if market.lower() == 'kospi':
-                        return f"{code}.KS"
-                    else:
-                        return f"{code}.KQ"
+                market_str = ac_data['items'][0][0][2] # 코스피, 코스닥 여부를 한 번에 가져옴
+                if '코스피' in market_str:
+                    return f"{code}.KS"
                 else:
                     return f"{code}.KQ"
         except:
             pass
 
-    # 3. 자주 찾는 미국 주식 딕셔너리
+    # 3. 자주 찾는 주식 딕셔너리
     us_dict = {
         "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT",
         "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META",
-        "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD"
+        "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD", "디어유": "376300.KQ"
     }
     if search_term in us_dict: return us_dict[search_term]
       
-    # 4. 한글이 없는 영어 검색어인 경우 Yahoo Finance 검색
+    # 4. 한글이 없는 영어 검색어인 경우 Yahoo Finance 자체 검색
     if not bool(re.search('[가-힣]', search_term)):
         url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -210,19 +206,21 @@ def get_ticker_symbol(search_term):
         except:
             pass
         
-    # 5. 최후의 수단: Gemini에게 티커 추론 요청
+    # 5. 최후의 수단: Gemini에게 티커 추론 요청 + 정규식 필터링 (가장 중요한 버그 픽스)
     try:
         ticker_prompt = f"""당신은 금융 데이터 전문가입니다.
         다음 검색어에 해당하는 주식 종목의 정확한 Yahoo Finance 기준 Ticker(기호) 딱 1개만 출력하세요.
         - 한국 코스피 주식이면 뒤에 '.KS'를 붙이세요 (예: 삼성전자 -> 005930.KS)
         - 한국 코스닥 주식이면 뒤에 '.KQ'를 붙이세요 (예: 에코프로 -> 086520.KQ)
         - 미국 등 해외 주식이면 해당 국가의 올바른 티커를 쓰세요 (예: 애플 -> AAPL)
-        - 다른 어떤 부연 설명이나 마침표 없이 오직 티커만 단 한 줄로 출력하세요.
         검색어: {search_term}"""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
-        if eng_ticker and len(eng_ticker) <= 15 and " " not in eng_ticker:
-            return eng_ticker
+        
+        # 💡 AI가 딴소리("티커는 376300.KQ 입니다")를 해도 오직 코드만 완벽하게 걸러내는 필터망!
+        match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', eng_ticker)
+        if match:
+            return match.group(0)
     except:
         pass
       
@@ -403,7 +401,7 @@ def get_article_text(url):
     except:
         return ""
 
-# --- 버튼 누를 때 야후 데이터 날아가는 오류 방지용 캐시 함수 추가 ---
+# --- 버튼 누를 때 야후 파이낸스 차단 오류 방지용 캐시 ---
 @st.cache_data(ttl=600)
 def fetch_yf_data(ticker):
     stock = yf.Ticker(ticker)
@@ -468,7 +466,6 @@ def fetch_news_data(ticker, user_input, is_korean_stock):
         except:
             pass
     return news_list
-# -------------------------------------------------------------------
 
 # ====================== 메인 ======================
 st.title("웅이의 AI 주식 분석 터미널")
@@ -480,9 +477,9 @@ with col_search:
 
 if user_input:
     ticker = get_ticker_symbol(user_input)
-    stock = yf.Ticker(ticker) # 세션 주입 코드 완벽히 제거
+    stock = yf.Ticker(ticker)
     
-    # 캐시 함수를 통해 데이터 불러오기 (버튼 클릭 시 증발 방지)
+    # 캐시 함수를 통해 데이터 불러오기 (버튼 여러 번 눌러도 증발 방지)
     hist_basic, info, fin_df, bs_df, cf_df = fetch_yf_data(ticker)
   
     if not hist_basic.empty:
@@ -635,7 +632,7 @@ if user_input:
             
             interval = "1d" if interval_option == "일봉" else "1wk" if interval_option == "주봉" else "1mo"
             
-            # 캐시된 차트 함수 사용
+            # 캐시된 차트 데이터 호출
             history = fetch_chart_history(ticker, interval)
             
             if not history.empty:
