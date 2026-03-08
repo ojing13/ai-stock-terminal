@@ -8,7 +8,7 @@ import FinanceDataReader as fdr
 import xml.etree.ElementTree as ET
 import pandas as pd
 from bs4 import BeautifulSoup
-import math # nan 처리를 위해 추가
+import math
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
@@ -255,9 +255,10 @@ def augment_korean_fundamentals(ticker, info):
         pbr = get_val_by_id('_pbr')
         div = get_val_by_id('_dvr')
         
-        if per and (info.get('trailingPE') in [None, 'N/A', 0, '']): info['trailingPE'] = per
-        if pbr and (info.get('priceToBook') in [None, 'N/A', 0, '']): info['priceToBook'] = pbr
-        if div and (info.get('dividendYield') in [None, 'N/A', 0, '']): info['dividendYield'] = div / 100.0
+        # 한국 주식은 야후 데이터가 빈칸이 아니더라도 무조건 네이버 데이터로 덮어씌움 (정확도 확보)
+        if per is not None: info['trailingPE'] = per
+        if pbr is not None: info['priceToBook'] = pbr
+        if div is not None: info['dividendYield'] = div / 100.0
 
         table = soup.find('table', {'class': 'tb_type1 tb_num tb_type1_ifrs'})
         if table:
@@ -281,18 +282,12 @@ def augment_korean_fundamentals(ticker, info):
                     if not valid_vals: continue
                     recent_val = valid_vals[-1] 
                     
-                    if 'ROE' in title and (info.get('returnOnEquity') in [None, 'N/A', '']):
-                        info['returnOnEquity'] = recent_val / 100.0
-                    elif '영업이익률' in title and (info.get('operatingMargins') in [None, 'N/A', '']):
-                        info['operatingMargins'] = recent_val / 100.0
-                    elif '순이익률' in title and (info.get('profitMargins') in [None, 'N/A', '']):
-                        info['profitMargins'] = recent_val / 100.0
-                    elif '부채비율' in title and (info.get('debtToEquity') in [None, 'N/A', '']):
-                        info['debtToEquity'] = recent_val
-                    elif '당좌비율' in title and (info.get('quickRatio') in [None, 'N/A', '']):
-                        info['quickRatio'] = recent_val / 100.0
-                    elif '유동비율' in title and (info.get('currentRatio') in [None, 'N/A', '']):
-                        info['currentRatio'] = recent_val / 100.0
+                    if 'ROE' in title: info['returnOnEquity'] = recent_val / 100.0
+                    elif '영업이익률' in title: info['operatingMargins'] = recent_val / 100.0
+                    elif '순이익률' in title: info['profitMargins'] = recent_val / 100.0
+                    elif '부채비율' in title: info['debtToEquity'] = recent_val
+                    elif '당좌비율' in title: info['quickRatio'] = recent_val / 100.0
+                    elif '유동비율' in title: info['currentRatio'] = recent_val / 100.0
     except:
         pass 
     return info
@@ -443,7 +438,6 @@ if user_input:
             news_context_list.append(f"[{idx+1}] 제목: {item['title']}\n본문: {item.get('content', '본문 없음')}")
         news_context = "\n\n".join(news_context_list) if news_context_list else "수집된 실시간 데이터가 없습니다."
         
-        # --- 수정된 % 포맷 함수 ---
         def fmt_pct(v):
             if v == 'N/A' or v is None: return 'N/A'
             try: 
@@ -507,18 +501,26 @@ if user_input:
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
         
-        # --- 배당 수익률 버그 수정 구역 ---
+        # --- 배당 수익률 안전망 추가 ---
         div_yield = safe_info(info, ['dividendYield'])
         if div_yield not in ['N/A', None, '']:
             try:
                 dy = float(div_yield)
-                # 야후 파이낸스가 배당수익률(%) 대신 1주당 배당금(원)을 반환하는 오류 처리
-                if dy >= 1.0 and current_price > 0:
-                    div_yield = dy / current_price
+                # 배당률이 30%를 초과하는 경우 비정상 데이터로 간주하여 보정 시도
+                if dy > 0.30 and current_price > 0:
+                    div_rate = info.get('dividendRate')
+                    if div_rate and float(div_rate) > 0:
+                        dy = float(div_rate) / current_price
+                    elif dy >= 1.0:
+                        dy = dy / current_price
+                div_yield = dy
             except:
                 pass
         
+        # --- 부채비율 소수점 포맷팅 추가 ---
         debt = safe_info(info, ['debtToEquity'])
+        debt_str = f"{fmt_flt(debt)}%" if debt not in ['N/A', None, ''] else 'N/A'
+        
         current_ratio = safe_info(info, ['currentRatio'])
         quick_ratio = safe_info(info, ['quickRatio'])
         
@@ -792,10 +794,9 @@ if user_input:
             c3.metric("영업이익률", fmt_pct(op_margin))
             c3.metric("순이익률", fmt_pct(net_margin))
             c3.metric("매출 성장률", fmt_pct(rev_growth))
-            # fmt_pct 호출 시 is_dividend 인자 제거됨
             c3.metric("배당 수익률", fmt_pct(div_yield))
             
-            c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
+            c4.metric("부채비율", debt_str)
             c4.metric("유동비율", fmt_flt(current_ratio))
             c4.metric("당좌비율", fmt_flt(quick_ratio))
             c4.metric("이자보상배율", interest_cov)
@@ -869,7 +870,7 @@ if user_input:
 ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장률: {fmt_pct(rev_growth)}, 배당 수익률: {fmt_pct(div_yield)}
 매출총이익률: {fmt_pct(gross_margin)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}
 [안정성 지표]
-부채비율: {debt}%, 유동비율: {fmt_flt(current_ratio)}, 당좌비율: {fmt_flt(quick_ratio)}, 이자보상배율: {interest_cov}
+부채비율: {debt_str}, 유동비율: {fmt_flt(current_ratio)}, 당좌비율: {fmt_flt(quick_ratio)}, 이자보상배율: {interest_cov}
 [손익계산서]
 매출액: {v_rev}, 매출원가: {v_cogs}, 매출총이익: {v_gp}, 판매관리비: {v_sga}, 영업이익: {v_op}, 법인세차감전순이익: {v_pretax}, 당기순이익: {v_net}, 기타포괄손익: {v_oci}
 [재무상태표]
@@ -960,7 +961,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     
                     [2. 주요 재무 및 펀더멘털 지표]
                     - 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
-                    - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt}%
+                    - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt_str}
                     - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}, 영업활동현금흐름: {v_cf_op}
                     - 배당 수익률: {fmt_pct(div_yield)}
                     
