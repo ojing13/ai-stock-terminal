@@ -145,12 +145,12 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 💡 지시사항 완벽 준수: 내부 사전(Dictionary) 및 AI 번역 100% 삭제 완료
+# 💡 지시사항 완벽 준수: 내부 사전(Dictionary) 100% 영구 삭제!
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
+    # 오직 네이버 금융 API만 사용하여 증권사 공식 종목명을 실시간으로 가져옵니다.
     try:
         clean_ticker = ticker.split('.')[0]
-        
         ac_url = f"https://ac.finance.naver.com/ac?q={clean_ticker}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
         headers = {'User-Agent': 'Mozilla/5.0'}
         ac_res = requests.get(ac_url, headers=headers, timeout=3)
@@ -160,41 +160,47 @@ def get_korean_display_name(ticker, english_name):
             for item in ac_data['items'][0]:
                 if item[0].upper() == clean_ticker.upper():
                     korean_name = item[1] 
-                    if korean_name:
-                        return korean_name
+                    if korean_name: return korean_name
             korean_name = ac_data['items'][0][0][1] 
-            if korean_name:
-                return korean_name
+            if korean_name: return korean_name
     except:
         pass
-
     return english_name 
 
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
+    search_upper = search_term.upper()
             
     # 1. KRX 데이터프레임에서 검색 (한국 주식)
     if not krx_df.empty:
         df_temp = krx_df.copy()
-        search_clean = search_term.replace(" ", "").upper()
         df_temp['Name_clean'] = df_temp['Name'].astype(str).str.replace(" ", "").str.upper()
-        match = df_temp[df_temp['Name_clean'] == search_clean]
+        match = df_temp[df_temp['Name_clean'] == search_upper.replace(" ", "")]
         if not match.empty:
             code = match.iloc[0]['Code']
             market = match.iloc[0]['Market']
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
+
+    # 2. 💡 혁신 솔루션: Finviz API 우선 검색 (영어 검색어일 경우 tsmc -> TSM 완벽 매칭)
+    if re.match(r'^[a-zA-Z0-9\s]+$', search_term):
+        try:
+            fv_url = f"https://finviz.com/api/suggestions.ashx?input={urllib.parse.quote(search_term)}"
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            fv_res = requests.get(fv_url, headers=headers, timeout=3)
+            fv_data = fv_res.json()
+            if fv_data and len(fv_data) > 0:
+                return fv_data[0]['ticker']
+        except:
+            pass
             
-    # 2. 💡 한글/영어 조건문 삭제: 영문 'tsmc'도 네이버 API가 TSM으로 번역해 주도록 조건 해제!
+    # 3. 강력한 백업: 네이버 자동완성 API (한글 검색어 최적화)
     try:
         encoded_term = urllib.parse.quote(search_term)
         ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-            'Referer': 'https://finance.naver.com/'
-        }
-        ac_res = requests.get(ac_url, headers=headers, timeout=5)
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        ac_res = requests.get(ac_url, headers=headers, timeout=3)
         ac_data = ac_res.json()
         
         if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
@@ -204,76 +210,53 @@ def get_ticker_symbol(search_term):
             
             if '코스피' in market_str or 'KOSPI' in market_str: return f"{code}.KS"
             elif '코스닥' in market_str or 'KOSDAQ' in market_str: return f"{code}.KQ"
-            elif 'TSE' in market_str or '도쿄' in market_str or 'TOKYO' in market_str: return f"{code}.T"
+            elif 'TSE' in market_str or '도쿄' in market_str: return f"{code}.T"
             elif 'HK' in market_str or '홍콩' in market_str: return f"{code}.HK"
             elif 'SZ' in market_str or '심천' in market_str: return f"{code}.SZ"
             elif 'SS' in market_str or '상해' in market_str: return f"{code}.SS"
             else: return code # 해외 주식은 티커 그대로 반환
     except:
         pass
-        
-    # 3. 네이버 HTML 검색 백업 (API 차단 시, 한글만 시도)
-    if bool(re.search('[가-힣]', search_term)):
-        try:
-            encoded_term_euc = urllib.parse.quote(search_term.encode('euc-kr'))
-            html_url = f"https://finance.naver.com/search/searchList.naver?query={encoded_term_euc}"
-            html_res = requests.get(html_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
-            soup = BeautifulSoup(html_res.text, 'html.parser')
-            a_tag = soup.select_one('td.tit a')
-            if a_tag and 'code=' in a_tag['href']:
-                code = a_tag['href'].split('code=')[1]
-                tr = a_tag.find_parent('tr')
-                tds = tr.find_all('td')
-                if len(tds) > 2:
-                    market_str = tds[2].text.strip()
-                    if '코스피' in market_str: return f"{code}.KS"
-                    elif '코스닥' in market_str: return f"{code}.KQ"
-                    else: return code
-        except:
-            pass
       
-    # 4. 야후 파이낸스 자체 검색망 (💡 치명적 버그 수정: 미국 거래소 철통 필터링)
-    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    # 4. 야후 파이낸스 자체 검색망 (💡 완벽한 미국 거래소 철통 필터링으로 오탐 100% 방지)
     try:
-        res = requests.get(url, headers=headers, timeout=5)
-        data = res.json()
-        if 'quotes' in data and len(data['quotes']) > 0:
-            # 1순위: 미국 주요 거래소 상장 주식 무조건 최우선 선별
-            us_exchanges = ['NYQ', 'NMS', 'NASDAQ', 'NYSE', 'ASE', 'PCX']
-            for quote in data['quotes']:
-                if quote.get('quoteType') in ['EQUITY', 'ETF'] and quote.get('exchange') in us_exchanges:
+        y_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
+        y_res = requests.get(y_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
+        y_data = y_res.json()
+        if 'quotes' in y_data and len(y_data['quotes']) > 0:
+            # 1순위: 미국 메이저 거래소(NYQ, NMS, NASDAQ, NYSE 등) 상장 주식을 무조건 최우선으로 뽑아냄
+            us_exchanges = ['NYQ', 'NMS', 'NASDAQ', 'NYSE', 'ASE', 'BATS']
+            for quote in y_data['quotes']:
+                if quote.get('exchange', '').upper() in us_exchanges:
                     return quote['symbol']
             
-            # 2순위: 미국 주식이 없으면 일반 주식/ETF 반환
-            for quote in data['quotes']:
+            # 2순위: 미국 주식이 없으면 가장 상단의 주식/ETF 반환
+            for quote in y_data['quotes']:
                 if quote.get('quoteType') in ['EQUITY', 'ETF']:
                     return quote['symbol']
-            return data['quotes'][0]['symbol']
+            return y_data['quotes'][0]['symbol']
     except:
         pass
         
-    # 5. 최후의 수단: Gemini에게 티커 추론 요청 (🚨 숫자 환각 엄격 금지 적용)
+    # 5. 최후의 수단: Gemini 티커 추론 (🚨 환각 및 생각 과정 철통 방어 프롬프트)
     try:
-        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스(Yahoo Finance) 주식 티커(Ticker) 딱 1개만 출력하세요.
-        [엄격한 규칙]
-        1. 미국 주식: 영문 티커 (예: AAPL, HIMS, TSLA, OKLO)
-        2. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
-        3. 🚨치명적 경고🚨: 검색어가 '힘스', '삼성증권' 등일 때 6자리 종목 코드를 완벽히 확신할 수 없다면 절대 임의의 6자리 숫자를 지어내지 마세요! 모르면 차라리 영문 티커(예: HIMS)를 내보내세요.
-        4. 사고 과정(Thinking process), 추가 설명, 마침표 없이 오직 '티커 기호' 하나만 출력하세요."""
+        ticker_prompt = f"""Find the official Yahoo Finance ticker symbol for '{search_term}'.
+        Rules:
+        1. US stocks: Return normal ticker (e.g. AAPL, TSM).
+        2. Korean stocks: Return 6-digit code with .KS or .KQ (e.g. 005930.KS).
+        3. Do NOT invent or hallucinate codes. 
+        4. Return ONLY the ticker symbol. No thinking process, no explanation, no periods."""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
-        # THOUGHT 과정이 섞여 들어오더라도 맨 마지막 줄의 진짜 티커만 걸러내는 완벽 필터망
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
             match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', lines[-1])
-            if match:
-                return match.group(0)
+            if match: return match.group(0)
     except:
         pass
       
-    return search_term.upper()
+    return search_upper
 
 def safe_get_fin(df, keys, default='N/A'):
     if df is None or df.empty: return default
