@@ -25,7 +25,7 @@ def remove_from_history(term):
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
 
-# 최고급 세련된 웹 폰트(Pretendard) 적용 및 테두리/밑줄 CSS, UI 커스텀
+# 최고급 세련된 웹 폰트(Pretendard) 적용 및 테두리/밑줄 CSS, 모바일 최적화 UI 커스텀
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -54,7 +54,7 @@ st.markdown("""
         box-shadow: none !important;
     }
    
-    /* 버튼 디자인 */
+    /* 일반 버튼 디자인 */
     .stButton>button { border-radius: 6px; font-weight: 600; border: 1px solid #cccccc; width: 100%; transition: 0.3s; }
     .stButton>button:hover { border-color: #007bff; color: #007bff; background-color: #f8f8f8; }
     div[data-baseweb="select"] { cursor: pointer; }
@@ -65,7 +65,7 @@ st.markdown("""
         box-shadow: 0 0 0 1px #007bff !important;
     }
    
-    /* === Selectbox(차트 주기 등) 타이핑(편집) 방지 및 테두리 파란색 === */
+    /* Selectbox 편집 방지 및 테두리 파란색 */
     div[data-baseweb="select"] > div:hover,
     div[data-baseweb="select"] > div:focus-within {
         border-color: #007bff !important;
@@ -76,16 +76,14 @@ st.markdown("""
         user-select: none !important;
     }
     
-    /* === 슬라이더 전체 파란색 테마 강력 적용 === */
+    /* 슬라이더 전체 파란색 테마 강력 적용 */
     div[data-testid="stSlider"] div[role="slider"] {
         background-color: #007bff !important;
         border-color: #007bff !important;
         box-shadow: none !important;
     }
     div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
-    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"],
-    div[data-testid="stSlider"] div[style*="background: rgb(255, 75, 75)"],
-    div[data-testid="stSlider"] div[style*="background: #ff4b4b"] {
+    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"] {
         background-color: #007bff !important;
         background: #007bff !important;
     }
@@ -96,38 +94,76 @@ st.markdown("""
         font-weight: 700 !important;
     }
     
-    /* === 재무제표 표 정렬 및 스타일 === */
+    /* 재무제표 표 정렬 및 스타일 */
     .fin-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; table-layout: fixed; }
     .fin-table th { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; color: #555; }
     .fin-table td { border-bottom: 1px solid #eee; padding: 8px; text-align: right; vertical-align: middle; }
     .fin-table td:first-child {
-        text-align: left;
-        font-weight: 600;
-        color: #333;
-        width: 40%;
-        word-break: break-all;
+        text-align: left; font-weight: 600; color: #333; width: 40%; word-break: break-all;
     }
-    
     div[data-testid="stMetricValue"] {
-        white-space: normal !important;
-        word-break: break-all !important;
-        font-size: 1.4rem !important; 
-        line-height: 1.2 !important;
+        white-space: normal !important; word-break: break-all !important; font-size: 1.4rem !important; line-height: 1.2 !important;
     }
 
-    /* === 불필요한 UI 완벽 숨기기 === */
+    /* === 모바일 최적화: 검색기록 알약(Pill) UI 디자인 === */
+    /* 가로로 예쁘게 정렬 및 줄바꿈 허용 */
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+        flex-direction: row !important;
+        gap: 0px !important;
+    }
+    /* 컬럼 크기를 내용물에 딱 맞춤 (모바일 세로정렬 방지) */
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="column"] {
+        width: auto !important;
+        flex: 0 0 auto !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+    }
+    /* 종목명 버튼 (박스 왼쪽) */
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="column"]:nth-child(odd) button {
+        border-radius: 15px 0 0 15px !important;
+        border-right: none !important;
+        padding: 2px 4px 2px 12px !important;
+        background-color: #f0f2f6 !important;
+        border-color: #e0e5ec !important;
+        color: #333 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        min-height: 28px !important;
+        height: 28px !important;
+        margin-bottom: 8px !important;
+    }
+    /* 삭제 ✖ 버튼 (박스 오른쪽) */
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="column"]:nth-child(even) button {
+        border-radius: 0 15px 15px 0 !important;
+        border-left: none !important;
+        padding: 2px 10px 2px 4px !important;
+        color: #aaaaaa !important;
+        background-color: #f0f2f6 !important;
+        border-color: #e0e5ec !important;
+        font-size: 10px !important;
+        min-height: 28px !important;
+        height: 28px !important;
+        margin-right: 8px !important;
+        margin-bottom: 8px !important;
+    }
+    /* 호버 애니메이션 */
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="column"]:nth-child(odd) button:hover {
+        background-color: #e2e8f0 !important;
+        border-color: #d0d7e0 !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="column"]:nth-child(even) button:hover {
+        background-color: #e2e8f0 !important;
+        border-color: #d0d7e0 !important;
+        color: #ff4b4b !important;
+    }
+
+    /* 불필요한 UI 완벽 숨기기 */
     .stDeployButton { display: none !important; }
     [data-testid="stStatusWidget"] * { display: none !important; }
     [data-testid="stStatusWidget"]::after {
-        content: "Loading...";
-        font-size: 14px;
-        font-weight: 600;
-        color: #888888;
-        display: flex;
-        align-items: center;
-        padding: 5px 15px;
+        content: "Loading..."; font-size: 14px; font-weight: 600; color: #888888; display: flex; align-items: center; padding: 5px 15px;
     }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -214,7 +250,7 @@ def get_ticker_and_korean_name(search_term):
         if possible_ticker in quick_map:
             return quick_map[possible_ticker]
 
-    # 3. 🚨 철통 가드레일: 영문 1~5글자는 무조건 티커로 간주! AI가 멋대로 셉톤, 크립토 등으로 바꾸지 못하게 원천 차단
+    # 3. 🚨 철통 가드레일: 영문 1~5글자는 무조건 티커로 간주! AI가 멋대로 다른 기업명으로 바꾸지 못하게 원천 차단
     is_pure_english_short = bool(re.match(r'^[A-Za-z]{1,5}$', search_term))
     if is_pure_english_short:
         return search_upper, search_upper
@@ -467,19 +503,22 @@ if user_input:
         st.session_state['search_history'].insert(0, display_name)
         st.session_state['search_history'] = st.session_state['search_history'][:5]
 
-# 2. 🕒 검색창 바로 아래에 세련된 검색 기록 UI 렌더링
+# 2. 🕒 검색창 바로 아래에 세련된 모바일 알약(Pill) UI 렌더링
 if st.session_state['search_history']:
-    st.markdown("<div style='font-size: 14px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
-    hist_cols = st.columns(6) # 화면을 6등분하여 배치
-    
-    for i, term in enumerate(st.session_state['search_history']):
-        if i < 5:
-            with hist_cols[i]:
-                c1, c2 = st.columns([7, 3], gap="small")
-                with c1:
-                    st.button(term, key=f"hist_btn_{term}_{i}", on_click=set_search_input, args=(term,), use_container_width=True)
-                with c2:
-                    st.button("✖", key=f"del_btn_{term}_{i}", on_click=remove_from_history, args=(term,), use_container_width=True)
+    # Container를 사용하여 내부 CSS를 안전하게 격리합니다.
+    with st.container():
+        st.markdown('<div class="history-marker"></div>', unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 13px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
+        
+        # 최대 5개의 검색기록을 위해 총 10개의 작은 열 생성
+        num_items = min(len(st.session_state['search_history']), 5)
+        cols = st.columns(num_items * 2)
+        
+        for i, term in enumerate(st.session_state['search_history'][:5]):
+            with cols[i*2]:
+                st.button(term, key=f"hist_btn_{term}_{i}", on_click=set_search_input, args=(term,))
+            with cols[i*2 + 1]:
+                st.button("✖", key=f"del_btn_{term}_{i}", on_click=remove_from_history, args=(term,))
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -728,10 +767,11 @@ if user_input:
                     
                     fig = go.Figure()
                     
+                    # 💥 상승장 빨간색(양봉), 하락장 파란색(음봉) 한국식 패치 완료!
                     fig.add_trace(go.Candlestick(
                         x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                         low=filtered_history['Low'], close=filtered_history['Close'],
-                        increasing_line_color='#00ff9d', decreasing_line_color='#ff2d55',
+                        increasing_line_color='#ff4b4b', decreasing_line_color='#00b0ff',
                         name="가격"
                     ))
 
