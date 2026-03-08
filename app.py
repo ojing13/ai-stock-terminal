@@ -173,6 +173,7 @@ def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     search_clean = search_term.replace(" ", "").upper()
     
+    # 강력한 1:1 강제 매핑 (ETF 및 주요 주식 추가)
     custom_mapping = {
         "TSMC": "TSM",
         "티에스엠씨": "TSM",
@@ -196,7 +197,13 @@ def get_ticker_symbol(search_term):
         "넷플릭스": "NFLX",
         "AMD": "AMD",
         "INTEL": "INTC",
-        "인텔": "INTC"
+        "인텔": "INTC",
+        "슈드": "SCHD",
+        "SCHD": "SCHD",
+        "큐큐큐": "QQQ",
+        "QQQ": "QQQ",
+        "스파이": "SPY",
+        "SPY": "SPY"
     }
     
     if search_clean in custom_mapping:
@@ -506,7 +513,7 @@ st.markdown("---")
 
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL)", "")
+    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL, 슈드)", "")
 
 if user_input:
     ticker = get_ticker_symbol(user_input)
@@ -620,12 +627,19 @@ if user_input:
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
         
-        # --- [안전한 배당수익률 추출 전용 함수] ---
+        # --- [안전한 배당수익률 추출 (ETF 완벽 지원)] ---
         def get_dividend_yield(info_dict, current_p):
             candidates = []
+            
             dy = info_dict.get('dividendYield')
             if dy is not None and str(dy).strip() != '' and str(dy).upper() != 'N/A':
                 try: candidates.append(float(dy))
+                except: pass
+                
+            # 슈드(SCHD) 같은 ETF 전용 지표
+            ey = info_dict.get('yield')
+            if ey is not None and str(ey).strip() != '' and str(ey).upper() != 'N/A':
+                try: candidates.append(float(ey))
                 except: pass
                 
             tdy = info_dict.get('trailingAnnualDividendYield')
@@ -634,7 +648,6 @@ if user_input:
                     curr = info_dict.get('currency', 'USD')
                     f_curr = info_dict.get('financialCurrency', 'USD')
                     val = float(tdy)
-                    # ADR 통화 불일치 버그 필터링 (4% 이상일 때만 제외)
                     if curr != f_curr and val > 0.04: pass
                     else: candidates.append(val)
                 except: pass
@@ -648,13 +661,12 @@ if user_input:
                         candidates.append(float(rate) / current_p)
                 except: pass
                 
-            # 비정상적인 버그 수치(30% 초과) 완벽 차단
             for val in candidates:
-                if 0 <= val < 0.3: return val
+                if 0 < val < 0.3: return val  # 0.00% 이거나 30% 이상인 가짜 수치 차단
             return 'N/A'
 
         div_yield = get_dividend_yield(info, current_price)
-        # ----------------------------------------
+        # -----------------------------------------------
         
         debt = safe_info(info, ['debtToEquity'])
         current_ratio = safe_info(info, ['currentRatio'])
@@ -907,7 +919,7 @@ if user_input:
             st.subheader("1. 가치 및 안정성 지표")
             c1, c2, c3, c4 = st.columns(4)
             
-            c1.metric("시가총액", format_large_number(market_cap, currency))
+            c1.metric("시가총액", format_large_number(market_cap, currency) if market_cap else 'N/A')
             c1.metric("Trailing PER", fmt_flt(trailing_pe, is_per=True))
             c1.metric("Forward PER", fmt_flt(forward_pe, is_per=True))
             c1.metric("PBR", fmt_flt(pb))
@@ -994,7 +1006,7 @@ if user_input:
 [최신 동향 데이터]\n{news_context}
 
 [가치 및 수익성 지표]
-시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PSR: {fmt_flt(psr)}, PEG: {fmt_flt(peg)}, EV/EBITDA: {fmt_flt(ev_ebitda)}
+시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PSR: {fmt_flt(psr)}, PEG: {fmt_flt(peg)}, EV/EBITDA: {fmt_flt(ev_ebitda)}
 ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장률: {fmt_pct(rev_growth)}, 배당 수익률: {fmt_pct(div_yield)}
 매출총이익률: {fmt_pct(gross_margin)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}
 [안정성 지표]
@@ -1072,7 +1084,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 현재가: {current_price:{price_fmt}} {currency}
                     - 이동평균선 최근값: {ma_context_str}
                     [2. 주요 재무 및 펀더멘털 지표]
-                    - 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, PBR: {pb}
+                    - 시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}, Trailing PER: {trailing_pe}, PBR: {pb}
                     - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 부채비율: {debt}%
                     - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}
                     - 배당 수익률: {fmt_pct(div_yield)}
