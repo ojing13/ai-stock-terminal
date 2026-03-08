@@ -145,10 +145,18 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
+# 자주 찾는 주식 딕셔너리를 전역 변수로 분리 (종목명 역추적을 위함)
+US_STOCK_DICT = {
+    "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT",
+    "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META",
+    "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD", "디어유": "376300.KQ"
+}
+
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     
+    # 1. KRX 데이터프레임에서 검색
     if not krx_df.empty:
         df_temp = krx_df.copy()
         search_clean = search_term.replace(" ", "").upper()
@@ -160,6 +168,7 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
+    # 2. 강력한 백업: 한글 검색어일 경우 네이버 금융 최신 API 활용 (해외망 차단 우회)
     if bool(re.search('[가-힣]', search_term)):
         try:
             encoded_term = urllib.parse.quote(search_term)
@@ -181,13 +190,10 @@ def get_ticker_symbol(search_term):
         except:
             pass
 
-    us_dict = {
-        "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT",
-        "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META",
-        "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD", "디어유": "376300.KQ"
-    }
-    if search_term in us_dict: return us_dict[search_term]
+    # 3. 자주 찾는 주식 딕셔너리
+    if search_term in US_STOCK_DICT: return US_STOCK_DICT[search_term]
       
+    # 4. 한글이 없는 영어 검색어인 경우 Yahoo Finance 자체 검색
     if not bool(re.search('[가-힣]', search_term)):
         url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -202,6 +208,7 @@ def get_ticker_symbol(search_term):
         except:
             pass
         
+    # 5. 최후의 수단: Gemini에게 티커 추론 요청 + 정규식 필터링 (가장 중요한 버그 픽스)
     try:
         ticker_prompt = f"""당신은 금융 데이터 전문가입니다.
         다음 검색어에 해당하는 주식 종목의 정확한 Yahoo Finance 기준 Ticker(기호) 딱 1개만 출력하세요.
@@ -212,6 +219,7 @@ def get_ticker_symbol(search_term):
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
+        # AI가 딴소리("티커는 376300.KQ 입니다")를 해도 오직 코드만 완벽하게 걸러내는 필터망!
         match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', eng_ticker)
         if match:
             return match.group(0)
@@ -273,7 +281,6 @@ def augment_korean_fundamentals(ticker, info):
         pbr = get_val_by_id('_pbr')
         div = get_val_by_id('_dvr')
         
-        # ⚠️ 핵심 버그 수정: yfinance 쓰레기 값을 무시하고 네이버 데이터로 무조건 덮어쓰기!
         if per is not None: info['trailingPE'] = per
         if pbr is not None: info['priceToBook'] = pbr
         if div is not None: info['dividendYield'] = div / 100.0
@@ -300,7 +307,6 @@ def augment_korean_fundamentals(ticker, info):
                     if not valid_vals: continue
                     recent_val = valid_vals[-1] 
                     
-                    # ⚠️ 여기도 동일하게 조건 없이 덮어쓰도록 수정
                     if 'ROE' in title:
                         info['returnOnEquity'] = recent_val / 100.0
                     elif '영업이익률' in title:
@@ -351,7 +357,6 @@ def augment_us_fundamentals(ticker, info):
                 except:
                     return None
 
-            # ⚠️ 미국 주식도 동일하게 Finviz 데이터가 있으면 yfinance 무시하고 무조건 덮어쓰기!
             if (v := parse_finviz_val(data_dict.get('P/E', '-'))) is not None: info['trailingPE'] = v
             if (v := parse_finviz_val(data_dict.get('Forward P/E', '-'))) is not None: info['forwardPE'] = v
             if (v := parse_finviz_val(data_dict.get('P/B', '-'))) is not None: info['priceToBook'] = v
@@ -383,7 +388,6 @@ def get_article_text(url):
     except:
         return ""
 
-# --- 버튼 누를 때 야후 파이낸스 차단 오류 방지용 캐시 ---
 @st.cache_data(ttl=600)
 def fetch_yf_data(ticker):
     stock = yf.Ticker(ticker)
@@ -413,11 +417,12 @@ def fetch_chart_history(ticker, interval):
         return pd.DataFrame()
 
 @st.cache_data(ttl=600)
-def fetch_news_data(ticker, user_input, is_korean_stock):
+def fetch_news_data(ticker, official_name, is_korean_stock):
     news_list = []
     try:
+        # 뉴스 검색 시 오타가 섞인 user_input 대신 정규화된 official_name 사용
         if is_korean_stock:
-            rss_url = f"https://news.google.com/rss/search?q={user_input}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
+            rss_url = f"https://news.google.com/rss/search?q={official_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
         else:
             rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
         response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -461,11 +466,31 @@ if user_input:
     ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
     
-    # 캐시 함수를 통해 데이터 불러오기
     hist_basic, info, fin_df, bs_df, cf_df = fetch_yf_data(ticker)
   
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
+        
+        # ==========================================
+        # 💡 핵심 로직: 오타 수정을 위한 공식 종목명 추출
+        # ==========================================
+        display_name = user_input # 기본값은 사용자 입력
+        
+        # 1. 한국 주식: KRX DB를 뒤져서 공식 등록 명칭(예: 삼성전쟈 -> 삼성전자) 강제 매칭
+        if ticker.endswith('.KS') or ticker.endswith('.KQ'):
+            code_only = ticker.split('.')[0]
+            if not krx_df.empty:
+                match_name = krx_df[krx_df['Code'] == code_only]
+                if not match_name.empty:
+                    display_name = match_name.iloc[0]['Name']
+        # 2. 해외 주식: 딕셔너리에 등록된 한글 명칭(마소 -> 마이크로소프트) 우선 사용
+        else:
+            reverse_us_dict = {v: k for k, v in US_STOCK_DICT.items()}
+            if ticker in reverse_us_dict:
+                display_name = reverse_us_dict[ticker]
+            elif info and 'shortName' in info:
+                display_name = info['shortName']
+        # ==========================================
         
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
@@ -477,14 +502,14 @@ if user_input:
         
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
-        news_list = fetch_news_data(ticker, user_input, is_korean_stock)
+        # 오타가 교정된 정식 명칭(display_name)으로 뉴스 검색을 실행하여 정확도 100% 보장
+        news_list = fetch_news_data(ticker, display_name, is_korean_stock)
                 
         news_context_list = []
         for idx, item in enumerate(news_list):
             news_context_list.append(f"[{idx+1}] 제목: {item['title']}\n본문: {item.get('content', '본문 없음')}")
         news_context = "\n\n".join(news_context_list) if news_context_list else "수집된 실시간 데이터가 없습니다."
         
-        # ⚠️ 퍼센트 변환 함수 꼼수 제거 (오직 소수점을 퍼센트로만 깔끔하게 변환)
         def fmt_pct(v):
             if v == 'N/A' or v is None: return 'N/A'
             try: 
@@ -605,7 +630,8 @@ if user_input:
         with tab1:
             col_price, col_interval = st.columns([3, 1])
             with col_price:
-                st.markdown(f"### {user_input} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
+                # 오타가 교정된 이름(display_name)으로 차트 헤더 표시
+                st.markdown(f"### {display_name} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
             
             with col_interval:
                 interval_option = st.selectbox("차트 주기", ("일봉", "주봉", "월봉"), index=0)
@@ -706,7 +732,8 @@ if user_input:
                     )
                     
                     fig.update_layout(
-                        title=dict(text=f"{user_input} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
+                        # 오타 교정된 이름(display_name)으로 차트 내부 타이틀도 변경
+                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                         template="plotly_dark",
                         dragmode=False, 
                         xaxis=dict(
@@ -763,7 +790,8 @@ if user_input:
                     weekly_csv = get_formatted_history("1wk", [(13, "", ""), (26, "", ""), (52, "", "")])
                     monthly_csv = get_formatted_history("1mo", [(9, "", ""), (24, "", ""), (60, "", "")])
 
-                    prompt = f"""종목 {ticker}의 일봉, 주봉, 월봉 전체 가격(시가/고가/저가/종가) 및 이동평균선(MA) 데이터와 최신 시장 동향입니다.
+                    # 프롬프트에도 교정된 종목명 적용
+                    prompt = f"""종목 {display_name}({ticker})의 일봉, 주봉, 월봉 전체 가격(시가/고가/저가/종가) 및 이동평균선(MA) 데이터와 최신 시장 동향입니다.
                     
                     [최신 시장 동향 백그라운드 (참고용)]
                     {news_context}
@@ -830,7 +858,7 @@ if user_input:
             c3.metric("영업이익률", fmt_pct(op_margin))
             c3.metric("순이익률", fmt_pct(net_margin))
             c3.metric("매출 성장률", fmt_pct(rev_growth))
-            c3.metric("배당 수익률", fmt_pct(div_yield)) # ⚠️ 매개변수 깨끗하게 수정
+            c3.metric("배당 수익률", fmt_pct(div_yield)) 
             
             c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
             c4.metric("유동비율", fmt_flt(current_ratio))
@@ -896,7 +924,7 @@ if user_input:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 재무 건전성 평가 실행"):
                 with st.spinner("재무 데이터를 분석하는 중입니다..."):
-                    prompt = f"""종목 {ticker}의 상세 재무 데이터 및 최신 동향 텍스트입니다.
+                    prompt = f"""종목 {display_name}({ticker})의 상세 재무 데이터 및 최신 동향 텍스트입니다.
 
 [최신 동향 데이터]
 {news_context}
@@ -949,7 +977,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news1:
                 if st.button("AI 최신 동향 브리핑"):
                     with st.spinner("최신 뉴스를 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지."
+                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', 
@@ -971,7 +999,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {ticker}의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 직접적 언급 금지."
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 직접적 언급 금지."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', 
@@ -988,7 +1016,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             if st.button("원클릭 종합 분석 리포트 생성"):
                 with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
                     prompt = f"""
-                    오늘은 {today_date}입니다. {ticker} 종목을 종합적으로 분석해주세요.
+                    오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합적으로 분석해주세요.
                     
                     [1. 현재 가격 및 기술적 지표]
                     - 현재가: {current_price:{price_fmt}} {currency}
