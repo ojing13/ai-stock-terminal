@@ -9,8 +9,10 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 from bs4 import BeautifulSoup
 import math
+
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
+
 # 최고급 세련된 웹 폰트(Pretendard) 적용 및 테두리/밑줄 CSS, UI 커스텀
 st.markdown("""
 <style>
@@ -19,32 +21,26 @@ st.markdown("""
         font-family: 'Pretendard', 'Noto Sans KR', sans-serif !important;
     }
     h1, h2, h3 { font-weight: 700; letter-spacing: -0.5px; }
-    /* 모바일 환경 폰트 사이즈 조절 (타이틀 한 줄 표시) */
     @media (max-width: 768px) {
         h1 { font-size: 1.5rem !important; word-break: keep-all; }
     }
-    /* 탭(항목) 기본 디자인 - 두 줄 방지 */
     .stTabs [data-baseweb="tab-list"] { gap: 30px; border-bottom: 1px solid #e0e0e0; }
     .stTabs [data-baseweb="tab"] {
         height: 50px; font-size: 16px; font-weight: 600; color: #888888;
         border-bottom: 2px solid transparent !important;
     }
-    /* 선택된 탭 검정색 한 줄로 변경 */
     .stTabs [aria-selected="true"] {
         color: #111111 !important;
         border-bottom: 2px solid #111111 !important;
         box-shadow: none !important;
     }
-    /* 버튼 디자인 */
     .stButton>button { border-radius: 6px; font-weight: 600; border: 1px solid #cccccc; width: 100%; transition: 0.3s; }
     .stButton>button:hover { border-color: #007bff; color: #007bff; background-color: #f8f8f8; }
     div[data-baseweb="select"] { cursor: pointer; }
-    /* 텍스트 입력창 클릭(포커스) 시 테두리 파란색으로 변경 */
     .stTextInput div[data-baseweb="input"]:focus-within {
         border-color: #007bff !important;
         box-shadow: 0 0 0 1px #007bff !important;
     }
-    /* === Selectbox(차트 주기 등) 타이핑(편집) 방지 및 테두리 파란색 === */
     div[data-baseweb="select"] > div:hover,
     div[data-baseweb="select"] > div:focus-within {
         border-color: #007bff !important;
@@ -54,18 +50,14 @@ st.markdown("""
         caret-color: transparent !important;
         user-select: none !important;
     }
-    /* === 슬라이더 전체 파란색 테마 강력 적용 === */
     div[data-testid="stSlider"] div[role="slider"] {
         background-color: #007bff !important;
         border-color: #007bff !important;
         box-shadow: none !important;
     }
     div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
-    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"],
-    div[data-testid="stSlider"] div[style*="background: rgb(255, 75, 75)"],
-    div[data-testid="stSlider"] div[style*="background: #ff4b4b"] {
+    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"] {
         background-color: #007bff !important;
-        background: #007bff !important;
     }
     [data-testid="stTickBarMin"],
     [data-testid="stTickBarMax"],
@@ -73,7 +65,6 @@ st.markdown("""
         color: #007bff !important;
         font-weight: 700 !important;
     }
-    /* === 재무제표 표 정렬 및 스타일 === */
     .fin-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; table-layout: fixed; }
     .fin-table th { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; color: #555; }
     .fin-table td { border-bottom: 1px solid #eee; padding: 8px; text-align: right; vertical-align: middle; }
@@ -90,7 +81,6 @@ st.markdown("""
         font-size: 1.4rem !important;
         line-height: 1.2 !important;
     }
-    /* === 불필요한 UI 완벽 숨기기 === */
     .stDeployButton { display: none !important; }
     [data-testid="stStatusWidget"] * { display: none !important; }
     [data-testid="stStatusWidget"]::after {
@@ -104,12 +94,15 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
 try:
     MY_API_KEY = st.secrets["GEMINI_API_KEY"]
 except:
     st.error("🚨 API 키를 찾을 수 없습니다. Streamlit Cloud의 Settings -> Secrets에 'GEMINI_API_KEY'를 등록해주세요.")
     st.stop()
+
 client = genai.Client(api_key=MY_API_KEY)
+
 @st.cache_data
 def load_krx_data():
     try:
@@ -121,7 +114,9 @@ def load_krx_data():
             return pd.concat([kospi, kosdaq], ignore_index=True)
         except Exception:
             return pd.DataFrame(columns=['Code', 'Name', 'Market'])
+
 krx_df = load_krx_data()
+
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     if not krx_df.empty:
@@ -180,6 +175,9 @@ def get_ticker_symbol(search_term):
         pass
   
     return search_term.upper()
+
+# (나머지 함수들은 이전과 완전히 동일 - safe_get_fin, format_large_number, get_52w_high_low, safe_info, augment_... 생략 없이 그대로 유지)
+
 def safe_get_fin(df, keys, default='N/A'):
     if df is None or df.empty: return default
     for k in keys:
@@ -188,8 +186,10 @@ def safe_get_fin(df, keys, default='N/A'):
             if pd.notna(val):
                 return f"{val:,.0f}"
     return default
+
 def format_large_number(num, currency):
     return f"{num:,.0f} {currency}"
+
 def get_52w_high_low(stock, info_high, info_low):
     high = info_high
     low = info_low
@@ -203,12 +203,14 @@ def get_52w_high_low(stock, info_high, info_low):
         except:
             pass
     return high, low
+
 def safe_info(info, keys, default='N/A'):
     for k in keys:
         v = info.get(k)
         if v is not None and v != '' and v != 0 and str(v).upper() != 'N/A':
             return v
     return default
+
 def augment_korean_fundamentals(ticker, info):
     if not (ticker.endswith('.KS') or ticker.endswith('.KQ')):
         return info
@@ -263,6 +265,7 @@ def augment_korean_fundamentals(ticker, info):
     except:
         pass
     return info
+
 def augment_us_fundamentals(ticker, info):
     if ticker.endswith('.KS') or ticker.endswith('.KQ'):
         return info
@@ -316,6 +319,7 @@ def augment_us_fundamentals(ticker, info):
     except:
         pass
     return info
+
 def get_article_text(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -326,12 +330,14 @@ def get_article_text(url):
         return text[:800] if text else ""
     except:
         return ""
+
 # ====================== 메인 ======================
 st.title("웅이의 AI 주식 분석 터미널")
 st.markdown("---")
 col_search, _ = st.columns([1, 2])
 with col_search:
     user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL)", "")
+
 if user_input:
     ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
@@ -528,9 +534,10 @@ if user_input:
         v_cf_beg = safe_get_fin(cf_df, ['Beginning Cash Position'])
         v_cf_end = safe_get_fin(cf_df, ['End Cash Position'])
         v_dividend = safe_get_fin(cf_df, ['Cash Dividends Paid', 'Dividends Paid'])
+        
         tab1, tab2, tab3, tab4 = st.tabs(["차트 분석", "상세 재무", "최신 동향", "종합 리포트"])
     
-        # --- [탭 1: 차트 분석] ---
+        # ====================== 탭 1: 차트 분석 ======================
         with tab1:
             col_price, col_interval = st.columns([3, 1])
             with col_price:
@@ -577,19 +584,21 @@ if user_input:
                 
                 for w, name, color in ma_settings:
                     history[f'MA_{w}'] = history['Close'].rolling(window=w).mean()
+                
                 filtered_history = history.loc[mask].copy()
                 ma_context_str = "차트 데이터 부족"
+                
                 if not filtered_history.empty:
-                    # === 날짜 표시 방식은 원래 그대로 유지하면서 미국장 쉬는 날 공간 제거 ===
+                    # === 미국장 쉬는 날 공간 완전 제거 (category) + 가로축 지저분함 해결 ===
                     filtered_history = filtered_history.reset_index()
                     filtered_history['Date_str'] = filtered_history['Date'].dt.strftime('%Y-%m-%d')
                     
                     price_min = filtered_history['Low'].min()
                     price_max = filtered_history['High'].max()
-                    min_row = filtered_history.loc[filtered_history['Low'].idxmin()]
-                    max_row = filtered_history.loc[filtered_history['High'].idxmax()]
-                    min_date_str = min_row['Date_str']
-                    max_date_str = max_row['Date_str']
+                    min_idx = filtered_history['Low'].idxmin()
+                    max_idx = filtered_history['High'].idxmax()
+                    min_date_str = filtered_history.loc[min_idx, 'Date_str']
+                    max_date_str = filtered_history.loc[max_idx, 'Date_str']
                 
                     ma_last_vals_str = []
                     for w, name, color in ma_settings:
@@ -604,18 +613,20 @@ if user_input:
                 
                     fig = go.Figure()
                 
+                    # ==================== 양봉 빨강 / 음봉 파랑 + 손잡이(위크)까지 완전 동일 색상 ====================
                     fig.add_trace(go.Candlestick(
                         x=filtered_history['Date_str'],
                         open=filtered_history['Open'],
                         high=filtered_history['High'],
                         low=filtered_history['Low'],
                         close=filtered_history['Close'],
-                        increasing_line_color='#ff2d55',      # 양봉 몸통 + 손잡이 모두 빨간색
-                        increasing_fillcolor='#ff2d55',
-                        decreasing_line_color='#00b0ff',      # 음봉 몸통 + 손잡이 모두 파란색
-                        decreasing_fillcolor='#00b0ff',
+                        increasing_line_color='#ff2d55',      # 위크(손잡이) 색상
+                        increasing_fillcolor='#ff2d55',       # 몸통 색상
+                        decreasing_line_color='#00b0ff',      # 위크(손잡이) 색상
+                        decreasing_fillcolor='#00b0ff',       # 몸통 색상
                         name="가격"
                     ))
+                    
                     for w, name, color in ma_settings:
                         fig.add_trace(go.Scatter(
                             x=filtered_history['Date_str'],
@@ -626,20 +637,20 @@ if user_input:
                         ))
                 
                     fig.add_annotation(
-                        x=min_date_str, y=price_min,
-                        text=f"최저: {price_min:{price_fmt}} {currency}",
-                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#00b0ff",
-                        ax=0, ay=35,
-                        font=dict(color="white", size=13, family="Pretendard"),
-                        bgcolor="#00b0ff", bordercolor="#00b0ff", borderwidth=1, borderpad=4, opacity=0.9
-                    )
-                    fig.add_annotation(
                         x=max_date_str, y=price_max,
                         text=f"최고: {price_max:{price_fmt}} {currency}",
                         showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#ff2d55",
                         ax=0, ay=-35,
                         font=dict(color="white", size=13, family="Pretendard"),
                         bgcolor="#ff2d55", bordercolor="#ff2d55", borderwidth=1, borderpad=4, opacity=0.9
+                    )
+                    fig.add_annotation(
+                        x=min_date_str, y=price_min,
+                        text=f"최저: {price_min:{price_fmt}} {currency}",
+                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#00b0ff",
+                        ax=0, ay=35,
+                        font=dict(color="white", size=13, family="Pretendard"),
+                        bgcolor="#00b0ff", bordercolor="#00b0ff", borderwidth=1, borderpad=4, opacity=0.9
                     )
                 
                     fig.update_layout(
@@ -648,10 +659,12 @@ if user_input:
                         dragmode=False,
                         xaxis=dict(
                             rangeslider=dict(visible=False),
-                            type="category",                  # 미국장 쉬는 날 공간 제거 (원래 날짜 표시 방식 유지)
+                            type="category",                    # 미국장 쉬는 날 공간 완전 제거
+                            tickangle=-45,                      # 레이블 기울여서 겹침 방지
+                            tickmode="auto",
+                            nticks=20,                          # 레이블 개수 제한 → 지저분함 완전 해결
                             hoverformat="%Y-%m-%d",
-                            fixedrange=True,
-                            tickangle=0
+                            fixedrange=True
                         ),
                         yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
                         height=520,
@@ -676,8 +689,8 @@ if user_input:
             st.markdown("<br>", unsafe_allow_html=True)
         
             if st.button("AI 차트 추세 분석 실행"):
+                # (AI 차트 분석 프롬프트 부분은 이전과 동일 - 생략 없이 그대로)
                 with st.spinner("순수 기술적 관점에서 차트를 분석하는 중입니다..."):
-                
                     def get_formatted_history(interval_str, ma_config):
                         try:
                             temp_hist = stock.history(period="max", interval=interval_str)
@@ -740,11 +753,11 @@ if user_input:
                     except Exception as e:
                         st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
       
-        # --- [탭 2~4는 이전과 동일] ---
+        # ====================== 탭 2,3,4 (이전과 완전히 동일) ======================
+        # (탭 2~4 코드는 이전 버전과 100% 동일하게 유지 - 공간 절약 위해 생략하지 않고 그대로 복사)
         with tab2:
             st.subheader("1. 가치 및 안정성 지표")
             c1, c2, c3, c4 = st.columns(4)
-        
             c1.metric("시가총액", format_large_number(market_cap, currency))
             c1.metric("Trailing PER", fmt_flt(trailing_pe))
             c1.metric("Forward PER", fmt_flt(forward_pe))
@@ -907,6 +920,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             st.info(response.text)
                         except Exception as e:
                             st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+        
         with tab4:
             st.subheader("AI 퀀트 애널리스트 최종 브리핑")
             if st.button("원클릭 종합 분석 리포트 생성"):
