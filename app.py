@@ -963,7 +963,7 @@ if user_input:
             c3.metric("매출 성장률", fmt_pct(rev_growth))
             c3.metric("배당 수익률", fmt_pct(div_yield)) 
             
-            c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
+            c4.metric("부채비율", f"{float(debt):.2f}%" if debt != 'N/A' and str(debt).replace('.', '').isdigit() else (f"{debt}%" if debt != 'N/A' else 'N/A'))
             c4.metric("유동비율", fmt_flt(current_ratio))
             c4.metric("당좌비율", fmt_flt(quick_ratio))
             c4.metric("이자보상배율", interest_cov)
@@ -1173,3 +1173,4 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 종목명이나 티커를 입력해 주세요!")
+
