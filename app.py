@@ -145,12 +145,13 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 자주 찾는 주식 딕셔너리를 전역 변수로 분리 (TSMC 등 오탐 방지)
+# 자주 찾는 주식 딕셔너리를 전역 변수로 분리 (TSMC 등 오탐 방지 및 인기종목 추가)
 COMMON_SEARCH_DICT = {
     "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT", "마소": "MSFT",
     "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META", "페이스북": "META",
     "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD", 
-    "TSMC": "TSM", "티에스엠씨": "TSM", "디어유": "376300.KQ", "QQQ": "QQQ"
+    "TSMC": "TSM", "티에스엠씨": "TSM", "디어유": "376300.KQ", "QQQ": "QQQ",
+    "오클로": "OKLO", "팔란티어": "PLTR", "아이온큐": "IONQ"
 }
 
 # 💡 AI 번역 전면 제거! 네이버 해외주식 공식 DB 직접 연동
@@ -161,7 +162,8 @@ def get_korean_display_name(ticker, english_name):
         "AAPL": "애플", "TSLA": "테슬라", "NVDA": "엔비디아", "MSFT": "마이크로소프트",
         "GOOGL": "알파벳", "GOOG": "알파벳", "AMZN": "아마존", "META": "메타",
         "NFLX": "넷플릭스", "MU": "마이크론", "INTC": "인텔", "AMD": "AMD",
-        "TSM": "TSMC", "QCOM": "퀄컴", "AVGO": "브로드컴", "ASML": "ASML"
+        "TSM": "TSMC", "QCOM": "퀄컴", "AVGO": "브로드컴", "ASML": "ASML",
+        "OKLO": "오클로", "PLTR": "팔란티어", "IONQ": "아이온큐"
     }
     if ticker in display_dict:
         return display_dict[ticker]
@@ -204,7 +206,7 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 3. 강력한 백업: 한글 검색어일 경우 네이버 금융 최신 API 활용 (해외망 차단 우회)
+    # 3. 강력한 백업: 한글 검색어일 경우 네이버 금융 최신 API 활용 (해외망 차단 우회 및 미국주식 에러 해결)
     if bool(re.search('[가-힣]', search_term)):
         try:
             encoded_term = urllib.parse.quote(search_term)
@@ -219,10 +221,14 @@ def get_ticker_symbol(search_term):
             if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
                 code = ac_data['items'][0][0][0]
                 market_str = ac_data['items'][0][0][2] 
+                
+                # 💡 오클로 검색 에러 완벽 해결: 한국시장이면 뒤에 .KS나 .KQ를 붙이고 해외주식이면 티커 원형 그대로 반환!
                 if '코스피' in market_str:
                     return f"{code}.KS"
-                else:
+                elif '코스닥' in market_str:
                     return f"{code}.KQ"
+                else:
+                    return code
         except:
             pass
       
@@ -360,7 +366,6 @@ def augment_us_fundamentals(ticker, info):
         return info
     try:
         url = f"https://finviz.com/quote.ashx?t={ticker}"
-        # 💡 Finviz의 차단을 막기 위해 완벽한 브라우저 헤더로 위장 강화
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
@@ -556,12 +561,10 @@ if user_input:
             news_context_list.append(f"[{idx+1}] 제목: {item['title']}\n본문: {item.get('content', '본문 없음')}")
         news_context = "\n\n".join(news_context_list) if news_context_list else "수집된 실시간 데이터가 없습니다."
         
-        # 💡 야후 파이낸스 배당금 버그(46% 등) 완벽 필터링 적용
         def fmt_pct(v, is_dividend=False):
             if v == 'N/A' or v is None: return 'N/A'
             try: 
                 val = float(v)
-                # 배당수익률로 전달받은 값이 비상식적으로 높으면(예: 1.0 즉 100% 이상) 야후 파이낸스 버그이므로 N/A 처리
                 if is_dividend and val >= 1.0:
                     return 'N/A'
                 return f"{val*100:.2f}%"
@@ -622,8 +625,6 @@ if user_input:
         net_margin = safe_info(info, ['profitMargins', 'netMargin'])
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
-        
-        # 💡 야후 파이낸스 배당금 버그 원천 차단: 올바른 수익률(yield)부터 무조건 먼저 찾도록 순서 수정
         div_yield = safe_info(info, ['trailingAnnualDividendYield', 'yield', 'dividendYield'])
         
         debt = safe_info(info, ['debtToEquity'])
@@ -907,7 +908,6 @@ if user_input:
             c3.metric("영업이익률", fmt_pct(op_margin))
             c3.metric("순이익률", fmt_pct(net_margin))
             c3.metric("매출 성장률", fmt_pct(rev_growth))
-            # 💡 수정된 배당수익률 함수 적용
             c3.metric("배당 수익률", fmt_pct(div_yield, is_dividend=True)) 
             
             c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
