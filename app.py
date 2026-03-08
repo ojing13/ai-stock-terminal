@@ -153,6 +153,7 @@ COMMON_SEARCH_DICT = {
     "TSMC": "TSM", "티에스엠씨": "TSM", "디어유": "376300.KQ"
 }
 
+# 💡 AI 번역 전면 제거! 네이버 해외주식 공식 DB 직접 연동
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     # 1. 속도를 위해 가장 자주 찾는 해외 주식은 즉시 매핑
@@ -165,13 +166,21 @@ def get_korean_display_name(ticker, english_name):
     if ticker in display_dict:
         return display_dict[ticker]
     
-    # 2. 사전에 없으면 AI를 통해 한국 증권사 공식 명칭으로 1회 번역 캐싱
+    # 2. 사전에 없으면 네이버 금융 자동완성 API를 호출하여 증권사 공식 등록명(한글) 추출
     try:
-        prompt = f"해외 주식 '{english_name}'(티커: {ticker})이 한국 증권사(MTS/HTS)에서 일반적으로 표기되는 종목명(한국어)을 알려주세요. 부연설명이나 마침표 없이 딱 종목명 1개만 출력하세요. (예: Apple Inc -> 애플, Taiwan Semiconductor -> TSMC)"
-        res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt).text.strip()
-        return res
+        ac_url = f"https://ac.finance.naver.com/ac?q={ticker}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        ac_res = requests.get(ac_url, headers=headers, timeout=3)
+        ac_data = ac_res.json()
+
+        if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
+            korean_name = ac_data['items'][0][0][1] # 배열의 이 위치에 정확한 공식 한글 종목명이 있음
+            if korean_name:
+                return korean_name
     except:
-        return english_name
+        pass
+
+    return english_name # 검색 실패 시 원래 영어 이름 반환
 
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
@@ -443,6 +452,7 @@ def fetch_chart_history(ticker, interval):
 def fetch_news_data(ticker, official_name, is_korean_stock):
     news_list = []
     try:
+        # 뉴스 검색 시 오타가 섞인 user_input 대신 정규화된 official_name 사용
         if is_korean_stock:
             rss_url = f"https://news.google.com/rss/search?q={official_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
         else:
@@ -494,7 +504,7 @@ if user_input:
         current_price = hist_basic['Close'].iloc[-1]
         
         # ==========================================
-        # 💡 핵심 로직 보강: 한국 주식 공식 명칭 추출 및 해외주식 한글화
+        # 💡 핵심 로직 보강: 한국/해외 주식 공식 명칭 추출 (AI 완전 제거, 네이버 API 연동)
         # ==========================================
         display_name = user_input 
         
@@ -525,7 +535,7 @@ if user_input:
                 if not name_found and info and 'shortName' in info:
                     display_name = info['shortName']
 
-        # 2. 해외 주식: 증권사 기준 공식 한글 명칭 AI 적용
+        # 2. 해외 주식: AI 번역 제거 후, 네이버 금융 API에서 정식 한글 명칭 스크래핑
         else:
             english_name = info.get('shortName', ticker)
             display_name = get_korean_display_name(ticker, english_name)
