@@ -8,24 +8,19 @@ import FinanceDataReader as fdr
 import xml.etree.ElementTree as ET
 import pandas as pd
 from bs4 import BeautifulSoup
-import math # nan 처리를 위해 추가
-import re # 영문 티커 감지용
+import math
+import re
 
-# --- [세션 상태(Session State) 초기화 - 검색 기록용] ---
+# --- [1. 세션 상태 로직 (새로고침 방지용)] ---
 if 'search_history' not in st.session_state:
     st.session_state['search_history'] = []
-
-def set_search_input(term):
-    st.session_state['search_input_box'] = term
-
-def remove_from_history(term):
-    if term in st.session_state['search_history']:
-        st.session_state['search_history'].remove(term)
+if 'search_input' not in st.session_state:
+    st.session_state['search_input'] = ""
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
 
-# 최고급 세련된 웹 폰트(Pretendard) 적용 및 테두리/밑줄 CSS, UI 커스텀
+# 최고급 웹 폰트 및 슬라이더/알약 UI CSS 완벽 세팅
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -35,99 +30,62 @@ st.markdown("""
     }
     h1, h2, h3 { font-weight: 700; letter-spacing: -0.5px; }
    
-    /* 모바일 환경 폰트 사이즈 조절 (타이틀 한 줄 표시) */
     @media (max-width: 768px) {
         h1 { font-size: 1.5rem !important; word-break: keep-all; }
     }
 
-    /* 탭(항목) 기본 디자인 - 두 줄 방지 */
     .stTabs [data-baseweb="tab-list"] { gap: 30px; border-bottom: 1px solid #e0e0e0; }
     .stTabs [data-baseweb="tab"] {
         height: 50px; font-size: 16px; font-weight: 600; color: #888888;
         border-bottom: 2px solid transparent !important;
     }
-   
-    /* 선택된 탭 검정색 한 줄로 변경 */
     .stTabs [aria-selected="true"] {
         color: #111111 !important;
         border-bottom: 2px solid #111111 !important;
         box-shadow: none !important;
     }
    
-    /* 버튼 디자인 */
     .stButton>button { border-radius: 6px; font-weight: 600; border: 1px solid #cccccc; width: 100%; transition: 0.3s; }
     .stButton>button:hover { border-color: #007bff; color: #007bff; background-color: #f8f8f8; }
     div[data-baseweb="select"] { cursor: pointer; }
     
-    /* 텍스트 입력창 클릭(포커스) 시 테두리 파란색으로 변경 */
-    .stTextInput div[data-baseweb="input"]:focus-within {
-        border-color: #007bff !important;
-        box-shadow: 0 0 0 1px #007bff !important;
-    }
-   
-    /* === Selectbox(차트 주기 등) 타이핑(편집) 방지 및 테두리 파란색 === */
+    .stTextInput div[data-baseweb="input"]:focus-within,
     div[data-baseweb="select"] > div:hover,
     div[data-baseweb="select"] > div:focus-within {
         border-color: #007bff !important;
         box-shadow: 0 0 0 1px #007bff !important;
     }
-    div[data-baseweb="select"] input {
-        caret-color: transparent !important; 
-        user-select: none !important;
-    }
+    div[data-baseweb="select"] input { caret-color: transparent !important; user-select: none !important; }
     
-    /* === 슬라이더 전체 파란색 테마 강력 적용 === */
+    /* === 💥 완벽 교정: 슬라이더 바 & 동그란 손잡이 모두 빨간색으로 통일 === */
     div[data-testid="stSlider"] div[role="slider"] {
-        background-color: #007bff !important;
-        border-color: #007bff !important;
+        background-color: #ff4b4b !important;
+        border-color: #ff4b4b !important;
         box-shadow: none !important;
     }
-    div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
-    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"],
-    div[data-testid="stSlider"] div[style*="background: rgb(255, 75, 75)"],
-    div[data-testid="stSlider"] div[style*="background: #ff4b4b"] {
-        background-color: #007bff !important;
-        background: #007bff !important;
+    div[data-testid="stSlider"] div[role="slider"]:hover,
+    div[data-testid="stSlider"] div[role="slider"]:focus {
+        box-shadow: 0 0 0 0.2rem rgba(255, 75, 75, 0.25) !important;
     }
-    [data-testid="stTickBarMin"],
-    [data-testid="stTickBarMax"],
-    [data-testid="stThumbValue"] {
-        color: #007bff !important;
+    div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
+    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"] {
+        background-color: #ff4b4b !important;
+    }
+    [data-testid="stTickBarMin"], [data-testid="stTickBarMax"], [data-testid="stThumbValue"] {
+        color: #ff4b4b !important;
         font-weight: 700 !important;
     }
     
-    /* === 재무제표 표 정렬 및 스타일 === */
     .fin-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; table-layout: fixed; }
     .fin-table th { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; color: #555; }
     .fin-table td { border-bottom: 1px solid #eee; padding: 8px; text-align: right; vertical-align: middle; }
-    .fin-table td:first-child {
-        text-align: left;
-        font-weight: 600;
-        color: #333;
-        width: 40%;
-        word-break: break-all;
-    }
-    
-    div[data-testid="stMetricValue"] {
-        white-space: normal !important;
-        word-break: break-all !important;
-        font-size: 1.4rem !important; 
-        line-height: 1.2 !important;
-    }
+    .fin-table td:first-child { text-align: left; font-weight: 600; color: #333; width: 40%; word-break: break-all; }
+    div[data-testid="stMetricValue"] { white-space: normal !important; word-break: break-all !important; font-size: 1.4rem !important; line-height: 1.2 !important; }
 
-    /* === 불필요한 UI 완벽 숨기기 === */
+    /* 불필요한 UI 완벽 숨기기 */
     .stDeployButton { display: none !important; }
     [data-testid="stStatusWidget"] * { display: none !important; }
-    [data-testid="stStatusWidget"]::after {
-        content: "Loading...";
-        font-size: 14px;
-        font-weight: 600;
-        color: #888888;
-        display: flex;
-        align-items: center;
-        padding: 5px 15px;
-    }
-
+    [data-testid="stStatusWidget"]::after { content: "Loading..."; font-size: 14px; font-weight: 600; color: #888888; display: flex; align-items: center; padding: 5px 15px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -153,30 +111,28 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 💥 핵심 패치: 한 번 번역한 값은 무조건 캐싱, 그리고 AI 환각 절대 차단!
 @st.cache_data(show_spinner=False)
 def get_ticker_and_korean_name(search_term):
     search_term = search_term.strip()
     search_upper = search_term.upper()
     
-    # 1. 한국 주식인지 로컬(KRX)에서 먼저 완벽하게 확인
     if not krx_df.empty:
-        # 이름으로 찾기
         match_name = krx_df[krx_df['Name'] == search_term]
         if not match_name.empty:
-            code = match_name.iloc[0]['Code']
+            # 💡 수정됨: str()과 zfill(6)을 사용해 앞의 0이 잘리지 않도록 강제 변환
+            code = str(match_name.iloc[0]['Code']).zfill(6)
             market = match_name.iloc[0]['Market']
             ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
             return ticker, search_term
-        # 코드로 찾기
+        
         match_code = krx_df[krx_df['Code'] == search_upper]
         if not match_code.empty:
-            code = match_code.iloc[0]['Code']
+            # 💡 여기도 동일하게 수정
+            code = str(match_code.iloc[0]['Code']).zfill(6)
             market = match_code.iloc[0]['Market']
             ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
             return ticker, match_code.iloc[0]['Name']
             
-    # 2. 유명한 주식/ETF 사전 매핑 (알잘딱깔센 고정 데이터)
     quick_map = {
         "애플": ("AAPL", "애플"), "APPLE": ("AAPL", "애플"), "AAPL": ("AAPL", "애플"),
         "테슬라": ("TSLA", "테슬라"), "TESLA": ("TSLA", "테슬라"), "TSLA": ("TSLA", "테슬라"),
@@ -208,18 +164,15 @@ def get_ticker_and_korean_name(search_term):
     if search_term in quick_map: return quick_map[search_term]
     elif search_upper in quick_map: return quick_map[search_upper]
         
-    # 과거 잘못된 검색기록 클릭 시(예: "KORU (한국 인버스 어쩌고)") 괄호 앞 티커만 뽑아서 재교정
     if "(" in search_term:
         possible_ticker = search_term.split("(")[0].strip().upper()
         if possible_ticker in quick_map:
             return quick_map[possible_ticker]
 
-    # 3. 🚨 철통 가드레일: 영문 1~5글자는 무조건 티커로 간주! AI가 멋대로 셉톤, 크립토 등으로 바꾸지 못하게 원천 차단
     is_pure_english_short = bool(re.match(r'^[A-Za-z]{1,5}$', search_term))
     if is_pure_english_short:
         return search_upper, search_upper
             
-    # 4. 그 외의 경우 AI에게 번역 위임 (창의성은 0.0으로 완벽 고정시켜서 헛소리 방지!)
     try:
         prompt = f"""당신은 주식/ETF 종목 식별 전문가입니다.
 사용자의 검색어: "{search_term}"
@@ -428,16 +381,44 @@ st.markdown("---")
 
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL, KORU)", key="search_input_box")
+    user_input_val = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL, KORU)", value=st.session_state['search_input'])
+    user_input = user_input_val
+
+if user_input and user_input != st.session_state['search_input']:
+    st.session_state['search_input'] = user_input
+
+# 2. 검색기록 UI (Streamlit 네이티브 버튼 활용으로 새로고침 방지)
+if st.session_state['search_history']:
+    st.markdown("<div style='font-size: 13px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
+    
+    history_list = st.session_state['search_history'][:5]
+    
+    # 버튼 레이아웃용 컬럼 생성 (종목명은 길게, 삭제 버튼은 짧게)
+    col_ratios = []
+    for _ in range(len(history_list)):
+        col_ratios.extend([3, 1])
+        
+    cols = st.columns(col_ratios)
+    
+    for i, term in enumerate(history_list):
+        with cols[i * 2]:
+            if st.button(term, key=f"btn_{term}"):
+                st.session_state['search_input'] = term
+                st.rerun()
+        with cols[(i * 2) + 1]:
+            if st.button("✖", key=f"del_{term}"):
+                st.session_state['search_history'].remove(term)
+                if st.session_state['search_input'] == term:
+                    st.session_state['search_input'] = ""
+                st.rerun()
 
 ticker = None
 display_name = ""
 info = {}
 hist_basic = pd.DataFrame()
 
-# 1. 입력이 들어오면 티커와 기본 데이터만 우선 확보
+# 1. 입력 처리 및 검색어 정제
 if user_input:
-    # 찰떡같이 티커와 이쁜 종목명을 물어옵니다. (영문 1~5글자는 AI 무시)
     ticker, display_name = get_ticker_and_korean_name(user_input)
     is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
     
@@ -454,34 +435,15 @@ if user_input:
         except Exception:
             pass
         
-        # 🚨 [가드레일 작동] 영문 티커를 쳐서 AI를 강제로 통과한 경우 (예: CEPT|CEPT),
-        # 야후 파이낸스에서 실제 등록된 기업명(Cantor Equity Partners II)으로 깔끔하게 덮어써줍니다!
         if display_name.upper() == ticker.upper() and info:
             display_name = info.get('shortName', info.get('longName', ticker))
             
         company_name = display_name
             
-        # 🕒 완벽하게 정제된 진짜 이름으로 검색 기록 업데이트!
         if display_name in st.session_state['search_history']:
             st.session_state['search_history'].remove(display_name)
         st.session_state['search_history'].insert(0, display_name)
-        st.session_state['search_history'] = st.session_state['search_history'][:5]
-
-# 2. 🕒 검색창 바로 아래에 세련된 검색 기록 UI 렌더링
-if st.session_state['search_history']:
-    st.markdown("<div style='font-size: 14px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
-    hist_cols = st.columns(6) # 화면을 6등분하여 배치
-    
-    for i, term in enumerate(st.session_state['search_history']):
-        if i < 5:
-            with hist_cols[i]:
-                c1, c2 = st.columns([7, 3], gap="small")
-                with c1:
-                    st.button(term, key=f"hist_btn_{term}_{i}", on_click=set_search_input, args=(term,), use_container_width=True)
-                with c2:
-                    st.button("✖", key=f"del_btn_{term}_{i}", on_click=remove_from_history, args=(term,), use_container_width=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
+        st.session_state['search_history'] = st.session_state['search_history'][:10]
 
 # 3. 메인 주식 분석 로직 렌더링
 if user_input:
@@ -504,7 +466,6 @@ if user_input:
         currency = "원" if is_korean_stock else "달러"
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
-        # 뉴스 기사 수집
         try:
             if is_korean_stock:
                 rss_url = f"https://news.google.com/rss/search?q={display_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
@@ -664,7 +625,6 @@ if user_input:
         with tab1:
             col_price, col_interval = st.columns([3, 1])
             with col_price:
-                # 💥 완벽하게 교정/복구된 종목명이 출력됩니다.
                 st.markdown(f"### {company_name} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
             
             with col_interval:
@@ -728,10 +688,12 @@ if user_input:
                     
                     fig = go.Figure()
                     
+                    # 💥 한국식 차트 색상 완벽 패치: 양봉(상승) 빨간색, 음봉(하락) 파란색
                     fig.add_trace(go.Candlestick(
                         x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                         low=filtered_history['Low'], close=filtered_history['Close'],
-                        increasing_line_color='#00ff9d', decreasing_line_color='#ff2d55',
+                        increasing_line_color='#ff4b4b', increasing_fillcolor='#ff4b4b',
+                        decreasing_line_color='#00b0ff', decreasing_fillcolor='#00b0ff',
                         name="가격"
                     ))
 
