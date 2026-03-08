@@ -14,15 +14,12 @@ import math # nan 처리를 위해 추가
 if 'search_history' not in st.session_state:
     st.session_state['search_history'] = []
 
-def handle_search_input():
-    term = st.session_state.get('search_input_box', '').strip()
-    if term:
-        # 이미 검색 기록에 있다면 지우고 최상단으로 올리기
-        if term in st.session_state['search_history']:
-            st.session_state['search_history'].remove(term)
-        st.session_state['search_history'].insert(0, term)
-        # 최대 5개까지만 저장 (너무 길어지지 않게 방지)
-        st.session_state['search_history'] = st.session_state['search_history'][:5]
+def set_search_input(term):
+    st.session_state['search_input_box'] = term
+
+def remove_from_history(term):
+    if term in st.session_state['search_history']:
+        st.session_state['search_history'].remove(term)
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
@@ -251,16 +248,6 @@ def augment_korean_fundamentals(ticker, info):
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # 🇰🇷 네이버 증권에서 확실하게 한국어 종목명 가져오기
-        try:
-            title_tag = soup.find('title')
-            if title_tag:
-                k_name = title_tag.text.split(':')[0].strip()
-                if k_name and k_name != '네이버 증권':
-                    info['koreanName'] = k_name
-        except:
-            pass
-        
         def get_val_by_id(eid):
             el = soup.find(id=eid)
             if el:
@@ -398,36 +385,66 @@ def get_article_text(url):
 st.title("웅이의 AI 주식 분석 터미널")
 st.markdown("---")
 
-# 검색창 영역
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL)", key="search_input_box", on_change=handle_search_input)
+    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL)", key="search_input_box")
 
-# 검색창 바로 아래에 검색 기록 표시 (전체 화면 넓게 사용)
+ticker = None
+display_name = ""
+company_name = ""
+
+# 검색어 처리 및 정제 (오타 -> 공식명칭 변환 후 검색 기록 저장)
+if user_input:
+    ticker = get_ticker_symbol(user_input)
+    is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
+    clean_ticker = ticker.replace('.KS', '').replace('.KQ', '')
+    
+    # 🇰🇷 미국/한국 불문하고 네이버 검색 자동완성 API를 찔러서 완벽한 공식 한글 명칭 추출
+    try:
+        nav_url = f"https://ac.finance.naver.com/ac?q={clean_ticker}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
+        nav_res = requests.get(nav_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
+        nav_data = nav_res.json()
+        if nav_data.get('items') and len(nav_data['items'][0]) > 0:
+            display_name = nav_data['items'][0][0][1] # 예: ORCL -> 오라클, AAPL -> 애플
+    except:
+        pass
+    
+    # 폴백 1: 한국 주식인데 네이버에서 못 가져왔을 경우 KRX 사용
+    if not display_name and is_korean_stock:
+        if not krx_df.empty:
+            match = krx_df[krx_df['Code'] == clean_ticker]
+            if not match.empty:
+                display_name = match.iloc[0]['Name']
+    
+    # 폴백 2: 정 못 찾으면 일단 사용자가 친 값이나 티커로 둔다
+    if not display_name:
+        display_name = ticker
+
+    # 🕒 완벽하게 교정된 이름(display_name)으로 검색 기록 업데이트! (오타 방지)
+    if display_name in st.session_state['search_history']:
+        st.session_state['search_history'].remove(display_name)
+    st.session_state['search_history'].insert(0, display_name)
+    st.session_state['search_history'] = st.session_state['search_history'][:5]
+
+# 🕒 검색창 바로 아래에 세련된 검색 기록 UI 렌더링
 if st.session_state['search_history']:
     st.markdown("<div style='font-size: 14px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
-    hist_cols = st.columns(8) # 전체 화면을 8등분 (최대 5개 표시)
+    hist_cols = st.columns(6) # 화면을 6등분하여 배치 (최대 5개까지 널찍하게 표시)
     
     for i, term in enumerate(st.session_state['search_history']):
         if i < 5:
             with hist_cols[i]:
-                # 각각의 버튼을 종목명 버튼(7)과 X 버튼(3)으로 분할
+                # 버튼을 클릭 영역(7)과 삭제 영역(3)으로 분할
                 c1, c2 = st.columns([7, 3], gap="small")
                 with c1:
-                    if st.button(term, key=f"hist_btn_{term}_{i}", use_container_width=True):
-                        st.session_state['search_input_box'] = term
-                        handle_search_input() # 클릭하면 최상단으로 순서 갱신
-                        st.rerun()
+                    st.button(term, key=f"hist_btn_{term}_{i}", on_click=set_search_input, args=(term,), use_container_width=True)
                 with c2:
-                    if st.button("✖", key=f"del_btn_{term}_{i}", use_container_width=True):
-                        st.session_state['search_history'].remove(term)
-                        st.rerun()
+                    st.button("✖", key=f"del_btn_{term}_{i}", on_click=remove_from_history, args=(term,), use_container_width=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 검색어가 존재할 경우 분석 로직 실행
+# 메인 주식 분석 로직
 if user_input:
-    ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
     
     # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit 발생 시 빈 데이터프레임으로 넘기기
@@ -439,7 +456,7 @@ if user_input:
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
         
-        # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit (주로 여기서 발생)
+        # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit
         try:
             info = stock.info
         except Exception:
@@ -448,25 +465,12 @@ if user_input:
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
         
-        # ⚠️ 종목 혼동 방지 및 오타 교정용 회사 공식 명칭 변수
-        is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
-        company_name = info.get('longName', info.get('shortName', ticker))
-        display_name = company_name
-        
-        # 🇰🇷 한국 주식일 경우 한국어 명칭 최우선 반영
-        if is_korean_stock:
-            code_only = ticker.split('.')[0]
-            if not krx_df.empty:
-                match = krx_df[krx_df['Code'] == code_only]
-                if not match.empty:
-                    display_name = match.iloc[0]['Name']
+        # 만약 네이버에서 이름을 아예 못 구했다면, 야후의 영문 풀네임이라도 쓴다
+        company_name = display_name
+        if company_name == ticker: 
+            company_name = info.get('longName', info.get('shortName', ticker))
+            display_name = company_name 
             
-            # 네이버 증권에서 긁어온 진짜 한글 이름이 있다면 그걸 1순위로 덮어쓰기! (오타 방어)
-            if 'koreanName' in info:
-                display_name = info['koreanName']
-                
-            company_name = display_name # 프롬프트에도 완벽한 한글 명칭 사용
-        
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
         
         # ⚠️ 방어 코드: 재무제표 관련 데이터
@@ -481,12 +485,9 @@ if user_input:
         currency = "원" if is_korean_stock else "달러"
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
-        # 뉴스 기사 수집량 100개
+        # 뉴스 기사 수집량 100개 (이제 한국/미국 상관없이 무조건 예쁜 한글 이름으로 구글 한국 뉴스 검색!)
         try:
-            if is_korean_stock:
-                rss_url = f"https://news.google.com/rss/search?q={display_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
-            else:
-                rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
+            rss_url = f"https://news.google.com/rss/search?q={display_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
             response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
             root = ET.fromstring(response.content)
             for item in root.findall('.//item')[:100]:
@@ -1055,7 +1056,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     
                     1차 목표가: 000 원
                     
-                    논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 근거를 자연스럽게 엮어서 설명)
+                    논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 정거를 자연스럽게 엮어서 설명)
                     
                     🚨 [최고급 퀀트 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
                     - [종목 혼동 완벽 차단]: 현재 분석 타겟은 무조건 '{company_name} ({ticker})'입니다. 수집된 기사 중 티커 철자나 이름이 비슷해서 섞여 들어온 전혀 다른 기업(예: 의료기기 회사 등)의 정보가 있다면 철저하게 무시하세요. 분석 대상 기업 하나에만 온전히 집중하세요.
