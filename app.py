@@ -8,7 +8,8 @@ import FinanceDataReader as fdr
 import xml.etree.ElementTree as ET
 import pandas as pd
 from bs4 import BeautifulSoup
-import math # nan 처리를 위해 추가
+import math
+import re
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
@@ -64,23 +65,25 @@ st.markdown("""
         user-select: none !important;
     }
     
-    /* === 슬라이더 전체 파란색 테마 강력 적용 === */
+    /* === 슬라이더 전체 빨간색(양봉) 테마 강력 적용 === */
     div[data-testid="stSlider"] div[role="slider"] {
-        background-color: #007bff !important;
-        border-color: #007bff !important;
+        background-color: #ff2d55 !important;
+        border-color: #ff2d55 !important;
         box-shadow: none !important;
     }
     div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
     div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"],
     div[data-testid="stSlider"] div[style*="background: rgb(255, 75, 75)"],
-    div[data-testid="stSlider"] div[style*="background: #ff4b4b"] {
-        background-color: #007bff !important;
-        background: #007bff !important;
+    div[data-testid="stSlider"] div[style*="background: #ff4b4b"],
+    div[data-testid="stSlider"] div[style*="background-color: rgb(0, 123, 255)"],
+    div[data-testid="stSlider"] div[style*="background: #007bff"] {
+        background-color: #ff2d55 !important;
+        background: #ff2d55 !important;
     }
     [data-testid="stTickBarMin"],
     [data-testid="stTickBarMax"],
     [data-testid="stThumbValue"] {
-        color: #007bff !important;
+        color: #ff2d55 !important;
         font-weight: 700 !important;
     }
     
@@ -147,14 +150,18 @@ krx_df = load_krx_data()
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     
+    # 1. KRX 데이터프레임에서 검색 (공백 무시하여 일치율 향상)
     if not krx_df.empty:
-        match = krx_df[krx_df['Name'] == search_term]
+        search_clean = search_term.replace(" ", "").upper()
+        krx_df['Name_clean'] = krx_df['Name'].astype(str).str.replace(" ", "").str.upper()
+        match = krx_df[krx_df['Name_clean'] == search_clean]
         if not match.empty:
             code = match.iloc[0]['Code']
             market = match.iloc[0]['Market']
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
+    # 2. 자주 찾는 미국 주식 딕셔너리
     us_dict = {
         "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT",
         "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META",
@@ -162,34 +169,35 @@ def get_ticker_symbol(search_term):
     }
     if search_term in us_dict: return us_dict[search_term]
       
-    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    try:
-        res = requests.get(url, headers=headers, timeout=5)
-        data = res.json()
-        if 'quotes' in data and len(data['quotes']) > 0:
-            for quote in data['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF']:
-                    return quote['symbol']
-            return data['quotes'][0]['symbol']
-    except:
-        pass
+    # 3. ZIM 버그 방지: 검색어에 한글이 없는 경우에만 Yahoo Finance 단순 검색 시도
+    if not bool(re.search('[가-힣]', search_term)):
+        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        try:
+            res = requests.get(url, headers=headers, timeout=5)
+            data = res.json()
+            if 'quotes' in data and len(data['quotes']) > 0:
+                for quote in data['quotes']:
+                    if quote.get('type') in ['EQUITY', 'ETF']:
+                        return quote['symbol']
+                return data['quotes'][0]['symbol']
+        except:
+            pass
         
+    # 4. 한국어 검색어이거나 위에서 못 찾은 경우 Gemini에게 직접 티커 추론 요청
     try:
-        translate_prompt = f"""당신은 세계 최고의 주식 종목 번역 전문가입니다.
-다음 한국어 주식 종목명을 정확한 영어 공식명으로 번역해주세요.
-답변은 영어 종목명만 한 줄로 출력하세요. 다른 설명 절대 금지.
-종목명: {search_term}"""
-        trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=translate_prompt)
-        eng_name = trans_response.text.strip()
-        url_eng = f"https://query2.finance.yahoo.com/v1/finance/search?q={eng_name}"
-        res_eng = requests.get(url_eng, headers=headers, timeout=5)
-        data_eng = res_eng.json()
-        if 'quotes' in data_eng and len(data_eng['quotes']) > 0:
-            for quote in data_eng['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF']:
-                    return quote['symbol']
-            return data_eng['quotes'][0]['symbol']
+        ticker_prompt = f"""당신은 금융 데이터 전문가입니다.
+        다음 검색어에 해당하는 주식 종목의 정확한 Yahoo Finance 기준 Ticker(기호) 딱 1개만 출력하세요.
+        - 한국 코스피 주식이면 뒤에 '.KS'를 붙이세요 (예: 삼성전자 -> 005930.KS)
+        - 한국 코스닥 주식이면 뒤에 '.KQ'를 붙이세요 (예: 에코프로 -> 086520.KQ)
+        - 미국 등 해외 주식이면 해당 국가의 올바른 티커를 쓰세요 (예: 애플 -> AAPL)
+        - 다른 어떤 부연 설명이나 마침표 없이 오직 티커만 단 한 줄로 출력하세요.
+        검색어: {search_term}"""
+        trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
+        eng_ticker = trans_response.text.strip().upper()
+        # 이상한 문장이 섞이지 않고 티커 형태인 경우만 반환
+        if eng_ticker and len(eng_ticker) <= 15 and " " not in eng_ticker:
+            return eng_ticker
     except:
         pass
       
@@ -625,6 +633,11 @@ if user_input:
                 ma_context_str = "차트 데이터 부족"
 
                 if not filtered_history.empty:
+                    # 빈 날짜(주말, 공휴일)를 추려내어 차트상 갭을 없애기 위한 로직
+                    dt_all = pd.date_range(start=filtered_history.index.min(), end=filtered_history.index.max(), freq='D')
+                    dt_obs = filtered_history.index.normalize()
+                    dt_breaks = [d.strftime('%Y-%m-%d') for d in dt_all if d not in dt_obs]
+
                     price_min = filtered_history['Low'].min()
                     price_max = filtered_history['High'].max()
                     min_idx = filtered_history['Low'].idxmin()
@@ -646,7 +659,7 @@ if user_input:
                     fig.add_trace(go.Candlestick(
                         x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                         low=filtered_history['Low'], close=filtered_history['Close'],
-                        increasing_line_color='#00ff9d', decreasing_line_color='#ff2d55',
+                        increasing_line_color='#ff2d55', decreasing_line_color='#007bff',
                         name="가격"
                     ))
 
@@ -680,7 +693,13 @@ if user_input:
                         title=dict(text=f"{user_input} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                         template="plotly_dark",
                         dragmode=False, 
-                        xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
+                        xaxis=dict(
+                            rangeslider=dict(visible=False), 
+                            type="date", 
+                            hoverformat="%Y-%m-%d", 
+                            fixedrange=True,
+                            rangebreaks=[dict(values=dt_breaks)] # 주말 및 공휴일 빈 공간 깔끔하게 제거!
+                        ),
                         yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
                         height=520,
                         margin=dict(l=0, r=0, t=40, b=0),
