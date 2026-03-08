@@ -145,18 +145,45 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 자주 찾는 주식 딕셔너리를 전역 변수로 분리 (종목명 역추적을 위함)
-US_STOCK_DICT = {
-    "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT",
-    "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META",
-    "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD", "디어유": "376300.KQ"
+# 자주 찾는 주식 딕셔너리를 전역 변수로 분리 (TSMC 등 오탐 방지)
+COMMON_SEARCH_DICT = {
+    "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT", "마소": "MSFT",
+    "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META", "페이스북": "META",
+    "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD", 
+    "TSMC": "TSM", "티에스엠씨": "TSM", "디어유": "376300.KQ"
 }
+
+@st.cache_data(ttl=3600*24)
+def get_korean_display_name(ticker, english_name):
+    # 1. 속도를 위해 가장 자주 찾는 해외 주식은 즉시 매핑
+    display_dict = {
+        "AAPL": "애플", "TSLA": "테슬라", "NVDA": "엔비디아", "MSFT": "마이크로소프트",
+        "GOOGL": "알파벳", "GOOG": "알파벳", "AMZN": "아마존", "META": "메타",
+        "NFLX": "넷플릭스", "MU": "마이크론", "INTC": "인텔", "AMD": "AMD",
+        "TSM": "TSMC", "QCOM": "퀄컴", "AVGO": "브로드컴", "ASML": "ASML"
+    }
+    if ticker in display_dict:
+        return display_dict[ticker]
+    
+    # 2. 사전에 없으면 AI를 통해 한국 증권사 공식 명칭으로 1회 번역 캐싱
+    try:
+        prompt = f"해외 주식 '{english_name}'(티커: {ticker})이 한국 증권사(MTS/HTS)에서 일반적으로 표기되는 종목명(한국어)을 알려주세요. 부연설명이나 마침표 없이 딱 종목명 1개만 출력하세요. (예: Apple Inc -> 애플, Taiwan Semiconductor -> TSMC)"
+        res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt).text.strip()
+        return res
+    except:
+        return english_name
 
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     
-    # 1. KRX 데이터프레임에서 검색
+    # 1. 딕셔너리 매칭 (대소문자 무시) - TSMC 오류 원천 차단
+    search_upper = search_term.upper()
+    for key, val in COMMON_SEARCH_DICT.items():
+        if search_upper == key.upper():
+            return val
+            
+    # 2. KRX 데이터프레임에서 검색
     if not krx_df.empty:
         df_temp = krx_df.copy()
         search_clean = search_term.replace(" ", "").upper()
@@ -168,7 +195,7 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 강력한 백업: 한글 검색어일 경우 네이버 금융 최신 API 활용 (해외망 차단 우회)
+    # 3. 강력한 백업: 한글 검색어일 경우 네이버 금융 최신 API 활용 (해외망 차단 우회)
     if bool(re.search('[가-힣]', search_term)):
         try:
             encoded_term = urllib.parse.quote(search_term)
@@ -189,9 +216,6 @@ def get_ticker_symbol(search_term):
                     return f"{code}.KQ"
         except:
             pass
-
-    # 3. 자주 찾는 주식 딕셔너리
-    if search_term in US_STOCK_DICT: return US_STOCK_DICT[search_term]
       
     # 4. 한글이 없는 영어 검색어인 경우 Yahoo Finance 자체 검색
     if not bool(re.search('[가-힣]', search_term)):
@@ -208,7 +232,7 @@ def get_ticker_symbol(search_term):
         except:
             pass
         
-    # 5. 최후의 수단: Gemini에게 티커 추론 요청 + 정규식 필터링 (가장 중요한 버그 픽스)
+    # 5. 최후의 수단: Gemini에게 티커 추론 요청 + 정규식 필터링
     try:
         ticker_prompt = f"""당신은 금융 데이터 전문가입니다.
         다음 검색어에 해당하는 주식 종목의 정확한 Yahoo Finance 기준 Ticker(기호) 딱 1개만 출력하세요.
@@ -219,7 +243,6 @@ def get_ticker_symbol(search_term):
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
-        # AI가 딴소리("티커는 376300.KQ 입니다")를 해도 오직 코드만 완벽하게 걸러내는 필터망!
         match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', eng_ticker)
         if match:
             return match.group(0)
@@ -420,7 +443,6 @@ def fetch_chart_history(ticker, interval):
 def fetch_news_data(ticker, official_name, is_korean_stock):
     news_list = []
     try:
-        # 뉴스 검색 시 오타가 섞인 user_input 대신 정규화된 official_name 사용
         if is_korean_stock:
             rss_url = f"https://news.google.com/rss/search?q={official_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
         else:
@@ -472,9 +494,9 @@ if user_input:
         current_price = hist_basic['Close'].iloc[-1]
         
         # ==========================================
-        # 💡 핵심 로직 보강: 한국 주식 공식 명칭 추출 (이중 안전장치)
+        # 💡 핵심 로직 보강: 한국 주식 공식 명칭 추출 및 해외주식 한글화
         # ==========================================
-        display_name = user_input # 기본값은 사용자 입력
+        display_name = user_input 
         
         # 1. 한국 주식: KRX DB 매칭 시도 -> 실패 시 네이버 API로 공식 명칭 강제 추출
         if ticker.endswith('.KS') or ticker.endswith('.KQ'):
@@ -487,7 +509,7 @@ if user_input:
                     display_name = match_name.iloc[0]['Name']
                     name_found = True
 
-            # 클라우드 서버에서 KRX DB가 막혀있을 경우 네이버 모바일 API로 직접 명칭 추출
+            # KRX DB가 막혀있을 경우 네이버 모바일 API로 직접 명칭 추출
             if not name_found:
                 try:
                     basic_url = f"https://m.stock.naver.com/api/stock/{code_only}/basic"
@@ -500,17 +522,13 @@ if user_input:
                 except:
                     pass
                 
-                # 최후의 보루: Yahoo Finance의 영문/혼합 이름이라도 추출
                 if not name_found and info and 'shortName' in info:
                     display_name = info['shortName']
 
-        # 2. 해외 주식: 딕셔너리에 등록된 한글 명칭(마소 -> 마이크로소프트) 우선 사용
+        # 2. 해외 주식: 증권사 기준 공식 한글 명칭 AI 적용
         else:
-            reverse_us_dict = {v: k for k, v in US_STOCK_DICT.items()}
-            if ticker in reverse_us_dict:
-                display_name = reverse_us_dict[ticker]
-            elif info and 'shortName' in info:
-                display_name = info['shortName']
+            english_name = info.get('shortName', ticker)
+            display_name = get_korean_display_name(ticker, english_name)
         # ==========================================
         
         info = augment_korean_fundamentals(ticker, info)
@@ -523,7 +541,6 @@ if user_input:
         
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
-        # 오타가 교정된 정식 명칭(display_name)으로 뉴스 검색을 실행하여 정확도 100% 보장
         news_list = fetch_news_data(ticker, display_name, is_korean_stock)
                 
         news_context_list = []
@@ -651,7 +668,6 @@ if user_input:
         with tab1:
             col_price, col_interval = st.columns([3, 1])
             with col_price:
-                # ⚠️ 오타 교정된 이름(display_name)으로 차트 헤더 표시
                 st.markdown(f"### {display_name} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
             
             with col_interval:
@@ -753,7 +769,6 @@ if user_input:
                     )
                     
                     fig.update_layout(
-                        # ⚠️ 차트 내부 타이틀도 교정된 이름(display_name)으로 변경
                         title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                         template="plotly_dark",
                         dragmode=False, 
@@ -811,7 +826,6 @@ if user_input:
                     weekly_csv = get_formatted_history("1wk", [(13, "", ""), (26, "", ""), (52, "", "")])
                     monthly_csv = get_formatted_history("1mo", [(9, "", ""), (24, "", ""), (60, "", "")])
 
-                    # ⚠️ 프롬프트에도 교정된 종목명(display_name) 적용
                     prompt = f"""종목 {display_name}({ticker})의 일봉, 주봉, 월봉 전체 가격(시가/고가/저가/종가) 및 이동평균선(MA) 데이터와 최신 시장 동향입니다.
                     
                     [최신 시장 동향 백그라운드 (참고용)]
