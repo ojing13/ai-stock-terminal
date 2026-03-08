@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 import math
 import re
 import urllib.parse
+import copy
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
@@ -308,11 +309,14 @@ def format_large_number(num, currency):
     return f"{num:,.0f} {currency}"
 
 def get_52w_high_low(stock, info_high, info_low):
-    high = info_high
-    low = info_low
+    try: high = float(info_high) if info_high else 0
+    except: high = 0
+    try: low = float(info_low) if info_low else 0
+    except: low = 0
+    
     if low <= 0 or high <= 0:
         try:
-            hist = stock.history(period="2y")
+            hist = stock.history(period="1y")
             hist = hist[hist['Low'] > 0] 
             if not hist.empty:
                 high = hist['High'].max()
@@ -537,7 +541,9 @@ if user_input:
     ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
     
-    hist_basic, info, fin_df, bs_df, cf_df = fetch_yf_data(ticker)
+    # 캐시 꼬임 방지를 위해 딕셔너리 깊은 복사(deepcopy) 처리
+    hist_basic, cached_info, fin_df, bs_df, cf_df = fetch_yf_data(ticker)
+    info = copy.deepcopy(cached_info) if isinstance(cached_info, dict) else {}
   
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
@@ -608,17 +614,19 @@ if user_input:
                 return f"{val*100:.2f}%"
             except: return 'N/A'
             
-        def fmt_flt(v):
-            if v is None or pd.isna(v): return 'N/A'
+        def fmt_flt(v, is_per=False):
+            if v is None or pd.isna(v) or str(v).strip() == '' or str(v).upper() == 'N/A': return 'N/A'
             try: 
                 f = float(v)
                 if math.isnan(f) or math.isinf(f): return 'N/A'
-                return f"{f:.2f}"
+                # PER 값이 비정상적으로 높을 경우 필터링 추가
+                if is_per and f > 1000: return 'N/A (확인 불가)'
+                return f"{f:,.2f}"
             except: return 'N/A'
             
         market_cap = info.get('marketCap', 0)
-        high_52 = info.get('fiftyTwoWeekHigh', 0)
-        low_52 = info.get('fiftyTwoWeekLow', 0)
+        high_52 = info.get('fiftyTwoWeekHigh')
+        low_52 = info.get('fiftyTwoWeekLow')
         
         high_52, low_52 = get_52w_high_low(stock, high_52, low_52)
         
@@ -934,8 +942,8 @@ if user_input:
             c1, c2, c3, c4 = st.columns(4)
             
             c1.metric("시가총액", format_large_number(market_cap, currency))
-            c1.metric("Trailing PER", fmt_flt(trailing_pe))
-            c1.metric("Forward PER", fmt_flt(forward_pe))
+            c1.metric("Trailing PER", fmt_flt(trailing_pe, is_per=True))
+            c1.metric("Forward PER", fmt_flt(forward_pe, is_per=True))
             c1.metric("PBR", fmt_flt(pb))
             c1.metric("PSR", fmt_flt(psr))
             
