@@ -642,13 +642,10 @@ if user_input:
                     
                     fig = go.Figure()
                     
-                    # --- 수정된 캔들 색상 설정 코드 ---
-                    # 양봉(상승)은 빨간색, 음봉(하락)은 파란색으로 한국 증시 기준 적용
                     fig.add_trace(go.Candlestick(
                         x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                         low=filtered_history['Low'], close=filtered_history['Close'],
-                        increasing_line_color='#ff3232', increasing_fillcolor='#ff3232', # 양봉: 빨간색
-                        decreasing_line_color='#3232ff', decreasing_fillcolor='#3232ff', # 음봉: 파란색
+                        increasing_line_color='#00ff9d', decreasing_line_color='#ff2d55',
                         name="가격"
                     ))
 
