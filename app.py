@@ -354,7 +354,7 @@ def augment_korean_fundamentals(ticker, info):
         if pbr is not None: info['priceToBook'] = pbr
         if div is not None: 
             info['dividendYield'] = div / 100.0
-            info['naver_div_yield'] = div / 100.0 # 확실한 데이터 라벨링
+            info['naver_div_yield'] = div / 100.0 
 
         table = soup.find('table', {'class': 'tb_type1 tb_num tb_type1_ifrs'})
         if table:
@@ -440,7 +440,7 @@ def augment_us_fundamentals(ticker, info):
             if (v := parse_finviz_val(data_dict.get('Profit Margin', '-'), True)) is not None: info['profitMargins'] = v
             if (v := parse_finviz_val(data_dict.get('Dividend %', '-'), True)) is not None: 
                 info['dividendYield'] = v
-                info['finviz_div_yield'] = v # 확실한 데이터 라벨링
+                info['finviz_div_yield'] = v 
             if (v_debt := parse_finviz_val(data_dict.get('Debt/Eq', '-'))) is not None: info['debtToEquity'] = v_debt * 100
             if (v := parse_finviz_val(data_dict.get('Current Ratio', '-'))) is not None: info['currentRatio'] = v
             if (v := parse_finviz_val(data_dict.get('Quick Ratio', '-'))) is not None: info['quickRatio'] = v
@@ -632,9 +632,7 @@ if user_input:
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
         
-        # --- [오류 100% 차단 무적의 배당수익률 로직] ---
         def get_robust_dividend_yield(info_dict, div_data, current_p):
-            # 0순위: 확실한 외부 소스(핀비즈, 네이버)에서 먼저 긁어온 데이터
             for key in ['finviz_div_yield', 'naver_div_yield']:
                 val = info_dict.get(key)
                 if val is not None and str(val).strip() != '' and str(val).upper() != 'N/A':
@@ -643,7 +641,6 @@ if user_input:
                         if 0 < v < 0.50: return v
                     except: pass
                     
-            # 1순위: 야후 배당금 히스토리를 직접 최근 1년치 합산하여 주가로 나눔 (가장 안전)
             try:
                 if not div_data.empty and current_p > 0:
                     one_year_ago = div_data.index[-1] - pd.Timedelta(days=365)
@@ -654,7 +651,6 @@ if user_input:
                             return history_yield
             except: pass
                 
-            # 2순위: 야후 API의 '배당금(Dollar)'을 주가로 나눔
             for key in ['dividendRate', 'trailingAnnualDividendRate']:
                 r = info_dict.get(key)
                 if r is not None and str(r).strip() != '' and str(r).upper() != 'N/A':
@@ -665,20 +661,16 @@ if user_input:
                             if 0 < rate_yield < 0.50: return rate_yield
                     except: pass
             
-            # 3순위: 야후 API가 제공하는 '배당수익률' (버그가 제일 많음)
             for key in ['dividendYield', 'trailingAnnualDividendYield', 'yield']:
                 y = info_dict.get(key)
                 if y is not None and str(y).strip() != '' and str(y).upper() != 'N/A':
                     try:
                         y_val = float(y)
-                        
-                        # 버그 1: ADR 종목 환율 불일치로 인한 뻥튀기 차단
                         curr = info_dict.get('currency', 'USD')
                         f_curr = info_dict.get('financialCurrency', 'USD')
                         if curr != f_curr and y_val > 0.05: continue
                         
                         if 0 < y_val < 0.50:
-                            # 버그 2: 구글처럼 배당금(달러)을 수익률로 잘못 보낸 경우 (y_val > 0.15면 의심)
                             if y_val > 0.15: 
                                 assumed_yield = y_val / current_p
                                 if 0 < assumed_yield < 0.15: return assumed_yield
@@ -688,7 +680,6 @@ if user_input:
             return 'N/A'
 
         div_yield = get_robust_dividend_yield(info, div_series, current_price)
-        # -----------------------------------------------
         
         debt = safe_info(info, ['debtToEquity'])
         current_ratio = safe_info(info, ['currentRatio'])
@@ -1103,23 +1094,54 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             if st.button("원클릭 종합 분석 리포트 생성"):
                 with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
                     prompt = f"""
-                    오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합 분석해주세요.
+                    오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합적으로 분석해주세요.
+                    
                     [1. 현재 가격 및 기술적 지표]
                     - 현재가: {current_price:{price_fmt}} {currency}
+                    - 52주 최고/최저: {high_52:{price_fmt}} {currency} / {low_52:{price_fmt}} {currency}
                     - 이동평균선 최근값: {ma_context_str}
+                    
                     [2. 주요 재무 및 펀더멘털 지표]
-                    - 시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}, Trailing PER: {trailing_pe}, PBR: {pb}
-                    - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 부채비율: {debt}%
-                    - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}
+                    - 시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
+                    - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt}%
+                    - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}, 영업활동현금흐름: {v_cf_op}
                     - 배당 수익률: {fmt_pct(div_yield)}
-                    [3. 최신 시장 동향 요약]\n{news_context}
                     
-                    반드시 4가지 항목을 작성해주세요: 1. 재무 상황 종합 평가 / 2. 시장 투심 및 향후 주가 흐름 예상 / 3. 상황별 대응 전략 / 4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가)
+                    [3. 최신 시장 동향 및 기사 본문 요약]
+                    \n{news_context}
                     
-                    [지시사항]
-                    - 글머리 기호 금지. 각 항목 제목은 마크다운 헤딩(###) 사용.
-                    - 달러 기호 금지. 금액은 반드시 '{currency}'으로 표기할 것.
-                    - [출처 표기 절대 금지]: 괄호 안에 기사 번호(예: 1, 2)를 적거나 출처를 언급하는 행위 완벽 금지.
+                    반드시 다음 4가지 항목을 포함하여 최고급 애널리스트처럼 한국어로 명확하게 작성해주세요.
+                    
+                    1. 재무 상황 종합 평가
+                    2. 시장 투심 및 향후 주가 흐름 예상
+                    3. 상황별 대응 전략 (현재 보유자 / 신규 매수 대기자 / 매도 고려자)
+                    4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가)
+                    
+                    [출력 형식 가이드]
+                    - 글머리 기호(-, *, • 등 땡땡 표시)는 일절 사용하지 마세요.
+                    - 각 항목의 제목(1, 2, 3, 4번)은 마크다운 헤딩(## 또는 ###)을 사용하여 크게 작성하세요.
+                    - 제목 아래에는 반드시 빈 줄(Enter 2번)을 띄우고 일반 문단으로 줄글을 작성하세요.
+                    
+                    [4번 항목 작성 예시]
+                    ### 4. 구체적인 가격 제시
+                    
+                    진입 추천가: 000 원
+                    
+                    논리적 근거: 차트를 분석하여 유의미한 기술적 지표(이평선, 지지/저항선 등)나 재무적 근거가 있을 경우에만 이를 포함하여 논리적으로 작성합니다.
+                    
+                    1차 목표가: 000 원
+                    
+                    논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 근거를 자연스럽게 엮어서 설명)
+                    
+                    🚨 [최고급 퀀트 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
+                    - [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.
+                    - [가독성 철저]: 위 형식 가이드를 완벽히 지켜서, 땡땡 표시 없이 제목과 문단 구분을 통해 마치 잘 쓰여진 신문 기사나 리포트 본문처럼 보이게 하세요.
+                    - [균형 잡힌 차트 분석]: 기술적 지표를 언급할 때 이동평균선에만 집착하지 말고, 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 자연스럽게 설명하세요.
+                    - [핵심 강조]: 전체 리포트에서 핵심이 되는 주요 단어나 결과 문장은 반드시 **굵은 글씨(**)**로 강조해서 핵심을 짚어주세요. 폰트 변경은 불가합니다.
+                    - [직접 인용 및 작위적 표현 완벽 금지]: 리포트 내에 '뉴스', '기사', '헤드라인'이라는 단어를 아예 사용하지 마세요. 기사 문장을 절대 복사하지 마세요.
+                    - [배경 지식 총동원]: 제공된 수치와 텍스트에만 갇히지 마세요. 당신이 학습한 해당 기업의 최근 거시경제(금리, 인플레 등) 환경, 산업 트렌드(AI, 반도체 등),경쟁사 동향, 대규모 투자(CapEx) 현황을 융합하여 인과관계를 설명하세요.
+                    - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
+                    - [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지.
                     """
                     try:
                         response = client.models.generate_content(
