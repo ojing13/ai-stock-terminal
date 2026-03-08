@@ -149,38 +149,64 @@ krx_df = load_krx_data()
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
-        # .KS, .KQ 등의 꼬리표를 떼고 순수 티커(예: HIMS, AAPL, 005930)로 검색
         clean_ticker = ticker.split('.')[0]
-        
         ac_url = f"https://ac.finance.naver.com/ac?q={clean_ticker}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
         headers = {'User-Agent': 'Mozilla/5.0'}
         ac_res = requests.get(ac_url, headers=headers, timeout=3)
         ac_data = ac_res.json()
 
         if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
-            # 검색 결과 중 정확한 티커명과 일치하는 항목의 한글 이름 추출
             for item in ac_data['items'][0]:
                 if item[0].upper() == clean_ticker.upper():
                     korean_name = item[1] 
                     if korean_name:
                         return korean_name
-            # 정확히 일치하지 않더라도 최상단 검색 결과의 공식 명칭 반환
             korean_name = ac_data['items'][0][0][1] 
             if korean_name:
                 return korean_name
     except:
         pass
 
-    return english_name # 검색 실패 시 원래 영어 이름 반환
+    return english_name
 
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
+    search_clean = search_term.replace(" ", "").upper()
     
+    # 0. 야후 파이낸스 버그 방지용 강력한 1:1 강제 매핑 (가장 빠르고 확실함)
+    custom_mapping = {
+        "TSMC": "TSM",
+        "티에스엠씨": "TSM",
+        "APPLE": "AAPL",
+        "애플": "AAPL",
+        "NVIDIA": "NVDA",
+        "엔비디아": "NVDA",
+        "TESLA": "TSLA",
+        "테슬라": "TSLA",
+        "MICROSOFT": "MSFT",
+        "마이크로소프트": "MSFT",
+        "마소": "MSFT",
+        "GOOGLE": "GOOGL",
+        "구글": "GOOGL",
+        "ALPHABET": "GOOGL",
+        "AMAZON": "AMZN",
+        "아마존": "AMZN",
+        "META": "META",
+        "메타": "META",
+        "NETFLIX": "NFLX",
+        "넷플릭스": "NFLX",
+        "AMD": "AMD",
+        "INTEL": "INTC",
+        "인텔": "INTC"
+    }
+    
+    if search_clean in custom_mapping:
+        return custom_mapping[search_clean]
+
     # 1. KRX 데이터프레임에서 검색 (한국 주식)
     if not krx_df.empty:
         df_temp = krx_df.copy()
-        search_clean = search_term.replace(" ", "").upper()
         df_temp['Name_clean'] = df_temp['Name'].astype(str).str.replace(" ", "").str.upper()
         match = df_temp[df_temp['Name_clean'] == search_clean]
         if not match.empty:
@@ -189,7 +215,7 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 강력한 백업: 네이버 금융 자동완성 API (영문/한글 무조건 스캔 - TSMC 완벽 처리)
+    # 2. 강력한 백업: 네이버 금융 자동완성 API
     try:
         encoded_term = urllib.parse.quote(search_term)
         ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
@@ -207,11 +233,11 @@ def get_ticker_symbol(search_term):
             
             if '코스피' in market_str: return f"{code}.KS"
             elif '코스닥' in market_str: return f"{code}.KQ"
-            else: return code # 해외 주식은 티커 그대로 반환
+            else: return code
     except:
         pass
             
-    # 3. 네이버 HTML 검색 백업 (API 차단 시)
+    # 3. 네이버 HTML 검색 백업
     try:
         encoded_term_euc = urllib.parse.quote(search_term.encode('euc-kr'))
         html_url = f"https://finance.naver.com/search/searchList.naver?query={encoded_term_euc}"
@@ -230,25 +256,20 @@ def get_ticker_symbol(search_term):
     except:
         pass
       
-    # 4. 야후 파이낸스 자체 검색망 강화 (미국 시장 우선 스캔 로직 탑재)
+    # 4. 야후 파이낸스 자체 검색 (미국 시장 우선)
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
         res = requests.get(url, headers=headers, timeout=5)
         data = res.json()
         if 'quotes' in data and len(data['quotes']) > 0:
-            # 1순위: 미국 정규장 (NYQ, NMS, NYSE, NASDAQ) 강력 필터링
             us_exchanges = ['NYQ', 'NMS', 'NYSE', 'NASDAQ']
             for quote in data['quotes']:
                 if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange', '').upper() in us_exchanges:
                     return quote['symbol']
-                    
-            # 2순위: 미국장이 아니더라도 정상적인 주식/ETF
             for quote in data['quotes']:
                 if quote.get('type') in ['EQUITY', 'ETF']:
                     return quote['symbol']
-                    
-            # 3순위: 그냥 첫 번째 결과
             return data['quotes'][0]['symbol']
     except:
         pass
@@ -264,7 +285,6 @@ def get_ticker_symbol(search_term):
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
-        # THOUGHT 과정이 섞여 들어오더라도 맨 마지막 줄의 진짜 티커만 걸러내는 필터망
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
             match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', lines[-1])
@@ -1146,4 +1166,4 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     except Exception as e:
                         st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
     else:
-        st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 종목명이나 티커를 입력해 주세요!")
+        st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 종목명이나 티커를 입력해 주세요!")ㄴ
