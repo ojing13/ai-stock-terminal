@@ -1170,21 +1170,21 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지.
                     - [출처 표기 절대 금지]: 괄호 안에 기사 번호를 적는 행위(예: 1, 2, 3)나 출처를 짐작할 수 있는 인용구를 완벽하게 금지합니다.
                     
-                    🚨 [최종 투자의견 스코어 산출 지시사항 - 매우 중요]
-                    리포트 작성을 모두 마친 후, 맨 마지막 줄에 반드시 `[SCORE: 점수]` 형태로 AI 당신의 독자적인 투자의견 점수(0~100점)를 딱 한 번만 적어주세요.
-                    - 0~20: 강력 매도
-                    - 21~40: 매도
-                    - 41~60: 중립
-                    - 61~80: 매수
-                    - 81~100: 강력 매수
+                    🚨 [최종 스코어 산출 지시사항 - 매우 중요]
+                    리포트 작성을 모두 마친 후, 맨 마지막 줄에 반드시 다음 두 가지 점수를 `[SCORE: 점수]`, `[TENBAGGER: 점수]` 형태로 적어주세요.
+
+                    1. [SCORE: 0~100] (AI 독자적 투자의견)
+                    - 철저한 트레이더 관점에서 '손익비(Risk/Reward)'를 가장 중요하게 봅니다.
+                    - 상승 여력(먹을 자리)이 부족하면 깎고, 먹을 자리가 많으면 높이세요. 재무와 동향도 고려하되, 팽팽한 관망 자리면 '중립(41~60)'을 줍니다.
                     
-                    평가 기준: 당신은 철저한 트레이더 관점에서 '손익비(Risk/Reward)'를 가장 중요하게 봅니다.
-                    - 상승 여력(먹을 자리)이 부족하고 하락 리스크가 크다면 눈치 보지 말고 과감하게 점수를 대폭 깎으세요.
-                    - 하락폭은 제한적인데 상승 여력(먹을 자리)이 많다면 과감하게 점수를 크게 높이세요.
-                    - 재무상황과 최신 동향도 손익비 판단의 핵심 근거로 활용하세요.
-                    - 무조건 중립을 피하라는 것은 아닙니다. 현재 자리가 방향성을 알 수 없는 진정한 관망 구간이거나, 호재/악재가 팽팽하다면 당연히 '중립' 의견(41~60점)을 내어도 좋습니다.
-                    
-                    예시: [SCORE: 85]
+                    2. [TENBAGGER: 0~100] (텐배거/대박 포텐 지수)
+                    - 주식의 로망이자 꿈(夢)의 크기를 수치화합니다. 하이리스크-하이리턴, 혹은 턴어라운드로 엄청난 폭발력을 가질 잠재력을 평가합니다.
+                    - 무겁고 안정적인 대형 우량주(예: 코카콜라, 존슨앤존슨 등)는 10~30점 수준으로 낮게 줍니다.
+                    - 적자라도 AI 등 메가 트렌드 수혜주이거나, 바닥에서 턴어라운드 시 10배(텐배거) 갈 폭발력이 있다면 80~100점을 과감히 줍니다.
+
+                    예시:
+                    [SCORE: 75]
+                    [TENBAGGER: 90]
                     """
                     try:
                         response = client.models.generate_content(
@@ -1193,27 +1193,58 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         report_text = response.text
                         
-                        # AI가 남긴 점수를 추출
+                        # AI가 남긴 점수들을 추출
                         score_match = re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
+                        tenbagger_match = re.search(r'\[TENBAGGER:\s*(\d+)\s*\]', report_text)
+                        
                         final_score = None
+                        tenbagger_score = None
                         
                         if score_match:
                             final_score = int(score_match.group(1))
-                            # 텍스트에서 [SCORE: X] 부분은 지워서 화면에 보이지 않게 함
                             report_text = report_text.replace(score_match.group(0), "")
+                        
+                        if tenbagger_match:
+                            tenbagger_score = int(tenbagger_match.group(1))
+                            report_text = report_text.replace(tenbagger_match.group(0), "")
                             
                         # 리포트 본문 출력
                         st.info(report_text.strip())
                         
                         # 깔끔한 투자의견 바(Bar) 출력
                         if final_score is not None:
-                            final_score = max(0, min(100, final_score)) # 0~100 사이로 안전하게 고정
+                            final_score = max(0, min(100, final_score)) 
                             
                             if final_score <= 20: opinion_text, text_color = "강력 매도", "#007aff"
                             elif final_score <= 40: opinion_text, text_color = "매도", "#66b2ff"
                             elif final_score <= 60: opinion_text, text_color = "중립", "#555555"
                             elif final_score <= 80: opinion_text, text_color = "매수", "#ff6b6b"
                             else: opinion_text, text_color = "강력 매수", "#ff2d55"
+                            
+                            # 텐배거 지수 바 생성
+                            tenbagger_html = ""
+                            if tenbagger_score is not None:
+                                tb_score = max(0, min(100, tenbagger_score))
+                                if tb_score <= 20: tb_text, tb_color = "매우 무거움", "#888888"
+                                elif tb_score <= 40: tb_text, tb_color = "안정적", "#555555"
+                                elif tb_score <= 60: tb_text, tb_color = "포텐 잉태 중", "#ffaa00"
+                                elif tb_score <= 80: tb_text, tb_color = "폭발 직전", "#ff5500"
+                                else: tb_text, tb_color = "🚀 텐배거의 꿈!", "#ff007f"
+                                
+                                tenbagger_html = f"""
+                                <div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;">
+                                    <h4 style="text-align: center; margin-bottom: 20px; color: #333; font-weight: 700;">
+                                        ✨ 텐배거(대박 포텐) 지수: <span style="color: {tb_color};">{tb_score}점 ({tb_text})</span>
+                                    </h4>
+                                    <div style="position: relative; width: 100%; height: 24px; background: linear-gradient(to right, #cccccc 0%, #f2c94c 50%, #f25287 100%); border-radius: 12px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
+                                        <div style="position: absolute; top: -20px; left: calc({tb_score}% - 12px); font-size: 20px; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5));">🔥</div>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 5px 10px 0; font-size: 12px; color: #888; font-weight: 600;">
+                                        <span>무거움(우량주)</span>
+                                        <span>로망의 영역(텐배거)</span>
+                                    </div>
+                                </div>
+                                """
                             
                             bar_html = f"""
                             <div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;">
@@ -1228,6 +1259,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                     <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력매수</div>
                                     <div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
                                 </div>
+                                {tenbagger_html}
                             </div>
                             """
                             st.markdown(bar_html, unsafe_allow_html=True)
