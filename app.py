@@ -150,7 +150,7 @@ COMMON_SEARCH_DICT = {
     "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT", "마소": "MSFT",
     "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META", "페이스북": "META",
     "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD", 
-    "TSMC": "TSM", "티에스엠씨": "TSM", "디어유": "376300.KQ"
+    "TSMC": "TSM", "티에스엠씨": "TSM", "디어유": "376300.KQ", "QQQ": "QQQ"
 }
 
 # 💡 AI 번역 전면 제거! 네이버 해외주식 공식 DB 직접 연동
@@ -360,11 +360,17 @@ def augment_us_fundamentals(ticker, info):
         return info
     try:
         url = f"https://finviz.com/quote.ashx?t={ticker}"
+        # 💡 Finviz의 차단을 막기 위해 완벽한 브라우저 헤더로 위장 강화
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
-            'Referer': 'https://finviz.com/'
+            'Referer': 'https://finviz.com/',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1'
         }
         res = requests.get(url, headers=headers, timeout=5)
         soup = BeautifulSoup(res.text, 'html.parser')
@@ -452,7 +458,6 @@ def fetch_chart_history(ticker, interval):
 def fetch_news_data(ticker, official_name, is_korean_stock):
     news_list = []
     try:
-        # 뉴스 검색 시 오타가 섞인 user_input 대신 정규화된 official_name 사용
         if is_korean_stock:
             rss_url = f"https://news.google.com/rss/search?q={official_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
         else:
@@ -503,12 +508,8 @@ if user_input:
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
         
-        # ==========================================
-        # 💡 핵심 로직 보강: 한국/해외 주식 공식 명칭 추출 (AI 완전 제거, 네이버 API 연동)
-        # ==========================================
         display_name = user_input 
         
-        # 1. 한국 주식: KRX DB 매칭 시도 -> 실패 시 네이버 API로 공식 명칭 강제 추출
         if ticker.endswith('.KS') or ticker.endswith('.KQ'):
             code_only = ticker.split('.')[0]
             name_found = False
@@ -519,7 +520,6 @@ if user_input:
                     display_name = match_name.iloc[0]['Name']
                     name_found = True
 
-            # KRX DB가 막혀있을 경우 네이버 모바일 API로 직접 명칭 추출
             if not name_found:
                 try:
                     basic_url = f"https://m.stock.naver.com/api/stock/{code_only}/basic"
@@ -535,11 +535,9 @@ if user_input:
                 if not name_found and info and 'shortName' in info:
                     display_name = info['shortName']
 
-        # 2. 해외 주식: AI 번역 제거 후, 네이버 금융 API에서 정식 한글 명칭 스크래핑
         else:
             english_name = info.get('shortName', ticker)
             display_name = get_korean_display_name(ticker, english_name)
-        # ==========================================
         
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
@@ -558,10 +556,14 @@ if user_input:
             news_context_list.append(f"[{idx+1}] 제목: {item['title']}\n본문: {item.get('content', '본문 없음')}")
         news_context = "\n\n".join(news_context_list) if news_context_list else "수집된 실시간 데이터가 없습니다."
         
-        def fmt_pct(v):
+        # 💡 야후 파이낸스 배당금 버그(46% 등) 완벽 필터링 적용
+        def fmt_pct(v, is_dividend=False):
             if v == 'N/A' or v is None: return 'N/A'
             try: 
                 val = float(v)
+                # 배당수익률로 전달받은 값이 비상식적으로 높으면(예: 1.0 즉 100% 이상) 야후 파이낸스 버그이므로 N/A 처리
+                if is_dividend and val >= 1.0:
+                    return 'N/A'
                 return f"{val*100:.2f}%"
             except: return 'N/A'
             
@@ -620,7 +622,9 @@ if user_input:
         net_margin = safe_info(info, ['profitMargins', 'netMargin'])
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
-        div_yield = safe_info(info, ['dividendYield'])
+        
+        # 💡 야후 파이낸스 배당금 버그 원천 차단: 올바른 수익률(yield)부터 무조건 먼저 찾도록 순서 수정
+        div_yield = safe_info(info, ['trailingAnnualDividendYield', 'yield', 'dividendYield'])
         
         debt = safe_info(info, ['debtToEquity'])
         current_ratio = safe_info(info, ['currentRatio'])
@@ -903,7 +907,8 @@ if user_input:
             c3.metric("영업이익률", fmt_pct(op_margin))
             c3.metric("순이익률", fmt_pct(net_margin))
             c3.metric("매출 성장률", fmt_pct(rev_growth))
-            c3.metric("배당 수익률", fmt_pct(div_yield)) 
+            # 💡 수정된 배당수익률 함수 적용
+            c3.metric("배당 수익률", fmt_pct(div_yield, is_dividend=True)) 
             
             c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
             c4.metric("유동비율", fmt_flt(current_ratio))
