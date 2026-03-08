@@ -1037,7 +1037,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 [분석 지침]
 - 정중체 사용. 깔끔한 전문가 톤 유지.
 - 각 평가 항목은 마크다운 헤딩(###)으로 작성.
-- 분석 내용 중 핵심 문장은 반드시 **굵은 글씨(**)**로 강조.
+- 분석 내용 중 핵심 문장은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 임의로 변경하지 마세요.
 - 뉴스 데이터는 재무 관련 정보 파악에만 참고.
 - 뉴스 출처 표기 금지 (기사 번호 작성 금지).
 - 달러 기호 금지. (금액은 '{currency}'으로 표기할 것).
@@ -1174,42 +1174,44 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             tb_html = ""
                             if tenbagger_score is not None:
                                 tb_score = max(0, min(100, tenbagger_score))
-                                if tb_score <= 20: tb_text, tb_color = "가치주/안정형", "#888888"
-                                elif tb_score <= 40: tb_text, tb_color = "안정형 성장주", "#b2aa3a" 
-                                elif tb_score <= 60: tb_text, tb_color = "성장 동력 잉태", "#f2994a" 
-                                elif tb_score <= 80: tb_text, tb_color = "폭발적 성장기", "#f25287" 
-                                else: tb_text, tb_color = "성장주/미래형", "#ff007f" 
+                                # 색상 매핑 로직은 유지
+                                if tb_score <= 20: tb_color = "#888888"
+                                elif tb_score <= 40: tb_color = "#b2aa3a" 
+                                elif tb_score <= 60: tb_color = "#f2994a" 
+                                elif tb_score <= 80: tb_color = "#f25287" 
+                                else: tb_color = "#ff007f" 
                                 
+                                # HTML 코드에서 들여쓰기를 모두 제거
                                 tb_html = f"""
 <div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;">
-    <h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
-        텐배거 지수: <span style="color: {tb_color};">{tb_score}점 ({tb_text})</span>
-    </h4>
-    <div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #e0e0e0 0%, #b2aa3a 20%, #f2994a 40%, #f25287 60%, #ff007f 80%, #ff007f 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
-        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">가치주/안정형</div>
-        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">안정형 성장주</div>
-        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">성장 동력 잉태</div>
-        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">폭발적 성장기</div>
-        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">성장주/미래형</div>
-        <div style="position: absolute; top: -28px; left: calc({tb_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
-    </div>
+<h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
+텐배거 지수: <span style="color: {tb_color};">{tb_score}점</span>
+</h4>
+<div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #e0e0e0 0%, #b2aa3a 20%, #f2994a 40%, #f25287 60%, #ff007f 80%, #ff007f 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
+<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">가치주/안정형</div>
+<div style="width: 20%;"></div>
+<div style="width: 20%;"></div>
+<div style="width: 20%;"></div>
+<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">성장주/미래형</div>
+<div style="position: absolute; top: -28px; left: calc({tb_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
+</div>
 </div>
 """
                             
                             bar_html = f"""
 <div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;">
-    <h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
-        AI 독자적 투자의견: <span style="color: {text_color};">{opinion_text}</span>
-    </h4>
-    <div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
-        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div>
-        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div>
-        <div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div>
-        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div>
-        <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div>
-        <div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
-    </div>
-    {tb_html}
+<h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
+AI 독자적 투자의견: <span style="color: {text_color};">{opinion_text}</span>
+</h4>
+<div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
+<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div>
+<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div>
+<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">중립</div>
+<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div>
+<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div>
+<div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
+</div>
+{tb_html}
 </div>
 """
                             st.markdown(bar_html, unsafe_allow_html=True)
