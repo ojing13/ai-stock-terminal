@@ -145,7 +145,6 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 💡 지시사항에 따라 내부 사전(dictionary) 및 AI 번역 전면 삭제
 # 네이버 금융 자동완성 API를 역호출하여 한국 증권사 공식 등록명(한글) 추출 및 고정
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
@@ -172,7 +171,7 @@ def get_korean_display_name(ticker, english_name):
     except:
         pass
 
-    return english_name # 검색 실패 시 원래 영어 이름 반환 (AI 환각 노출 원천 차단)
+    return english_name # 검색 실패 시 원래 영어 이름 반환
 
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
@@ -246,7 +245,7 @@ def get_ticker_symbol(search_term):
     except:
         pass
         
-    # 5. 최후의 수단: Gemini에게 티커 추론 요청 (🚨 숫자 환각 엄격 금지 적용)
+    # 5. 최후의 수단: Gemini에게 티커 추론 요청
     try:
         ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스(Yahoo Finance) 주식 티커(Ticker) 딱 1개만 출력하세요.
         [엄격한 규칙]
@@ -257,7 +256,7 @@ def get_ticker_symbol(search_term):
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
-        # THOUGHT 과정이 섞여 들어오더라도 맨 마지막 줄의 진짜 티커만 걸러내는 완벽 필터망
+        # THOUGHT 과정이 섞여 들어오더라도 맨 마지막 줄의 진짜 티커만 걸러내는 필터망
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
             match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', lines[-1])
@@ -739,9 +738,19 @@ if user_input:
                 ma_context_str = "차트 데이터 부족"
 
                 if not filtered_history.empty:
-                    dt_all = pd.date_range(start=filtered_history.index.min(), end=filtered_history.index.max(), freq='D')
-                    dt_obs = filtered_history.index.normalize()
-                    dt_breaks = [d.strftime('%Y-%m-%d') for d in dt_all if d not in dt_obs]
+                    # 💡 주봉/월봉 비만 캔들 방지 로직 유지
+                    xaxis_config = dict(
+                        rangeslider=dict(visible=False), 
+                        type="date", 
+                        hoverformat="%Y-%m-%d", 
+                        fixedrange=True
+                    )
+                    
+                    if interval_option == "일봉":
+                        dt_all = pd.date_range(start=filtered_history.index.min(), end=filtered_history.index.max(), freq='D')
+                        dt_obs = filtered_history.index.normalize()
+                        dt_breaks = [d.strftime('%Y-%m-%d') for d in dt_all if d not in dt_obs]
+                        xaxis_config['rangebreaks'] = [dict(values=dt_breaks)]
 
                     price_min = filtered_history['Low'].min()
                     price_max = filtered_history['High'].max()
@@ -798,13 +807,7 @@ if user_input:
                         title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                         template="plotly_dark",
                         dragmode=False, 
-                        xaxis=dict(
-                            rangeslider=dict(visible=False), 
-                            type="date", 
-                            hoverformat="%Y-%m-%d", 
-                            fixedrange=True,
-                            rangebreaks=[dict(values=dt_breaks)]
-                        ),
+                        xaxis=xaxis_config,
                         yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
                         height=520,
                         margin=dict(l=0, r=0, t=40, b=0),
