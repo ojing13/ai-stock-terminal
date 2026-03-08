@@ -145,114 +145,127 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 💡 지시사항 완벽 준수: 내부 사전(Dictionary) 영구 삭제, 오직 API로만 종목명 고정
+# 네이버 금융 자동완성 API를 역호출하여 한국 증권사 공식 등록명(한글) 추출 및 고정
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
+        # .KS, .KQ 등의 꼬리표를 떼고 순수 티커(예: HIMS, AAPL, 005930)로 검색
         clean_ticker = ticker.split('.')[0]
-        url = f"https://m.stock.naver.com/api/search/all?keyword={clean_ticker}"
+        
+        ac_url = f"https://ac.finance.naver.com/ac?q={clean_ticker}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
         headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, headers=headers, timeout=3)
-        if res.status_code == 200:
-            data = res.json()
-            if 'overseasStock' in data.get('result', {}) and len(data['result']['overseasStock']) > 0:
-                for item in data['result']['overseasStock']:
-                    if item.get('symbolCode', '').upper() == clean_ticker.upper():
-                        return item.get('stockName', english_name)
-                return data['result']['overseasStock'][0].get('stockName', english_name)
+        ac_res = requests.get(ac_url, headers=headers, timeout=3)
+        ac_data = ac_res.json()
+
+        if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
+            # 검색 결과 중 정확한 티커명과 일치하는 항목의 한글 이름 추출
+            for item in ac_data['items'][0]:
+                if item[0].upper() == clean_ticker.upper():
+                    korean_name = item[1] 
+                    if korean_name:
+                        return korean_name
+            # 정확히 일치하지 않더라도 최상단 검색 결과의 공식 명칭 반환
+            korean_name = ac_data['items'][0][0][1] 
+            if korean_name:
+                return korean_name
     except:
         pass
-    return english_name 
+
+    return english_name # 검색 실패 시 원래 영어 이름 반환
 
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
-    search_upper = search_term.upper()
-            
+    
     # 1. KRX 데이터프레임에서 검색 (한국 주식)
     if not krx_df.empty:
         df_temp = krx_df.copy()
+        search_clean = search_term.replace(" ", "").upper()
         df_temp['Name_clean'] = df_temp['Name'].astype(str).str.replace(" ", "").str.upper()
-        match = df_temp[df_temp['Name_clean'] == search_upper.replace(" ", "")]
+        match = df_temp[df_temp['Name_clean'] == search_clean]
         if not match.empty:
             code = match.iloc[0]['Code']
             market = match.iloc[0]['Market']
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 💡 가장 강력한 무기: 네이버 모바일 통합 검색 API (한글/영어 상관없이 무조건 1순위 스캔)
-    # 영어로 'tsmc', 'dell' 등을 입력해도 완벽한 미국 티커를 찾아옵니다!
-    try:
-        url = f"https://m.stock.naver.com/api/search/all?keyword={urllib.parse.quote(search_term)}"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, headers=headers, timeout=3)
-        if res.status_code == 200:
-            data = res.json()
+    # 2. 강력한 백업: 네이버 금융 자동완성 API (한국/해외 주식 모두 스캔)
+    if bool(re.search('[가-힣]', search_term)):
+        try:
+            encoded_term = urllib.parse.quote(search_term)
+            ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                'Referer': 'https://finance.naver.com/'
+            }
+            ac_res = requests.get(ac_url, headers=headers, timeout=5)
+            ac_data = ac_res.json()
             
-            # 한국 주식이면
-            if 'domesticStock' in data.get('result', {}) and len(data['result']['domesticStock']) > 0:
-                item = data['result']['domesticStock'][0]
-                code = item.get('itemCode', '')
-                market = item.get('stockType', '').upper()
-                if 'KOSPI' in market: return f"{code}.KS"
-                elif 'KOSDAQ' in market: return f"{code}.KQ"
+            if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
+                item = ac_data['items'][0][0]
+                code = item[0]
+                market_str = item[2] if len(item) > 2 else ""
                 
-            # 해외 주식이면
-            if 'overseasStock' in data.get('result', {}) and len(data['result']['overseasStock']) > 0:
-                item = data['result']['overseasStock'][0]
-                sym = item.get('symbolCode', '')
-                market = item.get('stockType', '').upper()
-                if sym:
-                    if 'TSE' in market or 'TOKYO' in market: return f"{sym}.T"
-                    if 'HK' in market: return f"{sym}.HK"
-                    if 'SZSE' in market: return f"{sym}.SZ"
-                    if 'SSE' in market: return f"{sym}.SS"
-                    # 미국 주식(NYSE, NASDAQ 등)은 꼬리표 없이 순수 티커(TSM, MSFT) 반환
-                    return sym
-    except:
-        pass
+                if '코스피' in market_str: return f"{code}.KS"
+                elif '코스닥' in market_str: return f"{code}.KQ"
+                else: return code # 해외 주식은 티커 그대로 반환
+        except:
+            pass
+            
+        # 3. 네이버 HTML 검색 백업 (API 차단 시)
+        try:
+            encoded_term_euc = urllib.parse.quote(search_term.encode('euc-kr'))
+            html_url = f"https://finance.naver.com/search/searchList.naver?query={encoded_term_euc}"
+            html_res = requests.get(html_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
+            soup = BeautifulSoup(html_res.text, 'html.parser')
+            a_tag = soup.select_one('td.tit a')
+            if a_tag and 'code=' in a_tag['href']:
+                code = a_tag['href'].split('code=')[1]
+                tr = a_tag.find_parent('tr')
+                tds = tr.find_all('td')
+                if len(tds) > 2:
+                    market_str = tds[2].text.strip()
+                    if '코스피' in market_str: return f"{code}.KS"
+                    elif '코스닥' in market_str: return f"{code}.KQ"
+                    else: return code
+        except:
+            pass
       
-    # 3. 야후 파이낸스 자체 검색망 (미국 주식 최우선 필터링)
+    # 4. 야후 파이낸스 자체 검색망 강화 (영어, 한글 모두 시도)
+    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
-        y_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        y_res = requests.get(y_url, headers=headers, timeout=3)
-        if y_res.status_code == 200:
-            y_data = y_res.json()
-            if 'quotes' in y_data and len(y_data['quotes']) > 0:
-                us_exchanges = ['NYQ', 'NMS', 'NASDAQ', 'NYSE', 'ASE', 'BATS']
-                for quote in y_data['quotes']:
-                    if quote.get('quoteType') in ['EQUITY', 'ETF'] and quote.get('exchange', '').upper() in us_exchanges:
-                        return quote['symbol']
-                
-                for quote in y_data['quotes']:
-                    if quote.get('quoteType') in ['EQUITY', 'ETF']:
-                        return quote['symbol']
-                return y_data['quotes'][0]['symbol']
+        res = requests.get(url, headers=headers, timeout=5)
+        data = res.json()
+        if 'quotes' in data and len(data['quotes']) > 0:
+            for quote in data['quotes']:
+                if quote.get('type') in ['EQUITY', 'ETF']:
+                    return quote['symbol']
+            return data['quotes'][0]['symbol']
     except:
         pass
         
-    # 4. 최후의 수단: Gemini 티커 추론 (환각 및 생각 과정 철통 방어)
+    # 5. 최후의 수단: Gemini에게 티커 추론 요청
     try:
-        ticker_prompt = f"""Return ONLY the official US Yahoo Finance ticker symbol for '{search_term}'.
-        Rules:
-        1. US stocks: Return normal ticker (e.g. AAPL, TSM, OKLO).
-        2. Korean stocks: Return 6-digit code with .KS or .KQ (e.g. 005930.KS).
-        3. Do NOT provide Brazilian (.SA) or European (.F) cross-listings.
-        4. Do NOT invent or hallucinate codes. 
-        5. Return ONLY the ticker symbol. No thinking process, no explanation, no periods at the end."""
+        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스(Yahoo Finance) 주식 티커(Ticker) 딱 1개만 출력하세요.
+        [엄격한 규칙]
+        1. 미국 주식: 영문 티커 (예: AAPL, HIMS, TSLA, OKLO)
+        2. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
+        3. 🚨치명적 경고🚨: 검색어가 '힘스', '삼성증권' 등일 때 6자리 종목 코드를 완벽히 확신할 수 없다면 절대 임의의 6자리 숫자를 지어내지 마세요! 모르면 차라리 영문 티커(예: HIMS)를 내보내세요.
+        4. 사고 과정(Thinking process), 추가 설명, 마침표 없이 오직 '티커 기호' 하나만 출력하세요."""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
+        # THOUGHT 과정이 섞여 들어오더라도 맨 마지막 줄의 진짜 티커만 걸러내는 필터망
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
-            match = re.search(r'[A-Z0-9]+(?:\.[A-Z]+)?', lines[-1])
+            match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', lines[-1])
             if match:
                 return match.group(0)
     except:
         pass
       
-    return search_upper
+    return search_term.upper()
 
 def safe_get_fin(df, keys, default='N/A'):
     if df is None or df.empty: return default
@@ -725,6 +738,7 @@ if user_input:
                 ma_context_str = "차트 데이터 부족"
 
                 if not filtered_history.empty:
+                    # 💡 주봉/월봉 비만 캔들 방지 로직 유지
                     xaxis_config = dict(
                         rangeslider=dict(visible=False), 
                         type="date", 
@@ -1109,7 +1123,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.
                     - [가독성 철저]: 위 형식 가이드를 완벽히 지켜서, 땡땡 표시 없이 제목과 문단 구분을 통해 마치 잘 쓰여진 신문 기사나 리포트 본문처럼 보이게 하세요.
                     - [균형 잡힌 차트 분석]: 기술적 지표를 언급할 때 이동평균선에만 집착하지 말고, 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 자연스럽게 설명하세요.
-                    - [핵심 강조]: 전체 리포트에서 핵심이 되는 주요 단어나 결과 문장은 반드시 **굵은 글씨(**)**로 무조건 강조해서 핵심을 짚어주세요. 폰트 변경은 불가합니다.
+                    - [핵심 강조]: 전체 리포트에서 핵심이 되는 주요 단어나 결과 문장은 반드시 **굵은 글씨(**)**로 강조해서 핵심을 짚어주세요. 폰트 변경은 불가합니다.
                     - [직접 인용 및 작위적 표현 완벽 금지]: 리포트 내에 '뉴스', '기사', '헤드라인'이라는 단어를 아예 사용하지 마세요. 기사 문장을 절대 복사하지 마세요.
                     - [배경 지식 총동원]: 제공된 수치와 텍스트에만 갇히지 마세요. 당신이 학습한 해당 기업의 최근 거시경제(금리, 인플레 등) 환경, 산업 트렌드(AI, 반도체 등),경쟁사 동향, 대규모 투자(CapEx) 현황을 융합하여 인과관계를 설명하세요.
                     - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
