@@ -400,8 +400,19 @@ if user_input:
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
         
-        # ⚠️ 종목 혼동 방지용 회사 풀네임 변수
+        # ⚠️ 종목 혼동 방지 및 오타 교정용 회사 공식 명칭 변수
+        is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         company_name = info.get('longName', info.get('shortName', ticker))
+        display_name = company_name
+        
+        # 🇰🇷 한국 주식일 경우 KRX 데이터에서 정확한 한국어 공식 명칭 가져오기
+        if is_korean_stock:
+            code_only = ticker.split('.')[0]
+            if not krx_df.empty:
+                match = krx_df[krx_df['Code'] == code_only]
+                if not match.empty:
+                    display_name = match.iloc[0]['Name']
+                    company_name = display_name # 프롬프트에도 정확한 명칭 사용
         
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
         
@@ -414,15 +425,13 @@ if user_input:
         except: cf_df = pd.DataFrame()
         
         news_list = []
-        is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         currency = "원" if is_korean_stock else "달러"
-        
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
         # 뉴스 기사 수집량 100개
         try:
             if is_korean_stock:
-                rss_url = f"https://news.google.com/rss/search?q={user_input}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
+                rss_url = f"https://news.google.com/rss/search?q={display_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
             else:
                 rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
             response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -579,7 +588,7 @@ if user_input:
         with tab1:
             col_price, col_interval = st.columns([3, 1])
             with col_price:
-                st.markdown(f"### {user_input} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
+                st.markdown(f"### {display_name} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
             
             with col_interval:
                 interval_option = st.selectbox("차트 주기", ("일봉", "주봉", "월봉"), index=0)
@@ -680,7 +689,7 @@ if user_input:
                     )
                     
                     fig.update_layout(
-                        title=dict(text=f"{company_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
+                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                         template="plotly_dark",
                         dragmode=False, 
                         xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
@@ -752,7 +761,7 @@ if user_input:
                     2. [정보 필터링]: 일봉, 주봉, 월봉을 모두 확인하되, 추세 설명에 꼭 필요한 유의미한 기술적 단서(특정 가격대, 매물대, 주요 돌파 지점 등)만 선별해서 자연스럽게 제시하세요.
                     3. [이동평균선 표기 규칙]: 이동평균선을 언급할 때 '13-주 이동평균선'처럼 숫자와 단위 사이에 하이픈(-)을 절대 넣지 마세요. 반드시 '13주 이동평균선', '20일 이동평균선'과 같이 올바른 한국어로 작성하세요.
                     4. 마크다운 수식 오류 방지: 가격 범위나 기간 표시 시 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'로 표기할 것)
-                    5. [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요. 소제목은 마크다운 헤딩(###)으로 작성하고, 문단과 문단 사이에는 빈 줄(Enter 2번)을 넣어 완벽하게 분리하세요.
+                    5. [가독성 철저]: 글머 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요. 소제목은 마크다운 헤딩(###)으로 작성하고, 문단과 문단 사이에는 빈 줄(Enter 2번)을 넣어 완벽하게 분리하세요.
                     6. [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장 및 주요 지지/저항 가격은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 절대 변경하지 마세요.
                     7. [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요.
                     8. [항목 제한]: 분석 항목은 무조건 '1. 단기적인 추세', '2. 장기적인 추세' 딱 두 가지만 출력하세요.
