@@ -152,11 +152,12 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# ⚠️ 새롭게 설계된 핵심 로직: 알잘딱깔센 오타 교정 및 센스있는 명칭 추출
+# 💥 핵심 패치: 한 번 번역한 값은 무조건 캐싱해서 절대 이름이 바뀌지 않게 고정!
+@st.cache_data(show_spinner=False)
 def get_ticker_and_korean_name(search_term):
     search_term = search_term.strip()
     
-    # 1. 한국 주식인지 먼저 로컬에서 확인 (속도 최적화)
+    # 1. 한국 주식인지 먼저 로컬에서 확인
     if not krx_df.empty:
         match = krx_df[krx_df['Name'] == search_term]
         if not match.empty:
@@ -165,7 +166,7 @@ def get_ticker_and_korean_name(search_term):
             ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
             return ticker, search_term
             
-    # 2. 유명한 주식/ETF 사전 매핑 (주인님 답답함 해소용 알잘딱깔센 패치!)
+    # 2. 유명한 주식/ETF 사전 매핑 (주인님 답답함 해소용 완벽 패치!)
     quick_map = {
         "애플": ("AAPL", "애플"), "AAPL": ("AAPL", "애플"),
         "테슬라": ("TSLA", "테슬라"), "TSLA": ("TSLA", "테슬라"),
@@ -178,7 +179,7 @@ def get_ticker_and_korean_name(search_term):
         "TSMC": ("TSM", "TSMC"), "TSM": ("TSM", "TSMC"), "대만반도체": ("TSM", "TSMC"),
         "ASML": ("ASML", "ASML"), "ARM": ("ARM", "ARM"), "AMD": ("AMD", "AMD"),
         "TQQQ": ("TQQQ", "TQQQ (나스닥 100 3배 ETF)"),
-        "SQQQ": ("SQQQ", "SQQQ (나스닥 100 인버스 3배 ETF)"),
+        "SQQQ": ("SQQQ", "SQQQ (나스닥 인버스 3배 ETF)"),
         "SOXL": ("SOXL", "SOXL (반도체 3배 ETF)"),
         "SOXS": ("SOXS", "SOXS (반도체 인버스 3배 ETF)"),
         "QQQ": ("QQQ", "QQQ (나스닥 100 ETF)"),
@@ -188,16 +189,27 @@ def get_ticker_and_korean_name(search_term):
         "SCHD": ("SCHD", "SCHD (미국 배당 다우존스 ETF)"),
         "JEPI": ("JEPI", "JEPI (JP모건 커버드콜 ETF)"),
         "오라클": ("ORCL", "오라클"), "ORCL": ("ORCL", "오라클"),
-        "팔란티어": ("PLTR", "팔란티어"), "PLTR": ("PLTR", "팔란티어")
+        "팔란티어": ("PLTR", "팔란티어"), "PLTR": ("PLTR", "팔란티어"),
+        "KORU": ("KORU", "KORU (한국 MSCI 3배 ETF)"), "코루": ("KORU", "KORU (한국 MSCI 3배 ETF)"),
+        "BULZ": ("BULZ", "BULZ (빅테크 3배 ETN)"), "FNGU": ("FNGU", "FNGU (빅테크 3배 ETN)"),
+        "UPRO": ("UPRO", "UPRO (S&P 500 3배 ETF)"), "UDOW": ("UDOW", "UDOW (다우존스 3배 ETF)")
     }
     
     search_upper = search_term.upper()
+    
+    # 완전 일치 확인
     if search_term in quick_map:
         return quick_map[search_term]
     elif search_upper in quick_map:
         return quick_map[search_upper]
+        
+    # 과거 잘못된 검색기록 클릭 시(예: "KORU (한국 인버스 어쩌고)") 괄호 앞 티커만 뽑아서 재교정
+    if "(" in search_term:
+        possible_ticker = search_term.split("(")[0].strip().upper()
+        if possible_ticker in quick_map:
+            return quick_map[possible_ticker]
             
-    # 3. 그 외의 경우 AI에게 알잘딱깔센 번역 및 교정 위임
+    # 3. 그 외의 경우 AI에게 번역 위임 (하지만 창의성은 0%로 고정시켜서 헛소리 방지!)
     try:
         prompt = f"""당신은 센스있는 주식/ETF 종목명 번역 전문가입니다.
 사용자의 검색어: "{search_term}"
@@ -210,7 +222,11 @@ def get_ticker_and_korean_name(search_term):
 
 출력 형식은 무조건 "티커|깔끔한종목명" 이어야 합니다. 다른 설명은 절대 금지합니다.
 예시: AAPL|애플, 005930.KS|삼성전자, TSM|TSMC, TQQQ|TQQQ (나스닥 100 3배 ETF)"""
-        trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        trans_response = client.models.generate_content(
+            model='gemini-2.5-flash', 
+            contents=prompt,
+            config={"temperature": 0.0} # 💥 창의성 차단! 환각 완벽 방지
+        )
         result = trans_response.text.strip()
         if "|" in result:
             t, k = result.split("|")
@@ -401,7 +417,7 @@ st.markdown("---")
 
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL)", key="search_input_box")
+    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL, KORU)", key="search_input_box")
 
 ticker = None
 display_name = ""
@@ -457,9 +473,7 @@ if user_input and ticker:
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
         
-        # 🚨 덮어씌우기 버그 완벽 수정!! 
-        # 이제 야후 파이낸스의 못생긴 영어 이름(longName)으로 절대 덮어씌우지 않고,
-        # 우리가 정제한 예쁜 한글 이름(display_name)을 끝까지 유지합니다.
+        # 🚨 무조건 고정! 야후 파이낸스 이상한 이름 덮어쓰기 원천 차단
         company_name = display_name
             
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
@@ -476,7 +490,7 @@ if user_input and ticker:
         currency = "원" if is_korean_stock else "달러"
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
-        # 뉴스 기사 수집 
+        # 뉴스 기사 수집
         try:
             if is_korean_stock:
                 rss_url = f"https://news.google.com/rss/search?q={display_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
@@ -998,7 +1012,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {company_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [종목 혼동 완벽 차단]: 현재 분석 타겟은 무조건 '{company_name} ({ticker})'입니다. 수집된 기사 중 티커 철자나 이름이 비슷해서 섞여 들어온 전혀 다른 기업/ETF의 정보가 있다면 완전히 배제하세요.\n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 직접적 언급 금지."
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {company_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [종목 혼동 완벽 차단]: 현재 분석 타겟은 무조건 '{company_name} ({ticker})'입니다. 수집된 기사 중 티커 철자나 이름이 비슷해서 섞여 들어온 전혀 다른 기업/ETF의 정보가 있다면 완전히 배제하세요.\n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 직접적 언급 금지."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', 
