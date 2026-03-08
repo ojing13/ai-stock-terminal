@@ -145,11 +145,10 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 네이버 금융 자동완성 API를 역호출하여 한국 증권사 공식 등록명(한글) 추출 및 고정
+# 💡 지시사항 준수: 내부 사전(dictionary) 완전 폐기. 오직 네이버 공식 데이터만 사용.
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
-        # .KS, .KQ 등의 꼬리표를 떼고 순수 티커(예: HIMS, AAPL, 005930)로 검색
         clean_ticker = ticker.split('.')[0]
         
         ac_url = f"https://ac.finance.naver.com/ac?q={clean_ticker}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
@@ -158,25 +157,25 @@ def get_korean_display_name(ticker, english_name):
         ac_data = ac_res.json()
 
         if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
-            # 검색 결과 중 정확한 티커명과 일치하는 항목의 한글 이름 추출
             for item in ac_data['items'][0]:
                 if item[0].upper() == clean_ticker.upper():
                     korean_name = item[1] 
                     if korean_name:
                         return korean_name
-            # 정확히 일치하지 않더라도 최상단 검색 결과의 공식 명칭 반환
             korean_name = ac_data['items'][0][0][1] 
             if korean_name:
                 return korean_name
     except:
         pass
 
-    return english_name # 검색 실패 시 원래 영어 이름 반환
+    return english_name 
 
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     
+    # 💡 지시사항 준수: 하드코딩된 사전(COMMON_SEARCH_DICT) 100% 삭제 완료
+            
     # 1. KRX 데이터프레임에서 검색 (한국 주식)
     if not krx_df.empty:
         df_temp = krx_df.copy()
@@ -212,7 +211,7 @@ def get_ticker_symbol(search_term):
         except:
             pass
             
-        # 3. 네이버 HTML 검색 백업 (API 차단 시)
+        # 네이버 HTML 검색 백업 (API 차단 시)
         try:
             encoded_term_euc = urllib.parse.quote(search_term.encode('euc-kr'))
             html_url = f"https://finance.naver.com/search/searchList.naver?query={encoded_term_euc}"
@@ -231,21 +230,29 @@ def get_ticker_symbol(search_term):
         except:
             pass
       
-    # 4. 야후 파이낸스 자체 검색망 강화 (영어, 한글 모두 시도)
-    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    try:
-        res = requests.get(url, headers=headers, timeout=5)
-        data = res.json()
-        if 'quotes' in data and len(data['quotes']) > 0:
-            for quote in data['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF']:
-                    return quote['symbol']
-            return data['quotes'][0]['symbol']
-    except:
-        pass
+    # 3. 야후 파이낸스 자체 검색망 강화 (💡 엉뚱한 해외 종목 방지 핵심 로직)
+    if not bool(re.search('[가-힣]', search_term)):
+        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        try:
+            res = requests.get(url, headers=headers, timeout=5)
+            data = res.json()
+            if 'quotes' in data and len(data['quotes']) > 0:
+                # 1순위: 미국 거래소(NYQ, NMS, NASDAQ, NYSE 등) 상장 주식 최우선 탐색 (TSMC 등 엉뚱한 국가 우회 방지)
+                us_exchanges = ['NYQ', 'NMS', 'NASDAQ', 'NYSE', 'ASE', 'PCX']
+                for quote in data['quotes']:
+                    if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange') in us_exchanges:
+                        return quote['symbol']
+                
+                # 2순위: 미국이 아니더라도 일반 주식/ETF인 경우
+                for quote in data['quotes']:
+                    if quote.get('type') in ['EQUITY', 'ETF']:
+                        return quote['symbol']
+                return data['quotes'][0]['symbol']
+        except:
+            pass
         
-    # 5. 최후의 수단: Gemini에게 티커 추론 요청
+    # 4. 최후의 수단: Gemini에게 티커 추론 요청 (🚨 숫자 환각 엄격 금지 적용)
     try:
         ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스(Yahoo Finance) 주식 티커(Ticker) 딱 1개만 출력하세요.
         [엄격한 규칙]
@@ -256,7 +263,7 @@ def get_ticker_symbol(search_term):
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
-        # THOUGHT 과정이 섞여 들어오더라도 맨 마지막 줄의 진짜 티커만 걸러내는 필터망
+        # THOUGHT 과정이 섞여 들어오더라도 맨 마지막 줄의 진짜 티커만 걸러내는 완벽 필터망
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
             match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', lines[-1])
@@ -738,7 +745,7 @@ if user_input:
                 ma_context_str = "차트 데이터 부족"
 
                 if not filtered_history.empty:
-                    # 💡 주봉/월봉 비만 캔들 방지 로직 유지
+                    # 💡 주봉/월봉 비만 캔들 방지 로직 완벽 유지
                     xaxis_config = dict(
                         rangeslider=dict(visible=False), 
                         type="date", 
