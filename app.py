@@ -10,7 +10,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import math
 import re
-import urllib.parse # 네이버 인코딩을 위해 추가
+import urllib.parse
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
@@ -131,7 +131,8 @@ except:
     
 client = genai.Client(api_key=MY_API_KEY)
 
-@st.cache_data
+# 빈 데이터 저장 방지를 위해 1시간 단위 캐시 설정
+@st.cache_data(ttl=3600)
 def load_krx_data():
     try:
         return fdr.StockListing('KRX')
@@ -148,7 +149,7 @@ krx_df = load_krx_data()
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     
-    # 1. KRX 데이터프레임에서 검색 (복사본 사용하여 경고/오류 방지)
+    # 1. KRX 데이터프레임에서 검색
     if not krx_df.empty:
         df_temp = krx_df.copy()
         search_clean = search_term.replace(" ", "").upper()
@@ -160,23 +161,27 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 강력한 백업: 한글 검색어일 경우 네이버 금융 직접 크롤링 검색 (인코딩 수정 완료)
+    # 2. 강력하고 안정적인 백업: 네이버 자동완성 및 모바일 JSON API 활용 (에러 확률 극히 낮음)
     if bool(re.search('[가-힣]', search_term)):
         try:
-            # 네이버 금융 검색은 EUC-KR 인코딩을 요구함
-            encoded_term = urllib.parse.quote(search_term.encode('euc-kr'))
-            url = f"https://finance.naver.com/search/searchList.naver?query={encoded_term}"
-            res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}, timeout=5)
-            soup = BeautifulSoup(res.text, 'html.parser')
-            a_tag = soup.select_one('td.tit a')
-            if a_tag and 'code=' in a_tag['href']:
-                code = a_tag['href'].split('code=')[1]
-                tr = a_tag.find_parent('tr')
-                tds = tr.find_all('td')
-                if len(tds) > 2:
-                    market_str = tds[2].text.strip()
-                    if '코스피' in market_str: return f"{code}.KS"
-                    else: return f"{code}.KQ"
+            # 네이버 금융 자동완성 API 호출
+            ac_url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(search_term)}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
+            ac_res = requests.get(ac_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+            ac_data = ac_res.json()
+            
+            if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
+                code = ac_data['items'][0][0][0] # 6자리 종목코드 추출
+                
+                # 종목코드를 이용해 네이버 모바일 API에서 코스피/코스닥 판별
+                basic_url = f"https://m.stock.naver.com/api/stock/{code}/basic"
+                basic_res = requests.get(basic_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+                if basic_res.status_code == 200:
+                    basic_data = basic_res.json()
+                    market = basic_data.get('stockType', '')
+                    if market.lower() == 'kospi':
+                        return f"{code}.KS"
+                    else:
+                        return f"{code}.KQ"
                 else:
                     return f"{code}.KQ"
         except:
@@ -190,7 +195,7 @@ def get_ticker_symbol(search_term):
     }
     if search_term in us_dict: return us_dict[search_term]
       
-    # 4. 한글이 없는 영어 검색어인 경우 Yahoo Finance 검색
+    # 4. 한글이 없는 영어 검색어인 경우 Yahoo Finance 자체 검색
     if not bool(re.search('[가-힣]', search_term)):
         url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -409,10 +414,10 @@ with col_search:
 if user_input:
     ticker = get_ticker_symbol(user_input)
     
-    # YFDataException 해결을 위해 임의 세션 주입 코드를 제거하고 기본 Ticker 호출 방식으로 복구했습니다.
+    # ⚠️ 중요: YFDataException을 막기 위해 session 인자를 절대 넣지 않습니다.
     stock = yf.Ticker(ticker)
     
-    # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit 발생 시 빈 데이터프레임으로 넘기기
+    # 야후 파이낸스 Rate Limit 발생 시 빈 데이터프레임으로 넘기기
     try:
         hist_basic = stock.history(period="1d")
     except Exception:
@@ -421,7 +426,6 @@ if user_input:
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
         
-        # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit
         try:
             info = stock.info
         except Exception:
@@ -432,7 +436,6 @@ if user_input:
         
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
         
-        # ⚠️ 방어 코드: 재무제표 관련 데이터
         try: fin_df = stock.financials
         except: fin_df = pd.DataFrame()
         try: bs_df = stock.balance_sheet
@@ -446,7 +449,6 @@ if user_input:
         
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
-        # 뉴스 기사 수집량 100개
         try:
             if is_korean_stock:
                 rss_url = f"https://news.google.com/rss/search?q={user_input}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
