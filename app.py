@@ -472,17 +472,38 @@ if user_input:
         current_price = hist_basic['Close'].iloc[-1]
         
         # ==========================================
-        # 💡 핵심 로직: 오타 수정을 위한 공식 종목명 추출
+        # 💡 핵심 로직 보강: 한국 주식 공식 명칭 추출 (이중 안전장치)
         # ==========================================
         display_name = user_input # 기본값은 사용자 입력
         
-        # 1. 한국 주식: KRX DB를 뒤져서 공식 등록 명칭(예: 삼성전쟈 -> 삼성전자) 강제 매칭
+        # 1. 한국 주식: KRX DB 매칭 시도 -> 실패 시 네이버 API로 공식 명칭 강제 추출
         if ticker.endswith('.KS') or ticker.endswith('.KQ'):
             code_only = ticker.split('.')[0]
+            name_found = False
+            
             if not krx_df.empty:
                 match_name = krx_df[krx_df['Code'] == code_only]
                 if not match_name.empty:
                     display_name = match_name.iloc[0]['Name']
+                    name_found = True
+
+            # 클라우드 서버에서 KRX DB가 막혀있을 경우 네이버 모바일 API로 직접 명칭 추출
+            if not name_found:
+                try:
+                    basic_url = f"https://m.stock.naver.com/api/stock/{code_only}/basic"
+                    basic_res = requests.get(basic_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
+                    if basic_res.status_code == 200:
+                        fetched_name = basic_res.json().get('stockName')
+                        if fetched_name:
+                            display_name = fetched_name
+                            name_found = True
+                except:
+                    pass
+                
+                # 최후의 보루: Yahoo Finance의 영문/혼합 이름이라도 추출
+                if not name_found and info and 'shortName' in info:
+                    display_name = info['shortName']
+
         # 2. 해외 주식: 딕셔너리에 등록된 한글 명칭(마소 -> 마이크로소프트) 우선 사용
         else:
             reverse_us_dict = {v: k for k, v in US_STOCK_DICT.items()}
@@ -630,7 +651,7 @@ if user_input:
         with tab1:
             col_price, col_interval = st.columns([3, 1])
             with col_price:
-                # 오타가 교정된 이름(display_name)으로 차트 헤더 표시
+                # ⚠️ 오타 교정된 이름(display_name)으로 차트 헤더 표시
                 st.markdown(f"### {display_name} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
             
             with col_interval:
@@ -732,7 +753,7 @@ if user_input:
                     )
                     
                     fig.update_layout(
-                        # 오타 교정된 이름(display_name)으로 차트 내부 타이틀도 변경
+                        # ⚠️ 차트 내부 타이틀도 교정된 이름(display_name)으로 변경
                         title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                         template="plotly_dark",
                         dragmode=False, 
@@ -790,7 +811,7 @@ if user_input:
                     weekly_csv = get_formatted_history("1wk", [(13, "", ""), (26, "", ""), (52, "", "")])
                     monthly_csv = get_formatted_history("1mo", [(9, "", ""), (24, "", ""), (60, "", "")])
 
-                    # 프롬프트에도 교정된 종목명 적용
+                    # ⚠️ 프롬프트에도 교정된 종목명(display_name) 적용
                     prompt = f"""종목 {display_name}({ticker})의 일봉, 주봉, 월봉 전체 가격(시가/고가/저가/종가) 및 이동평균선(MA) 데이터와 최신 시장 동향입니다.
                     
                     [최신 시장 동향 백그라운드 (참고용)]
