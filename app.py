@@ -146,7 +146,6 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 네이버 금융 자동완성 API를 역호출하여 한국 증권사 공식 등록명(한글) 추출 및 고정
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
@@ -167,7 +166,6 @@ def get_korean_display_name(ticker, english_name):
                 return korean_name
     except:
         pass
-
     return english_name
 
 @st.cache_data(ttl=3600)
@@ -175,7 +173,6 @@ def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     search_clean = search_term.replace(" ", "").upper()
     
-    # 0. 야후 파이낸스 버그 방지용 강력한 1:1 강제 매핑 (가장 빠르고 확실함)
     custom_mapping = {
         "TSMC": "TSM",
         "티에스엠씨": "TSM",
@@ -205,7 +202,6 @@ def get_ticker_symbol(search_term):
     if search_clean in custom_mapping:
         return custom_mapping[search_clean]
 
-    # 1. KRX 데이터프레임에서 검색 (한국 주식)
     if not krx_df.empty:
         df_temp = krx_df.copy()
         df_temp['Name_clean'] = df_temp['Name'].astype(str).str.replace(" ", "").str.upper()
@@ -216,7 +212,6 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 강력한 백업: 네이버 금융 자동완성 API
     try:
         encoded_term = urllib.parse.quote(search_term)
         ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
@@ -238,7 +233,6 @@ def get_ticker_symbol(search_term):
     except:
         pass
             
-    # 3. 네이버 HTML 검색 백업
     try:
         encoded_term_euc = urllib.parse.quote(search_term.encode('euc-kr'))
         html_url = f"https://finance.naver.com/search/searchList.naver?query={encoded_term_euc}"
@@ -257,7 +251,6 @@ def get_ticker_symbol(search_term):
     except:
         pass
       
-    # 4. 야후 파이낸스 자체 검색 (미국 시장 우선)
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
@@ -275,14 +268,13 @@ def get_ticker_symbol(search_term):
     except:
         pass
         
-    # 5. 최후의 수단: Gemini에게 티커 추론 요청
     try:
-        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스(Yahoo Finance) 주식 티커(Ticker) 딱 1개만 출력하세요.
+        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스 주식 티커 딱 1개만 출력하세요.
         [엄격한 규칙]
-        1. 미국 주식: 영문 티커 (예: AAPL, HIMS, TSLA, OKLO)
+        1. 미국 주식: 영문 티커 (예: AAPL, HIMS, TSLA)
         2. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
-        3. 🚨치명적 경고🚨: 검색어가 '힘스', '삼성증권' 등일 때 6자리 종목 코드를 완벽히 확신할 수 없다면 절대 임의의 6자리 숫자를 지어내지 마세요! 모르면 차라리 영문 티커(예: HIMS)를 내보내세요.
-        4. 사고 과정(Thinking process), 추가 설명, 마침표 없이 오직 '티커 기호' 하나만 출력하세요."""
+        3. 🚨치명적 경고🚨: 확신할 수 없다면 절대 임의의 숫자를 지어내지 마세요.
+        4. 사고 과정 추가 설명 없이 오직 '티커 기호' 하나만 출력하세요."""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
@@ -400,14 +392,8 @@ def augment_us_fundamentals(ticker, info):
     try:
         url = f"https://finviz.com/quote.ashx?t={ticker}"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Referer': 'https://finviz.com/',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            'Accept': 'text/html',
             'Upgrade-Insecure-Requests': '1'
         }
         res = requests.get(url, headers=headers, timeout=5)
@@ -445,7 +431,6 @@ def augment_us_fundamentals(ticker, info):
             if (v := parse_finviz_val(data_dict.get('Oper. Margin', '-'), True)) is not None: info['operatingMargins'] = v
             if (v := parse_finviz_val(data_dict.get('Profit Margin', '-'), True)) is not None: info['profitMargins'] = v
             if (v := parse_finviz_val(data_dict.get('Dividend %', '-'), True)) is not None: info['dividendYield'] = v
-            
             if (v_debt := parse_finviz_val(data_dict.get('Debt/Eq', '-'))) is not None: info['debtToEquity'] = v_debt * 100
             if (v := parse_finviz_val(data_dict.get('Current Ratio', '-'))) is not None: info['currentRatio'] = v
             if (v := parse_finviz_val(data_dict.get('Quick Ratio', '-'))) is not None: info['quickRatio'] = v
@@ -455,7 +440,7 @@ def augment_us_fundamentals(ticker, info):
 
 def get_article_text(url):
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
         res = requests.get(url, headers=headers, timeout=2, allow_redirects=True)
         soup = BeautifulSoup(res.text, 'html.parser')
         paragraphs = soup.find_all('p')
@@ -467,29 +452,23 @@ def get_article_text(url):
 @st.cache_data(ttl=600)
 def fetch_yf_data(ticker):
     stock = yf.Ticker(ticker)
-    
     try: hist_basic = stock.history(period="1d")
-    except Exception: hist_basic = pd.DataFrame()
-        
+    except: hist_basic = pd.DataFrame()
     try: info = stock.info
-    except Exception: info = {}
-        
+    except: info = {}
     try: fin_df = stock.financials
     except: fin_df = pd.DataFrame()
-        
     try: bs_df = stock.balance_sheet
     except: bs_df = pd.DataFrame()
-        
     try: cf_df = stock.cashflow
     except: cf_df = pd.DataFrame()
-        
     return hist_basic, info, fin_df, bs_df, cf_df
 
 @st.cache_data(ttl=600)
 def fetch_chart_history(ticker, interval):
     try:
         return yf.Ticker(ticker).history(period="max", interval=interval)
-    except Exception:
+    except:
         return pd.DataFrame()
 
 @st.cache_data(ttl=600)
@@ -506,12 +485,9 @@ def fetch_news_data(ticker, official_name, search_korean_news):
             title = item.find('title').text if item.find('title') is not None else "No title"
             link = item.find('link').text if item.find('link') is not None else "#"
             desc = item.find('description').text if item.find('description') is not None else ""
-            
             content = BeautifulSoup(desc, "html.parser").get_text() if desc else get_article_text(link)
-            content = content[:800].replace('\n', ' ')
-            news_list.append({"title": title, "link": link, "content": content})
-    except:
-        pass
+            news_list.append({"title": title, "link": link, "content": content[:800].replace('\n', ' ')})
+    except: pass
       
     if not news_list:
         try:
@@ -519,14 +495,9 @@ def fetch_news_data(ticker, official_name, search_korean_news):
             raw_news = stock.news
             for n in raw_news[:100]:
                 if isinstance(n, dict) and 'title' in n and 'link' in n:
-                    link = n['link']
-                    title = n['title']
-                    content = n.get('summary', '') 
-                    if not content:
-                        content = get_article_text(link)
-                    news_list.append({"title": title, "link": link, "content": content[:800].replace('\n', ' ')})
-        except:
-            pass
+                    content = n.get('summary', '') or get_article_text(n['link'])
+                    news_list.append({"title": n['title'], "link": n['link'], "content": content[:800].replace('\n', ' ')})
+        except: pass
     return news_list
 
 # ====================== 메인 ======================
@@ -541,19 +512,16 @@ if user_input:
     ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
     
-    # 캐시 꼬임 방지를 위해 딕셔너리 깊은 복사(deepcopy) 처리
     hist_basic, cached_info, fin_df, bs_df, cf_df = fetch_yf_data(ticker)
     info = copy.deepcopy(cached_info) if isinstance(cached_info, dict) else {}
   
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
-        
         display_name = user_input 
         
         if ticker.endswith('.KS') or ticker.endswith('.KQ'):
             code_only = ticker.split('.')[0]
             name_found = False
-            
             if not krx_df.empty:
                 match_name = krx_df[krx_df['Code'] == code_only]
                 if not match_name.empty:
@@ -569,8 +537,7 @@ if user_input:
                         if fetched_name:
                             display_name = fetched_name
                             name_found = True
-                except:
-                    pass
+                except: pass
                 
                 if not name_found and info and 'shortName' in info:
                     display_name = info['shortName']
@@ -587,15 +554,9 @@ if user_input:
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         is_japanese_stock = ticker.endswith('.T')
         
-        if is_korean_stock:
-            currency = "원"
-            price_fmt = ",.0f"
-        elif is_japanese_stock:
-            currency = "엔"
-            price_fmt = ",.0f"
-        else:
-            currency = "달러"
-            price_fmt = ",.2f"
+        if is_korean_stock: currency, price_fmt = "원", ",.0f"
+        elif is_japanese_stock: currency, price_fmt = "엔", ",.0f"
+        else: currency, price_fmt = "달러", ",.2f"
         
         search_korean_news = is_korean_stock or is_japanese_stock
         news_list = fetch_news_data(ticker, display_name, search_korean_news)
@@ -605,13 +566,9 @@ if user_input:
             news_context_list.append(f"[{idx+1}] 제목: {item['title']}\n본문: {item.get('content', '본문 없음')}")
         news_context = "\n\n".join(news_context_list) if news_context_list else "수집된 실시간 데이터가 없습니다."
         
-        def fmt_pct(v, is_dividend=False):
+        def fmt_pct(v):
             if v == 'N/A' or v is None: return 'N/A'
-            try: 
-                val = float(v)
-                if is_dividend and val >= 1.0:
-                    return 'N/A'
-                return f"{val*100:.2f}%"
+            try: return f"{float(v)*100:.2f}%"
             except: return 'N/A'
             
         def fmt_flt(v, is_per=False):
@@ -619,7 +576,6 @@ if user_input:
             try: 
                 f = float(v)
                 if math.isnan(f) or math.isinf(f): return 'N/A'
-                # PER 값이 비정상적으로 높을 경우 필터링 추가 (확인 불가 텍스트 제거)
                 if is_per and f > 1000: return 'N/A'
                 return f"{f:,.2f}"
             except: return 'N/A'
@@ -627,7 +583,6 @@ if user_input:
         market_cap = info.get('marketCap', 0)
         high_52 = info.get('fiftyTwoWeekHigh')
         low_52 = info.get('fiftyTwoWeekLow')
-        
         high_52, low_52 = get_52w_high_low(stock, high_52, low_52)
         
         trailing_pe = safe_info(info, ['trailingPE', 'trailingPe', 'PE'])
@@ -645,33 +600,61 @@ if user_input:
             try:
                 op_inc = None
                 if not fin_df.empty:
-                    if 'Operating Income' in fin_df.index:
-                        op_inc = fin_df.loc['Operating Income'].iloc[0]
-                    elif 'EBIT' in fin_df.index:
-                        op_inc = fin_df.loc['EBIT'].iloc[0]
+                    if 'Operating Income' in fin_df.index: op_inc = fin_df.loc['Operating Income'].iloc[0]
+                    elif 'EBIT' in fin_df.index: op_inc = fin_df.loc['EBIT'].iloc[0]
                 
                 tot_assets = None
                 cur_liab = 0
                 if not bs_df.empty:
-                    if 'Total Assets' in bs_df.index:
-                        tot_assets = bs_df.loc['Total Assets'].iloc[0]
-                    if 'Current Liabilities' in bs_df.index:
-                        cur_liab = bs_df.loc['Current Liabilities'].iloc[0]
+                    if 'Total Assets' in bs_df.index: tot_assets = bs_df.loc['Total Assets'].iloc[0]
+                    if 'Current Liabilities' in bs_df.index: cur_liab = bs_df.loc['Current Liabilities'].iloc[0]
                 
                 if pd.notna(op_inc) and pd.notna(tot_assets) and float(tot_assets) > 0:
                     nopat = float(op_inc) * 0.75
                     invested_capital = float(tot_assets) - float(cur_liab if pd.notna(cur_liab) else 0)
-                    
-                    if invested_capital > 0:
-                        roic = nopat / invested_capital
-            except:
-                pass
+                    if invested_capital > 0: roic = nopat / invested_capital
+            except: pass
 
         gross_margin = safe_info(info, ['grossMargins', 'grossMargin'])
         net_margin = safe_info(info, ['profitMargins', 'netMargin'])
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
-        div_yield = safe_info(info, ['dividendYield', 'trailingAnnualDividendYield', 'yield'])
+        
+        # --- [안전한 배당수익률 추출 전용 함수] ---
+        def get_dividend_yield(info_dict, current_p):
+            candidates = []
+            dy = info_dict.get('dividendYield')
+            if dy is not None and str(dy).strip() != '' and str(dy).upper() != 'N/A':
+                try: candidates.append(float(dy))
+                except: pass
+                
+            tdy = info_dict.get('trailingAnnualDividendYield')
+            if tdy is not None and str(tdy).strip() != '' and str(tdy).upper() != 'N/A':
+                try: 
+                    curr = info_dict.get('currency', 'USD')
+                    f_curr = info_dict.get('financialCurrency', 'USD')
+                    val = float(tdy)
+                    # ADR 통화 불일치 버그 필터링 (4% 이상일 때만 제외)
+                    if curr != f_curr and val > 0.04: pass
+                    else: candidates.append(val)
+                except: pass
+                
+            rate = info_dict.get('dividendRate') or info_dict.get('trailingAnnualDividendRate')
+            if rate is not None and str(rate).strip() != '' and str(rate).upper() != 'N/A':
+                try:
+                    curr = info_dict.get('currency', 'USD')
+                    f_curr = info_dict.get('financialCurrency', 'USD')
+                    if curr == f_curr and current_p > 0:
+                        candidates.append(float(rate) / current_p)
+                except: pass
+                
+            # 비정상적인 버그 수치(30% 초과) 완벽 차단
+            for val in candidates:
+                if 0 <= val < 0.3: return val
+            return 'N/A'
+
+        div_yield = get_dividend_yield(info, current_price)
+        # ----------------------------------------
         
         debt = safe_info(info, ['debtToEquity'])
         current_ratio = safe_info(info, ['currentRatio'])
@@ -867,7 +850,6 @@ if user_input:
             
             if st.button("AI 차트 추세 분석 실행"):
                 with st.spinner("순수 기술적 관점에서 차트를 분석하는 중입니다..."):
-                    
                     def get_formatted_history(interval_str, ma_config):
                         try:
                             temp_hist = fetch_chart_history(ticker, interval_str)
@@ -883,58 +865,42 @@ if user_input:
                             df_export = temp_filtered[cols_to_export].copy()
                             df_export.index = df_export.index.strftime('%Y-%m-%d')
                             return df_export.tail(150).round(2).to_csv(header=True)
-                        except Exception:
-                            return ""
+                        except: return ""
 
                     daily_csv = get_formatted_history("1d", [(5, "", ""), (20, "", ""), (60, "", ""), (120, "", "")])
                     weekly_csv = get_formatted_history("1wk", [(13, "", ""), (26, "", ""), (52, "", "")])
                     monthly_csv = get_formatted_history("1mo", [(9, "", ""), (24, "", ""), (60, "", "")])
 
                     prompt = f"""종목 {display_name}({ticker})의 일봉, 주봉, 월봉 전체 가격(시가/고가/저가/종가) 및 이동평균선(MA) 데이터와 최신 시장 동향입니다.
-                    
-                    [최신 시장 동향 백그라운드 (참고용)]
-                    {news_context}
-                    
-                    [일봉 차트 데이터 내역 (Open, High, Low, Close, MAs)]
-                    {daily_csv}
-                    
-                    [주봉 차트 데이터 내역]
-                    {weekly_csv}
-                    
-                    [월봉 차트 데이터 내역]
-                    {monthly_csv}
-                    
-                    위 데이터를 바탕으로 실전 트레이더 수준의 깊이 있는 '기술적 분석(Technical Analysis)' 리포트를 작성해주세요. 
-                    
+                    [최신 시장 동향 백그라운드 (참고용)]\n{news_context}
+                    [일봉 차트 데이터 내역]\n{daily_csv}
+                    [주봉 차트 데이터 내역]\n{weekly_csv}
+                    [월봉 차트 데이터 내역]\n{monthly_csv}
+                    위 데이터를 바탕으로 실전 트레이더 수준의 깊이 있는 '기술적 분석' 리포트를 작성해주세요. 
                     [🚨 기술적 분석 핵심 지시사항 🚨]
-                    1. [프라이스 액션 중심 분석]: 이동평균선(MA) 수치만 기계적으로 나열하지 마세요!! 제공된 시가(Open), 고가(High), 저가(Low), 종가(Close) 데이터를 종합하여 캔들의 형태, 고점/저점의 돌파 여부, 심리적 지지와 저항선, 변동성 등 실전적인 **'프라이스 액션(Price Action)'** 관점으로 폭넓게 분석하세요.
-                    2. [정보 필터링]: 일봉, 주봉, 월봉을 모두 확인하되, 추세 설명에 꼭 필요한 유의미한 기술적 단서(특정 가격대, 매물대, 주요 돌파 지점 등)만 선별해서 자연스럽게 제시하세요.
-                    3. [이동평균선 표기 규칙]: 이동평균선을 언급할 때 '13-주 이동평균선'처럼 숫자와 단위 사이에 하이픈(-)을 절대 넣지 마세요. 반드시 '13주 이동평균선', '20일 이동평균선'과 같이 올바른 한국어로 작성하세요.
-                    4. 마크다운 수식 오류 방지: 가격 범위나 기간 표시 시 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'로 표기할 것)
-                    5. [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요. 소제목은 마크다운 헤딩(###)으로 작성하고, 문단과 문단 사이에는 빈 줄(Enter 2번)을 넣어 완벽하게 분리하세요.
-                    6. [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장 및 주요 지지/저항 가격은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 절대 변경하지 마세요.
+                    1. [프라이스 액션 중심 분석]: 제공된 데이터를 종합하여 캔들의 형태, 지지/저항선 등을 관점으로 폭넓게 분석하세요.
+                    2. [정보 필터링]: 꼭 필요한 유의미한 기술적 단서만 선별해서 자연스럽게 제시하세요.
+                    3. [이동평균선 표기 규칙]: 하이픈(-) 절대 금지.
+                    4. 마크다운 수식 오류 방지: 물결표 및 달러 기호 금지. (금액은 반드시 '{currency}'로 표기할 것)
+                    5. [가독성 철저]: 글머리 기호(-, *, • 등) 금지. 소제목은 마크다운 헤딩(###)으로 작성.
+                    6. [핵심 강조]: 중요한 단어나 문장은 반드시 **굵은 글씨(**)**로 강조.
                     7. [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요.
-                    8. [항목 제한]: 분석 항목은 무조건 '1. 단기적인 추세', '2. 장기적인 추세' 딱 두 가지만 출력하세요.
-                    9. [뉴스 및 기사 수 언급 절대 금지]: 당신은 100개의 최신 시장 동향 기사를 배경지식으로 제공받았지만, 출력물에 '100개의 기사를 분석했습니다', '뉴스에 따르면' 등의 언급을 절대 하지 마세요. 오직 차트와 가격 움직임을 바탕으로 하되, 배경지식을 활용해 틀린 분석(환각)을 하지 않는 용도로만 조용히 참고하세요.
+                    8. [항목 제한]: 분석 항목은 '1. 단기적인 추세', '2. 장기적인 추세' 두 가지만 출력하세요.
+                    9. [기사 수 언급 금지]: 기사 개수나 기사 출처를 직접 언급하지 마세요.
 
                     [출력 형식 가이드]
                     ### 1. 단기적인 추세 (Short-term trend)
-
-                    단기적인 가격 흐름과 매수/매도 모멘텀을 분석합니다. 유의미할 경우에 한해 프라이스 액션(캔들 흐름), 주요 지지/저항 가격, 단기 이평선 등을 근거로 자연스럽게 제시하세요. 글머리 기호 없이 일반 문단으로 작성하세요.
-
+                    (일반 문단 작성)
                     ### 2. 장기적인 추세 (Long-term trend)
-
-                    일/주/월봉을 아우르는 큰 흐름에서의 추세와 차트 구조를 분석합니다. 유의미할 경우에 한해 중장기 추세선, 거시적 가격대 돌파 여부 등을 언급하세요. 글머리 기호 없이 일반 문단으로 작성하세요.
+                    (일반 문단 작성)
                     """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', 
-                            contents=prompt,
-                            config={"temperature": 0.1}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
                         )
                         st.info(response.text)
                     except Exception as e:
-                        st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+                        st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
           
         # --- [탭 2: 상세 재무] ---
         with tab2:
@@ -957,7 +923,7 @@ if user_input:
             c3.metric("영업이익률", fmt_pct(op_margin))
             c3.metric("순이익률", fmt_pct(net_margin))
             c3.metric("매출 성장률", fmt_pct(rev_growth))
-            c3.metric("배당 수익률", fmt_pct(div_yield, is_dividend=True)) 
+            c3.metric("배당 수익률", fmt_pct(div_yield)) 
             
             c4.metric("부채비율", f"{debt}%" if debt != 'N/A' else 'N/A')
             c4.metric("유동비율", fmt_flt(current_ratio))
@@ -1025,8 +991,7 @@ if user_input:
                 with st.spinner("재무 데이터를 분석하는 중입니다..."):
                     prompt = f"""종목 {display_name}({ticker})의 상세 재무 데이터 및 최신 동향 텍스트입니다.
 
-[최신 동향 데이터]
-{news_context}
+[최신 동향 데이터]\n{news_context}
 
 [가치 및 수익성 지표]
 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PSR: {fmt_flt(psr)}, PEG: {fmt_flt(peg)}, EV/EBITDA: {fmt_flt(ev_ebitda)}
@@ -1035,37 +1000,28 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 [안정성 지표]
 부채비율: {debt}%, 유동비율: {fmt_flt(current_ratio)}, 당좌비율: {fmt_flt(quick_ratio)}, 이자보상배율: {interest_cov}
 [손익계산서]
-매출액: {v_rev}, 매출원가: {v_cogs}, 매출총이익: {v_gp}, 판매관리비: {v_sga}, 영업이익: {v_op}, 법인세차감전순이익: {v_pretax}, 당기순이익: {v_net}, 기타포괄손익: {v_oci}
+매출액: {v_rev}, 매출원가: {v_cogs}, 매출총이익: {v_gp}, 판매관리비: {v_sga}, 영업이익: {v_op}, 당기순이익: {v_net}
 [재무상태표]
-자산총계: {v_tot_assets} (유동자산: {v_cur_assets} [현금성자산: {v_cash}, 매출채권: {v_receiv}, 재고자산: {v_inv}], 비유동자산: {v_ncur_assets} [유형자산: {v_tangible}, 무형자산: {v_intangible}])
-부채총계: {v_tot_liab} (유동부채: {v_cur_liab} [단기차입금: {v_s_debt}], 비유동부채: {v_ncur_liab} [장기차입금: {v_l_debt}])
-자본총계: {v_tot_eq} (자본금: {v_cap_stock}, 자본잉여금: {v_cap_surplus}, 이익잉여금: {v_retained})
+자산총계: {v_tot_assets}, 부채총계: {v_tot_liab}, 자본총계: {v_tot_eq}
 [현금흐름표]
 기초현금: {v_cf_beg}, 영업활동현금흐름: {v_cf_op}, 투자활동현금흐름: {v_cf_inv}, 재무활동현금흐름: {v_cf_fin}, 배당금지급: {v_dividend}, 기말현금: {v_cf_end}
 
-이 모든 세부 재무 수치들을 종합적으로 분석하여 다음을 객관적으로 평가해주세요:
+이 수치들을 종합적으로 분석하여 평가해주세요:
 1. 현재 기업 가치의 고평가 또는 저평가 여부
 2. 기업의 재무적 안전성 및 리스크 판단
 3. 기업의 수익성 및 미래 성장 가능성
 
-🚨 [최고급 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
-- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.
-- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 1, 2, 3번 각 평가 항목은 마크다운 헤딩(###)으로 크고 명확하게 달고, 세부 분석은 빈 줄(Enter 2번)로 단락을 나누어 시원시원한 일반 문단으로 작성하세요.
-- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.
-- [재무 지표 중심의 서술]: 제공된 텍스트 동향은 오직 '재무 지표의 원인과 결과' 파악에만 조용히 참고하세요. 기술적 차트 이야기나 가십성 이슈는 배제하고, 철저히 '재무적 관점'에만 집중해서 평가하세요.
-- [뉴스 및 기사 수 언급 절대 금지]: "제공된 데이터에 따르면", "수집된 기사에서" 등의 표현을 완벽하게 금지합니다.
-- [입체적 재무 해석]: 부채비율이 높을 때 무조건 '착한 부채'로 포장하지 마세요. 이자보상배율, 현금흐름 등을 융합하여 객관적으로 판단하세요.
-- 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
+[지시사항]
+- 글머리 기호(-, *, • 등) 금지. 각 평가 항목은 마크다운 헤딩(###)으로 달 것.
+- 핵심은 **굵은 글씨(**)**로 강조. 물결표 및 달러 기호 금지. (금액은 반드시 '{currency}'으로 표기할 것)
 """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', 
-                            contents=prompt,
-                            config={"temperature": 0.1}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
                         )
                         st.info(response.text)
                     except Exception as e:
-                        st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+                        st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
                     
         # --- [탭 3: 최신 동향] ---
         with tab3:
@@ -1076,16 +1032,14 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news1:
                 if st.button("AI 최신 동향 브리핑"):
                     with st.spinner("최신 뉴스를 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용까지 꼼꼼하게 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 펀더멘털이나 향후 실적에 미칠 파급력까지 전문가의 시선으로 깊이 있게 브리핑해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 큼직하게 제목을 달고, 그 아래에 빈 줄(Enter 2번)을 띄운 뒤 일반 문단으로 길게 설명하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 단, 폰트 크기나 색상은 절대 임의로 변경하지 마세요.\n- 기사의 제목이나 본문 문장을 절대(Never) 따옴표로 묶어 그대로 인용하거나 복사하지 마세요. '기사에 따르면', '뉴스에서' 같은 단어도 절대 쓰지 마세요. 여러 기사의 맥락을 하나로 꿰어내어 완전히 당신만의 언어로 소화해서 작성하세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지."
+                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n{news_context}\n\n위 데이터의 본문 내용을 읽고, 현재 이 기업을 둘러싼 가장 치명적이고 중요한 핵심 이슈 3가지를 도출해주세요.\n- 글머리 기호 금지. 마크다운 헤딩(###)과 숫자로 제목을 달 것.\n- 기사의 제목이나 본문을 직접 인용/복사하지 말 것.\n- 달러 기호 금지."
                         try:
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash', 
-                                contents=prompt,
-                                config={"temperature": 0.1}
+                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
                             )
                             st.info(response.text)
                         except Exception as e:
-                            st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+                            st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
                         
                         st.markdown("---")
                         st.markdown("**📌 참고한 실시간 뉴스 원문 (클릭해서 바로 이동)**")
@@ -1098,16 +1052,14 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터들을 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 꿰뚫어 보고, 이것이 단기 및 중장기 주가 흐름에 어떤 압력(호재/악재)으로 작용할지 논리적으로 분석해주세요.\n\n🚨 [지시사항]: \n- [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.\n- [가독성 철저]: 글머리 기호(-, *, • 등 땡땡 표시)를 절대 사용하지 마세요! 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목을 달고, 그 아래에 빈 줄을 띄워 일반 문단으로 시원하게 작성하세요.\n- [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 투심이나 결론은 반드시 **굵은 글씨(**)**로 강조해서 가독성을 높이세요. 폰트 크기/색상은 절대 변경 금지.\n- 기사의 제목이나 본문 문장을 절대 그대로 인용(복사)하지 마세요. 거시경제나 산업 전반의 흐름을 엮어서 당신의 지식인 것처럼 꼼꼼하게 해석해주세요. 물결표 및 달러 기호 사용 금지.\n- [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 직접적 언급 금지."
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n{news_context}\n\n현재 시장 참여자들의 투자 심리(Fear & Greed)를 꿰뚫어 보고, 단기 및 중장기 주가 흐름에 미칠 영향을 분석해주세요.\n- 글머리 기호 금지. 마크다운 헤딩(###)으로 소제목을 달 것.\n- 달러 기호 금지."
                         try:
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash', 
-                                contents=prompt,
-                                config={"temperature": 0.1}
+                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
                             )
                             st.info(response.text)
                         except Exception as e:
-                            st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+                            st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
 
         # --- [탭 4: 종합 리포트] ---
         with tab4:
@@ -1115,63 +1067,30 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             if st.button("원클릭 종합 분석 리포트 생성"):
                 with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
                     prompt = f"""
-                    오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합적으로 분석해주세요.
-                    
+                    오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합 분석해주세요.
                     [1. 현재 가격 및 기술적 지표]
                     - 현재가: {current_price:{price_fmt}} {currency}
-                    - 52주 최고/최저: {high_52:{price_fmt}} {currency} / {low_52:{price_fmt}} {currency}
                     - 이동평균선 최근값: {ma_context_str}
-                    
                     [2. 주요 재무 및 펀더멘털 지표]
-                    - 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
-                    - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt}%
-                    - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}, 영업활동현금흐름: {v_cf_op}
+                    - 시가총액: {format_large_number(market_cap, currency)}, Trailing PER: {trailing_pe}, PBR: {pb}
+                    - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 부채비율: {debt}%
+                    - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}
                     - 배당 수익률: {fmt_pct(div_yield)}
+                    [3. 최신 시장 동향 요약]\n{news_context}
                     
-                    [3. 최신 시장 동향 및 기사 본문 요약]
-                    \n{news_context}
+                    반드시 4가지 항목을 작성해주세요: 1. 재무 상황 종합 평가 / 2. 시장 투심 및 향후 주가 흐름 예상 / 3. 상황별 대응 전략 / 4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가)
                     
-                    반드시 다음 4가지 항목을 포함하여 최고급 애널리스트처럼 한국어로 명확하게 작성해주세요.
-                    
-                    1. 재무 상황 종합 평가
-                    2. 시장 투심 및 향후 주가 흐름 예상
-                    3. 상황별 대응 전략 (현재 보유자 / 신규 매수 대기자 / 매도 고려자)
-                    4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가)
-                    
-                    [출력 형식 가이드]
-                    - 글머리 기호(-, *, • 등 땡땡 표시)는 일절 사용하지 마세요.
-                    - 각 항목의 제목(1, 2, 3, 4번)은 마크다운 헤딩(## 또는 ###)을 사용하여 크게 작성하세요.
-                    - 제목 아래에는 반드시 빈 줄(Enter 2번)을 띄우고 일반 문단으로 줄글을 작성하세요.
-                    
-                    [4번 항목 작성 예시]
-                    ### 4. 구체적인 가격 제시
-                    
-                    진입 추천가: 000 원
-                    
-                    논리적 근거: 차트를 분석하여 유의미한 기술적 지표(이평선, 지지/저항선 등)나 재무적 근거가 있을 경우에만 이를 포함하여 논리적으로 작성합니다.
-                    
-                    1차 목표가: 000 원
-                    
-                    논리적 근거: ... (필요한 경우에만 특정 기술적/가격적 근거를 자연스럽게 엮어서 설명)
-                    
-                    🚨 [최고급 퀀트 애널리스트 수준의 입체적 분석 지침 - 반드시 엄수할 것]
-                    - [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요. 반말은 절대 금지하며, 지나치게 깍듯한 극존칭은 피하고 깔끔한 전문가 톤을 유지하세요.
-                    - [가독성 철저]: 위 형식 가이드를 완벽히 지켜서, 땡땡 표시 없이 제목과 문단 구분을 통해 마치 잘 쓰여진 신문 기사나 리포트 본문처럼 보이게 하세요.
-                    - [균형 잡힌 차트 분석]: 기술적 지표를 언급할 때 이동평균선에만 집착하지 말고, 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 자연스럽게 설명하세요.
-                    - [핵심 강조]: 전체 리포트에서 핵심이 되는 주요 단어나 결과 문장은 반드시 **굵은 글씨(**)**로 강조해서 핵심을 짚어주세요. 폰트 변경은 불가합니다.
-                    - [직접 인용 및 작위적 표현 완벽 금지]: 리포트 내에 '뉴스', '기사', '헤드라인'이라는 단어를 아예 사용하지 마세요. 기사 문장을 절대 복사하지 마세요.
-                    - [배경 지식 총동원]: 제공된 수치와 텍스트에만 갇히지 마세요. 당신이 학습한 해당 기업의 최근 거시경제(금리, 인플레 등) 환경, 산업 트렌드(AI, 반도체 등),경쟁사 동향, 대규모 투자(CapEx) 현황을 융합하여 인과관계를 설명하세요.
-                    - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
-                    - [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지.
+                    [지시사항]
+                    - 글머리 기호 금지. 각 항목 제목은 마크다운 헤딩(###) 사용.
+                    - 달러 기호 금지. 금액은 반드시 '{currency}'으로 표기할 것.
+                    - 기사 수 언급, 직접 인용 절대 금지.
                     """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', 
-                            contents=prompt,
-                            config={"temperature": 0.1}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
                         )
                         st.info(response.text)
                     except Exception as e:
-                        st.error(f"⚠️ 현재 구글 AI 서버에 사용자가 몰려 연결이 지연되고 있어요(503 에러). 잠시 후 다시 버튼을 눌러주세요! (자세한 에러: {e})")
+                        st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 종목명이나 티커를 입력해 주세요!")
