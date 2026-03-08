@@ -133,16 +133,13 @@ client = genai.Client(api_key=MY_API_KEY)
 @st.cache_data
 def load_krx_data():
     try:
-        # 1차 시도: 전체 KRX 데이터
         return fdr.StockListing('KRX')
     except Exception:
         try:
-            # 2차 시도: KOSPI, KOSDAQ 분리해서 시도
             kospi = fdr.StockListing('KOSPI')
             kosdaq = fdr.StockListing('KOSDAQ')
             return pd.concat([kospi, kosdaq], ignore_index=True)
         except Exception:
-            # 모두 실패 시 빈 데이터프레임 반환 (앱 크래시 방지)
             return pd.DataFrame(columns=['Code', 'Name', 'Market'])
 
 krx_df = load_krx_data()
@@ -150,18 +147,37 @@ krx_df = load_krx_data()
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     
-    # 1. KRX 데이터프레임에서 검색 (공백 무시하여 일치율 향상)
+    # 1. KRX 데이터프레임에서 검색 (복사본 사용하여 경고/오류 방지)
     if not krx_df.empty:
+        df_temp = krx_df.copy()
         search_clean = search_term.replace(" ", "").upper()
-        krx_df['Name_clean'] = krx_df['Name'].astype(str).str.replace(" ", "").str.upper()
-        match = krx_df[krx_df['Name_clean'] == search_clean]
+        df_temp['Name_clean'] = df_temp['Name'].astype(str).str.replace(" ", "").str.upper()
+        match = df_temp[df_temp['Name_clean'] == search_clean]
         if not match.empty:
             code = match.iloc[0]['Code']
             market = match.iloc[0]['Market']
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 자주 찾는 미국 주식 딕셔너리
+    # 2. 강력한 백업: 한글 검색어일 경우 네이버 금융 직접 크롤링 검색
+    if bool(re.search('[가-힣]', search_term)):
+        try:
+            url = f"https://finance.naver.com/search/searchList.naver?query={search_term}"
+            res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}, timeout=5)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            a_tag = soup.select_one('td.tit a')
+            if a_tag and 'code=' in a_tag['href']:
+                code = a_tag['href'].split('code=')[1]
+                tr = a_tag.find_parent('tr')
+                tds = tr.find_all('td')
+                if len(tds) > 2:
+                    market_str = tds[2].text.strip()
+                    if '코스피' in market_str: return f"{code}.KS"
+                    else: return f"{code}.KQ"
+        except:
+            pass
+
+    # 3. 자주 찾는 미국 주식 딕셔너리
     us_dict = {
         "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT",
         "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META",
@@ -169,7 +185,7 @@ def get_ticker_symbol(search_term):
     }
     if search_term in us_dict: return us_dict[search_term]
       
-    # 3. ZIM 버그 방지: 검색어에 한글이 없는 경우에만 Yahoo Finance 단순 검색 시도
+    # 4. 한글이 없는 영어 검색어인 경우 Yahoo Finance 검색
     if not bool(re.search('[가-힣]', search_term)):
         url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -184,7 +200,7 @@ def get_ticker_symbol(search_term):
         except:
             pass
         
-    # 4. 한국어 검색어이거나 위에서 못 찾은 경우 Gemini에게 직접 티커 추론 요청
+    # 5. 최후의 수단: Gemini에게 티커 추론 요청
     try:
         ticker_prompt = f"""당신은 금융 데이터 전문가입니다.
         다음 검색어에 해당하는 주식 종목의 정확한 Yahoo Finance 기준 Ticker(기호) 딱 1개만 출력하세요.
@@ -195,7 +211,6 @@ def get_ticker_symbol(search_term):
         검색어: {search_term}"""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
-        # 이상한 문장이 섞이지 않고 티커 형태인 경우만 반환
         if eng_ticker and len(eng_ticker) <= 15 and " " not in eng_ticker:
             return eng_ticker
     except:
@@ -388,7 +403,11 @@ with col_search:
 
 if user_input:
     ticker = get_ticker_symbol(user_input)
-    stock = yf.Ticker(ticker)
+    
+    # 세션 추가로 야후 파이낸스 차단 방지 강화
+    session = requests.Session()
+    session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+    stock = yf.Ticker(ticker, session=session)
     
     # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit 발생 시 빈 데이터프레임으로 넘기기
     try:
@@ -399,7 +418,7 @@ if user_input:
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
         
-        # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit (주로 여기서 발생)
+        # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit
         try:
             info = stock.info
         except Exception:
@@ -591,7 +610,6 @@ if user_input:
             
             interval = "1d" if interval_option == "일봉" else "1wk" if interval_option == "주봉" else "1mo"
             
-            # ⚠️ 방어 코드: 차트 히스토리
             try:
                 history = stock.history(period="max", interval=interval)
             except Exception:
@@ -633,7 +651,6 @@ if user_input:
                 ma_context_str = "차트 데이터 부족"
 
                 if not filtered_history.empty:
-                    # 빈 날짜(주말, 공휴일)를 추려내어 차트상 갭을 없애기 위한 로직
                     dt_all = pd.date_range(start=filtered_history.index.min(), end=filtered_history.index.max(), freq='D')
                     dt_obs = filtered_history.index.normalize()
                     dt_breaks = [d.strftime('%Y-%m-%d') for d in dt_all if d not in dt_obs]
@@ -698,7 +715,7 @@ if user_input:
                             type="date", 
                             hoverformat="%Y-%m-%d", 
                             fixedrange=True,
-                            rangebreaks=[dict(values=dt_breaks)] # 주말 및 공휴일 빈 공간 깔끔하게 제거!
+                            rangebreaks=[dict(values=dt_breaks)]
                         ),
                         yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
                         height=520,
