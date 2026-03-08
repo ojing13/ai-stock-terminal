@@ -145,18 +145,19 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 자주 찾는 주식 딕셔너리를 전역 변수로 분리 (넥슨 등 추가)
+# 💡 하이패스 사전 대폭 추가: 한국 국민 주식들을 추가해서 AI 오작동 원천 봉쇄!
 COMMON_SEARCH_DICT = {
     "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT", "마소": "MSFT",
     "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META", "페이스북": "META",
     "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD", 
     "TSMC": "TSM", "티에스엠씨": "TSM", "디어유": "376300.KQ", "QQQ": "QQQ",
-    "오클로": "OKLO", "팔란티어": "PLTR", "아이온큐": "IONQ", "넥슨": "3659.T"
+    "오클로": "OKLO", "팔란티어": "PLTR", "아이온큐": "IONQ", "넥슨": "3659.T",
+    "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "삼성증권": "016360.KS",
+    "카카오": "035720.KS", "네이버": "035420.KS", "NAVER": "035420.KS", "현대차": "005380.KS"
 }
 
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
-    # 속도를 위해 가장 자주 찾는 해외 주식은 즉시 매핑
     display_dict = {
         "AAPL": "애플", "TSLA": "테슬라", "NVDA": "엔비디아", "MSFT": "마이크로소프트",
         "GOOGL": "알파벳", "GOOG": "알파벳", "AMZN": "아마존", "META": "메타",
@@ -167,7 +168,6 @@ def get_korean_display_name(ticker, english_name):
     if ticker in display_dict:
         return display_dict[ticker]
     
-    # 사전에 없으면 네이버 금융 자동완성 API를 호출하여 증권사 공식 등록명(한글) 추출
     try:
         ac_url = f"https://ac.finance.naver.com/ac?q={ticker}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -187,13 +187,11 @@ def get_korean_display_name(ticker, english_name):
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     
-    # 1. 딕셔너리 매칭
     search_upper = search_term.upper()
     for key, val in COMMON_SEARCH_DICT.items():
         if search_upper == key.upper():
             return val
             
-    # 2. KRX 데이터프레임에서 검색
     if not krx_df.empty:
         df_temp = krx_df.copy()
         search_clean = search_term.replace(" ", "").upper()
@@ -205,7 +203,7 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 3. 강력한 백업: 네이버 금융 최신 API 활용
+    # 💡 이중 철통 백업: API가 막히면 웹페이지를 바로 뚫어서 가져오도록 보강
     if bool(re.search('[가-힣]', search_term)):
         try:
             encoded_term = urllib.parse.quote(search_term)
@@ -214,23 +212,36 @@ def get_ticker_symbol(search_term):
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
                 'Referer': 'https://finance.naver.com/'
             }
-            ac_res = requests.get(ac_url, headers=headers, timeout=5)
+            ac_res = requests.get(ac_url, headers=headers, timeout=3)
             ac_data = ac_res.json()
             
             if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
                 code = ac_data['items'][0][0][0]
                 market_str = ac_data['items'][0][0][2] 
-                
-                if '코스피' in market_str:
-                    return f"{code}.KS"
-                elif '코스닥' in market_str:
-                    return f"{code}.KQ"
-                else:
-                    return code
+                if '코스피' in market_str: return f"{code}.KS"
+                elif '코스닥' in market_str: return f"{code}.KQ"
+                else: return code
+        except:
+            pass
+            
+        try:
+            encoded_term_euc = urllib.parse.quote(search_term.encode('euc-kr'))
+            html_url = f"https://finance.naver.com/search/searchList.naver?query={encoded_term_euc}"
+            html_res = requests.get(html_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
+            soup = BeautifulSoup(html_res.text, 'html.parser')
+            a_tag = soup.select_one('td.tit a')
+            if a_tag and 'code=' in a_tag['href']:
+                code = a_tag['href'].split('code=')[1]
+                tr = a_tag.find_parent('tr')
+                tds = tr.find_all('td')
+                if len(tds) > 2:
+                    market_str = tds[2].text.strip()
+                    if '코스피' in market_str: return f"{code}.KS"
+                    elif '코스닥' in market_str: return f"{code}.KQ"
+                    else: return code
         except:
             pass
       
-    # 4. Yahoo Finance 자체 검색
     if not bool(re.search('[가-힣]', search_term)):
         url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -245,13 +256,14 @@ def get_ticker_symbol(search_term):
         except:
             pass
         
-    # 5. 최후의 수단: Gemini에게 티커 추론 요청 + 정규식 필터링
+    # 💡 AI 환각 방지 특별 교육 적용
     try:
         ticker_prompt = f"""당신은 금융 데이터 전문가입니다.
         다음 검색어에 해당하는 주식 종목의 정확한 Yahoo Finance 기준 Ticker(기호) 딱 1개만 출력하세요.
         - 한국 코스피 주식이면 뒤에 '.KS'를 붙이세요 (예: 삼성전자 -> 005930.KS)
         - 한국 코스닥 주식이면 뒤에 '.KQ'를 붙이세요 (예: 에코프로 -> 086520.KQ)
         - 미국 등 해외 주식이면 해당 국가의 올바른 티커를 쓰세요 (예: 애플 -> AAPL)
+        - 경고: 비슷한 이름의 다른 기업과 절대 혼동하지 마세요! (예: 삼성증권은 016360.KS, 미래에셋증권은 006800.KS 입니다. 검색어를 정확히 구별하세요.)
         검색어: {search_term}"""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
@@ -547,7 +559,6 @@ if user_input:
         
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
         
-        # 💡 화폐 단위 및 가격 포맷 수정: 일본 주식(.T)은 '엔'으로 표시하고 소수점 없애기
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         is_japanese_stock = ticker.endswith('.T')
         
@@ -561,7 +572,6 @@ if user_input:
             currency = "달러"
             price_fmt = ",.2f"
         
-        # 한국 뉴스 검색 조건에 일본 주식(넥슨 등 한글 검색어)도 포함되도록 개선
         search_korean_news = is_korean_stock or is_japanese_stock
         news_list = fetch_news_data(ticker, display_name, search_korean_news)
                 
