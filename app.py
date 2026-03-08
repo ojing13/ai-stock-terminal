@@ -10,6 +10,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import math
 import re
+import urllib.parse # 네이버 인코딩을 위해 추가
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
@@ -159,10 +160,12 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 강력한 백업: 한글 검색어일 경우 네이버 금융 직접 크롤링 검색
+    # 2. 강력한 백업: 한글 검색어일 경우 네이버 금융 직접 크롤링 검색 (인코딩 수정 완료)
     if bool(re.search('[가-힣]', search_term)):
         try:
-            url = f"https://finance.naver.com/search/searchList.naver?query={search_term}"
+            # 네이버 금융 검색은 EUC-KR 인코딩을 요구함
+            encoded_term = urllib.parse.quote(search_term.encode('euc-kr'))
+            url = f"https://finance.naver.com/search/searchList.naver?query={encoded_term}"
             res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}, timeout=5)
             soup = BeautifulSoup(res.text, 'html.parser')
             a_tag = soup.select_one('td.tit a')
@@ -174,6 +177,8 @@ def get_ticker_symbol(search_term):
                     market_str = tds[2].text.strip()
                     if '코스피' in market_str: return f"{code}.KS"
                     else: return f"{code}.KQ"
+                else:
+                    return f"{code}.KQ"
         except:
             pass
 
@@ -404,10 +409,8 @@ with col_search:
 if user_input:
     ticker = get_ticker_symbol(user_input)
     
-    # 세션 추가로 야후 파이낸스 차단 방지 강화
-    session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-    stock = yf.Ticker(ticker, session=session)
+    # YFDataException 해결을 위해 임의 세션 주입 코드를 제거하고 기본 Ticker 호출 방식으로 복구했습니다.
+    stock = yf.Ticker(ticker)
     
     # ⚠️ 방어 코드: 야후 파이낸스 Rate Limit 발생 시 빈 데이터프레임으로 넘기기
     try:
