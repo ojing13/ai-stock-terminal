@@ -8,28 +8,24 @@ import FinanceDataReader as fdr
 import xml.etree.ElementTree as ET
 import pandas as pd
 from bs4 import BeautifulSoup
-import math
-import re
+import math # nan 처리를 위해 추가
+import re # 영문 티커 감지용
 
-# --- [1. 세션 상태 및 완벽한 URL 파라미터 클릭 감지 로직] ---
+# --- [세션 상태(Session State) 초기화 - 검색 기록용] ---
 if 'search_history' not in st.session_state:
     st.session_state['search_history'] = []
 
-# HTML <a> 태그를 통해 들어온 클릭(검색/삭제) 이벤트를 가로채서 처리합니다.
-if "search" in st.query_params:
-    st.session_state["search_input_box"] = st.query_params["search"]
-    del st.query_params["search"]
+def set_search_input(term):
+    st.session_state['search_input_box'] = term
 
-if "delete" in st.query_params:
-    del_val = st.query_params["delete"]
-    if del_val in st.session_state["search_history"]:
-        st.session_state["search_history"].remove(del_val)
-    del st.query_params["delete"]
+def remove_from_history(term):
+    if term in st.session_state['search_history']:
+        st.session_state['search_history'].remove(term)
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
 
-# 최고급 웹 폰트 및 슬라이더/알약 UI CSS 완벽 세팅
+# 최고급 세련된 웹 폰트(Pretendard) 적용 및 테두리/밑줄 CSS, 모바일 최적화 UI 커스텀
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -39,100 +35,145 @@ st.markdown("""
     }
     h1, h2, h3 { font-weight: 700; letter-spacing: -0.5px; }
    
+    /* 모바일 환경 폰트 사이즈 조절 (타이틀 한 줄 표시) */
     @media (max-width: 768px) {
         h1 { font-size: 1.5rem !important; word-break: keep-all; }
     }
 
+    /* 탭(항목) 기본 디자인 - 두 줄 방지 */
     .stTabs [data-baseweb="tab-list"] { gap: 30px; border-bottom: 1px solid #e0e0e0; }
     .stTabs [data-baseweb="tab"] {
         height: 50px; font-size: 16px; font-weight: 600; color: #888888;
         border-bottom: 2px solid transparent !important;
     }
+   
+    /* 선택된 탭 검정색 한 줄로 변경 */
     .stTabs [aria-selected="true"] {
         color: #111111 !important;
         border-bottom: 2px solid #111111 !important;
         box-shadow: none !important;
     }
    
+    /* 일반 버튼 디자인 */
     .stButton>button { border-radius: 6px; font-weight: 600; border: 1px solid #cccccc; width: 100%; transition: 0.3s; }
     .stButton>button:hover { border-color: #007bff; color: #007bff; background-color: #f8f8f8; }
     div[data-baseweb="select"] { cursor: pointer; }
     
-    .stTextInput div[data-baseweb="input"]:focus-within,
+    /* 텍스트 입력창 클릭(포커스) 시 테두리 파란색으로 변경 */
+    .stTextInput div[data-baseweb="input"]:focus-within {
+        border-color: #007bff !important;
+        box-shadow: 0 0 0 1px #007bff !important;
+    }
+   
+    /* === Selectbox 편집 방지 및 테두리 파란색 === */
     div[data-baseweb="select"] > div:hover,
     div[data-baseweb="select"] > div:focus-within {
         border-color: #007bff !important;
         box-shadow: 0 0 0 1px #007bff !important;
     }
-    div[data-baseweb="select"] input { caret-color: transparent !important; user-select: none !important; }
+    div[data-baseweb="select"] input {
+        caret-color: transparent !important; 
+        user-select: none !important;
+    }
     
-    /* === 💥 완벽 교정: 슬라이더 바 & 동그란 손잡이 모두 빨간색으로 통일 === */
+    /* === 💥 슬라이더 바/손잡이 통일 (빨간색) === */
     div[data-testid="stSlider"] div[role="slider"] {
         background-color: #ff4b4b !important;
         border-color: #ff4b4b !important;
         box-shadow: none !important;
     }
-    div[data-testid="stSlider"] div[role="slider"]:hover,
-    div[data-testid="stSlider"] div[role="slider"]:focus {
-        box-shadow: 0 0 0 0.2rem rgba(255, 75, 75, 0.25) !important;
-    }
-    div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
-    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"] {
-        background-color: #ff4b4b !important;
-    }
-    [data-testid="stTickBarMin"], [data-testid="stTickBarMax"], [data-testid="stThumbValue"] {
+    [data-testid="stTickBarMin"],
+    [data-testid="stTickBarMax"],
+    [data-testid="stThumbValue"] {
         color: #ff4b4b !important;
         font-weight: 700 !important;
     }
     
+    /* === 재무제표 표 정렬 및 스타일 === */
     .fin-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; table-layout: fixed; }
     .fin-table th { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; color: #555; }
     .fin-table td { border-bottom: 1px solid #eee; padding: 8px; text-align: right; vertical-align: middle; }
-    .fin-table td:first-child { text-align: left; font-weight: 600; color: #333; width: 40%; word-break: break-all; }
-    div[data-testid="stMetricValue"] { white-space: normal !important; word-break: break-all !important; font-size: 1.4rem !important; line-height: 1.2 !important; }
-
-    /* === 💥 모바일/웹 완벽 대응: 순수 HTML 알약(Pill) UI 전용 CSS === */
-    .hist-pill-box {
-        display: flex;
-        align-items: center;
-        border: 1px solid #d1d5db;
-        border-radius: 16px;
-        background-color: #f8f9fa;
-        height: 32px;
-        overflow: hidden;
-        transition: border-color 0.2s;
-    }
-    .hist-pill-box:hover {
-        border-color: #adb5bd;
-    }
-    .hist-pill-text {
-        display: flex;
-        align-items: center;
-        height: 100%;
-        padding: 0 4px 0 12px;
-        font-size: 13px;
+    .fin-table td:first-child {
+        text-align: left;
         font-weight: 600;
-        color: #212529 !important;
-        text-decoration: none !important;
-        transition: background 0.2s;
+        color: #333;
+        width: 40%;
+        word-break: break-all;
     }
-    .hist-pill-text:hover { background-color: #e9ecef; }
-    .hist-pill-del {
-        display: flex;
-        align-items: center;
-        height: 100%;
-        padding: 0 12px 0 6px;
-        font-size: 11px; /* ✖ 버튼 크기 앙증맞게 축소 */
-        color: #adb5bd !important;
-        text-decoration: none !important;
-        transition: color 0.2s, background 0.2s;
+    
+    div[data-testid="stMetricValue"] {
+        white-space: normal !important;
+        word-break: break-all !important;
+        font-size: 1.4rem !important; 
+        line-height: 1.2 !important;
     }
-    .hist-pill-del:hover { background-color: #ffe3e3; color: #ff4b4b !important; font-weight: 900; }
 
-    /* 불필요한 UI 완벽 숨기기 */
+    /* === 💥 모바일/웹 완벽 대응: 검색기록 알약(Pill) UI 세팅 === */
+    /* 1. 세로로 쌓이는 현상 방지 & 가로로 꽉 차면 줄바꿈 (flex-wrap) */
+    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+        flex-direction: row !important;
+        gap: 0px !important;
+    }
+    /* 2. 각 컬럼의 너비를 내용물 크기에 딱 맞게 축소 (불필요한 공간 제거) */
+    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"] {
+        width: auto !important;
+        flex: 0 0 auto !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    /* 3. [왼쪽] 종목명 버튼 디자인 (하나의 박스처럼 보이게 둥근 모서리 처리) */
+    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(odd) button {
+        border-radius: 20px 0 0 20px !important;
+        border: 1px solid #ddd !important;
+        border-right: none !important;
+        background-color: #ffffff !important;
+        color: #333 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        padding: 2px 4px 2px 14px !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        margin-bottom: 8px !important;
+    }
+    /* 4. [오른쪽] '✖' 버튼 디자인 (박스 안에 작게 포함된 느낌) */
+    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(even) button {
+        border-radius: 0 20px 20px 0 !important;
+        border: 1px solid #ddd !important;
+        border-left: none !important;
+        background-color: #ffffff !important;
+        color: #aaa !important;
+        font-size: 10px !important;
+        padding: 2px 12px 2px 4px !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        margin-right: 8px !important; /* 다음 알약과의 간격 */
+        margin-bottom: 8px !important;
+    }
+    /* 5. 마우스를 올렸을 때 전체가 하나의 박스인 것처럼 색상 통일 */
+    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(odd) button:hover,
+    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(even) button:hover {
+        background-color: #f1f3f5 !important;
+        border-color: #ccc !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.search-history-container) div[data-testid="column"]:nth-child(even) button:hover {
+        color: #ff4b4b !important;
+    }
+
+    /* === 불필요한 UI 완벽 숨기기 === */
     .stDeployButton { display: none !important; }
     [data-testid="stStatusWidget"] * { display: none !important; }
-    [data-testid="stStatusWidget"]::after { content: "Loading..."; font-size: 14px; font-weight: 600; color: #888888; display: flex; align-items: center; padding: 5px 15px; }
+    [data-testid="stStatusWidget"]::after {
+        content: "Loading...";
+        font-size: 14px;
+        font-weight: 600;
+        color: #888888;
+        display: flex;
+        align-items: center;
+        padding: 5px 15px;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -158,11 +199,13 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
+# 💥 핵심 패치: 한 번 번역한 값은 무조건 캐싱, 그리고 AI 환각 절대 차단!
 @st.cache_data(show_spinner=False)
 def get_ticker_and_korean_name(search_term):
     search_term = search_term.strip()
     search_upper = search_term.upper()
     
+    # 1. 한국 주식인지 로컬(KRX)에서 먼저 완벽하게 확인
     if not krx_df.empty:
         match_name = krx_df[krx_df['Name'] == search_term]
         if not match_name.empty:
@@ -177,6 +220,7 @@ def get_ticker_and_korean_name(search_term):
             ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
             return ticker, match_code.iloc[0]['Name']
             
+    # 2. 유명한 주식/ETF 사전 매핑 (알잘딱깔센 고정 데이터)
     quick_map = {
         "애플": ("AAPL", "애플"), "APPLE": ("AAPL", "애플"), "AAPL": ("AAPL", "애플"),
         "테슬라": ("TSLA", "테슬라"), "TESLA": ("TSLA", "테슬라"), "TSLA": ("TSLA", "테슬라"),
@@ -213,10 +257,12 @@ def get_ticker_and_korean_name(search_term):
         if possible_ticker in quick_map:
             return quick_map[possible_ticker]
 
+    # 3. 🚨 철통 가드레일: 영문 1~5글자는 무조건 티커로 간주!
     is_pure_english_short = bool(re.match(r'^[A-Za-z]{1,5}$', search_term))
     if is_pure_english_short:
         return search_upper, search_upper
             
+    # 4. 그 외의 경우 AI에게 번역 위임
     try:
         prompt = f"""당신은 주식/ETF 종목 식별 전문가입니다.
 사용자의 검색어: "{search_term}"
@@ -432,7 +478,6 @@ display_name = ""
 info = {}
 hist_basic = pd.DataFrame()
 
-# 1. 입력 처리 및 검색어 정제
 if user_input:
     ticker, display_name = get_ticker_and_korean_name(user_input)
     is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
@@ -460,23 +505,24 @@ if user_input:
         st.session_state['search_history'].insert(0, display_name)
         st.session_state['search_history'] = st.session_state['search_history'][:10]
 
-# 2. 💥 완벽한 순수 HTML/CSS 검색기록 알약(Pill) UI 렌더링 (절대 깨지지 않음!)
+# 💥 검색기록 알약(Pill) UI 렌더링 (모바일 화면 자동 줄바꿈)
 if st.session_state['search_history']:
-    st.markdown("<div style='font-size: 13px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
-    
-    # HTML을 한 덩어리로 만들어서 가로 나열 + 자동 줄바꿈을 완벽히 구현합니다.
-    history_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">'
-    for term in st.session_state['search_history'][:5]:
-        history_html += f"""
-        <div class="hist-pill-box">
-            <a href="?search={term}" target="_self" class="hist-pill-text">{term}</a>
-            <a href="?delete={term}" target="_self" class="hist-pill-del">✖</a>
-        </div>
-        """
-    history_html += '</div>'
-    st.markdown(history_html, unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="search-history-container"></div>', unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 13px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
+        
+        # 각각의 아이템당 2개의 컬럼(이름, X버튼) 생성
+        history_items = st.session_state['search_history'][:5]
+        cols = st.columns(len(history_items) * 2)
+        
+        for i, term in enumerate(history_items):
+            with cols[i*2]:
+                st.button(term, key=f"hist_btn_{term}_{i}", on_click=set_search_input, args=(term,), use_container_width=True)
+            with cols[i*2 + 1]:
+                st.button("✖", key=f"del_btn_{term}_{i}", on_click=remove_from_history, args=(term,), use_container_width=True)
 
-# 3. 메인 주식 분석 로직 렌더링
+st.markdown("<br>", unsafe_allow_html=True)
+
 if user_input:
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
@@ -719,12 +765,11 @@ if user_input:
                     
                     fig = go.Figure()
                     
-                    # 💥 한국식 차트 색상 완벽 패치: 양봉(상승) 빨간색, 음봉(하락) 파란색
+                    # 💥 상승 양봉은 빨간색, 하락 음봉은 파란색 패치 완료!
                     fig.add_trace(go.Candlestick(
                         x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                         low=filtered_history['Low'], close=filtered_history['Close'],
-                        increasing_line_color='#ff4b4b', increasing_fillcolor='#ff4b4b',
-                        decreasing_line_color='#00b0ff', decreasing_fillcolor='#00b0ff',
+                        increasing_line_color='#ff4b4b', decreasing_line_color='#00b0ff',
                         name="가격"
                     ))
 
