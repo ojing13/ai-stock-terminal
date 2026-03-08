@@ -10,6 +10,20 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import math # nan 처리를 위해 추가
 
+# --- [세션 상태(Session State) 초기화 - 검색 기록용] ---
+if 'search_history' not in st.session_state:
+    st.session_state['search_history'] = []
+
+def handle_search_input():
+    term = st.session_state.get('search_input_box', '').strip()
+    if term:
+        # 이미 검색 기록에 있다면 지우고 최상단으로 올리기
+        if term in st.session_state['search_history']:
+            st.session_state['search_history'].remove(term)
+        st.session_state['search_history'].insert(0, term)
+        # 최대 5개까지만 저장 (너무 길어지지 않게 방지)
+        st.session_state['search_history'] = st.session_state['search_history'][:5]
+
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
 
@@ -384,10 +398,34 @@ def get_article_text(url):
 st.title("웅이의 AI 주식 분석 터미널")
 st.markdown("---")
 
+# 검색창 영역
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL)", "")
+    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL)", key="search_input_box", on_change=handle_search_input)
 
+# 검색창 바로 아래에 검색 기록 표시 (전체 화면 넓게 사용)
+if st.session_state['search_history']:
+    st.markdown("<div style='font-size: 14px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
+    hist_cols = st.columns(8) # 전체 화면을 8등분 (최대 5개 표시)
+    
+    for i, term in enumerate(st.session_state['search_history']):
+        if i < 5:
+            with hist_cols[i]:
+                # 각각의 버튼을 종목명 버튼(7)과 X 버튼(3)으로 분할
+                c1, c2 = st.columns([7, 3], gap="small")
+                with c1:
+                    if st.button(term, key=f"hist_btn_{term}_{i}", use_container_width=True):
+                        st.session_state['search_input_box'] = term
+                        handle_search_input() # 클릭하면 최상단으로 순서 갱신
+                        st.rerun()
+                with c2:
+                    if st.button("✖", key=f"del_btn_{term}_{i}", use_container_width=True):
+                        st.session_state['search_history'].remove(term)
+                        st.rerun()
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# 검색어가 존재할 경우 분석 로직 실행
 if user_input:
     ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
