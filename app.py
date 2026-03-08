@@ -468,7 +468,6 @@ def fetch_yf_data(ticker):
     except: bs_df = pd.DataFrame()
     try: cf_df = stock.cashflow
     except: cf_df = pd.DataFrame()
-    # 배당금 직접 계산을 위한 시리즈 추가
     try: div_series = stock.dividends
     except: div_series = pd.Series()
     return hist_basic, info, fin_df, bs_df, cf_df, div_series
@@ -521,7 +520,6 @@ if user_input:
     ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
     
-    # div_series 변수 추가로 받기
     hist_basic, cached_info, fin_df, bs_df, cf_df, div_series = fetch_yf_data(ticker)
     info = copy.deepcopy(cached_info) if isinstance(cached_info, dict) else {}
   
@@ -630,21 +628,17 @@ if user_input:
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
         
-        # --- [가장 완벽한 무적의 배당수익률 계산 로직] ---
         def get_robust_dividend_yield(info_dict, div_data, current_p):
             candidates = []
             
-            # 1. API에서 제공하는 기본 배당 항목 우선 탐색
             for key in ['dividendYield', 'yield']:
                 val = info_dict.get(key)
                 if val is not None and str(val).strip() != '' and str(val).upper() != 'N/A':
                     try: candidates.append(float(val))
                     except: pass
             
-            # 2. (핵심) 야후가 정보를 안 주면 최근 1년 실제 배당금을 주가로 직접 나눠버림
             try:
                 if not div_data.empty and current_p > 0:
-                    # 마지막 배당일 기준으로 1년(365일) 전 데이터까지만 합산
                     one_year_ago = div_data.index[-1] - pd.Timedelta(days=365)
                     recent_divs = div_data[div_data.index > one_year_ago]
                     if not recent_divs.empty:
@@ -652,26 +646,22 @@ if user_input:
             except Exception:
                 pass
             
-            # 3. 마지막 수단: Trailing 데이터 (단, ADR 환율 버그 방지)
             tdy = info_dict.get('trailingAnnualDividendYield')
             if tdy is not None and str(tdy).strip() != '' and str(tdy).upper() != 'N/A':
                 try: 
                     curr = info_dict.get('currency', 'USD')
                     f_curr = info_dict.get('financialCurrency', 'USD')
                     val = float(tdy)
-                    # 대만 달러 등을 미국 달러 주가로 나누는 버그 데이터(5% 이상 시)는 과감히 버림
                     if curr != f_curr and val > 0.05: pass
                     else: candidates.append(val)
                 except: pass
                 
-            # 수집된 후보 중, 현실적인 수익률(0.00% 초과, 30% 미만)인 진짜 데이터만 반환
             for val in candidates:
                 if 0 < val < 0.3: return val
                 
             return 'N/A'
 
         div_yield = get_robust_dividend_yield(info, div_series, current_price)
-        # -----------------------------------------------
         
         debt = safe_info(info, ['debtToEquity'])
         current_ratio = safe_info(info, ['currentRatio'])
@@ -1031,6 +1021,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 [지시사항]
 - 글머리 기호(-, *, • 등) 금지. 각 평가 항목은 마크다운 헤딩(###)으로 달 것.
 - 핵심은 **굵은 글씨(**)**로 강조. 물결표 및 달러 기호 금지. (금액은 반드시 '{currency}'으로 표기할 것)
+- [뉴스 활용 제한]: 제공된 최신 동향 데이터에서는 오직 '재무 관련 정보'만 선별하여 평가에 활용하세요. 가십성 이슈나 단순 주가 등락 이유는 배제하세요.
+- [출처 표기 절대 금지]: 괄호 안에 기사 번호를 적는 행위(예: 1, 2, 3)나 출처를 짐작할 수 있는 인용구를 완벽하게 금지합니다. 기사에서 가져온 내용이라도 번호 표시나 직접 인용 없이 완전히 자연스러운 본인의 분석 문장으로만 작성하세요.
 """
                     try:
                         response = client.models.generate_content(
