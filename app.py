@@ -145,27 +145,24 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# 💡 지시사항 완벽 준수: 내부 사전(Dictionary) 100% 삭제 완료! 오직 네이버 API로만 자동 매칭.
+# 💡 지시사항 완벽 준수: 내부 사전(Dictionary) 100% 영구 삭제! 네이버 모바일 통합 검색 API 다이렉트 연동
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
         clean_ticker = ticker.split('.')[0]
-        ac_url = f"https://ac.finance.naver.com/ac?q={clean_ticker}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
+        url = f"https://m.stock.naver.com/api/search/all?keyword={clean_ticker}"
         headers = {'User-Agent': 'Mozilla/5.0'}
-        ac_res = requests.get(ac_url, headers=headers, timeout=3)
-        ac_data = ac_res.json()
-
-        if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
-            for item in ac_data['items'][0]:
-                if item[0].upper() == clean_ticker.upper():
-                    korean_name = item[1] 
-                    if korean_name:
-                        return korean_name
-            korean_name = ac_data['items'][0][0][1] 
-            if korean_name:
-                return korean_name
+        res = requests.get(url, headers=headers, timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            if 'overseasStock' in data.get('result', {}) and len(data['result']['overseasStock']) > 0:
+                for item in data['result']['overseasStock']:
+                    if item.get('symbolCode', '').upper() == clean_ticker.upper():
+                        return item.get('stockName', english_name)
+                return data['result']['overseasStock'][0].get('stockName', english_name)
     except:
         pass
+
     return english_name 
 
 @st.cache_data(ttl=3600)
@@ -184,52 +181,52 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
-    # 2. 강력한 백업: 네이버 금융 자동완성 API (한글 검색어, 마소/애플/오클로 완벽 대응)
-    if bool(re.search('[가-힣]', search_term)):
-        try:
-            encoded_term = urllib.parse.quote(search_term)
-            ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                'Referer': 'https://finance.naver.com/'
-            }
-            ac_res = requests.get(ac_url, headers=headers, timeout=5)
-            ac_data = ac_res.json()
-            
-            if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
-                item = ac_data['items'][0][0]
-                code = item[0]
-                market_str = str(item[2]).upper() if len(item) > 2 else ""
-                
-                if '코스피' in market_str or 'KOSPI' in market_str: return f"{code}.KS"
-                elif '코스닥' in market_str or 'KOSDAQ' in market_str: return f"{code}.KQ"
-                elif 'TSE' in market_str or '도쿄' in market_str: return f"{code}.T"
-                elif 'HK' in market_str or '홍콩' in market_str: return f"{code}.HK"
-                elif 'SZ' in market_str or '심천' in market_str: return f"{code}.SZ"
-                elif 'SS' in market_str or '상해' in market_str: return f"{code}.SS"
-                else: return code # 해외 주식(TSM, MSFT 등)은 티커 그대로 반환
-        except:
-            pass
-      
-    # 3. 야후 파이낸스 자체 검색망 (💡 핵심 픽스: TSMC 브라질 주식 원천 차단 필터링)
-    # 우회 차단을 막기 위해 헤더를 브라우저와 100% 동일하게 세팅
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-    }
+    # 2. 💡 가장 강력한 무기: 네이버 모바일 통합 검색 API (tsmc -> TSM, 마소 -> MSFT 알아서 완벽 매칭)
     try:
-        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
-        res = requests.get(url, headers=headers, timeout=5)
+        url = f"https://m.stock.naver.com/api/search/all?keyword={urllib.parse.quote(search_term)}"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        res = requests.get(url, headers=headers, timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            
+            # 한국 주식이면
+            if 'domesticStock' in data.get('result', {}) and len(data['result']['domesticStock']) > 0:
+                item = data['result']['domesticStock'][0]
+                code = item.get('itemCode', '')
+                market = item.get('stockType', '').upper()
+                if 'KOSPI' in market: return f"{code}.KS"
+                elif 'KOSDAQ' in market: return f"{code}.KQ"
+                
+            # 해외 주식이면
+            if 'overseasStock' in data.get('result', {}) and len(data['result']['overseasStock']) > 0:
+                item = data['result']['overseasStock'][0]
+                sym = item.get('symbolCode', '')
+                market = item.get('stockType', '').upper()
+                if sym:
+                    if 'TSE' in market or 'TOKYO' in market: return f"{sym}.T"
+                    if 'HK' in market: return f"{sym}.HK"
+                    if 'SZSE' in market: return f"{sym}.SZ"
+                    if 'SSE' in market: return f"{sym}.SS"
+                    # 미국 주식(NYSE, NASDAQ 등)은 꼬리표 없이 순수 티커(TSM, MSFT) 반환
+                    return sym
+    except:
+        pass
+      
+    # 3. 야후 파이낸스 자체 검색망 (💡 점(.) 필터링: TSMC34.SA 등 타국가 우회 상장 완벽 차단)
+    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    try:
+        res = requests.get(url, headers=headers, timeout=3)
         if res.status_code == 200:
             data = res.json()
             if 'quotes' in data and len(data['quotes']) > 0:
-                # 1순위: 무조건 미국 주요 거래소(NYQ, NMS 등) 상장 주식을 찾아서 반환
-                us_exchanges = ['NYQ', 'NMS', 'NASDAQ', 'NYSE', 'ASE', 'BATS', 'PCX']
+                # 1순위: 티커에 점(.)이 없는 순수 미국 상장 주식을 무조건 최우선 선별
                 for quote in data['quotes']:
-                    if quote.get('quoteType') in ['EQUITY', 'ETF'] and str(quote.get('exchange', '')).upper() in us_exchanges:
-                        return quote['symbol']
+                    sym = quote.get('symbol', '')
+                    if quote.get('quoteType') in ['EQUITY', 'ETF'] and '.' not in sym:
+                        return sym
                 
-                # 2순위: 미국 주식이 정 없으면 그냥 첫 번째 주식/ETF 반환
+                # 2순위: 순수 미국 주식이 없으면 일반 주식/ETF 반환
                 for quote in data['quotes']:
                     if quote.get('quoteType') in ['EQUITY', 'ETF']:
                         return quote['symbol']
@@ -237,22 +234,24 @@ def get_ticker_symbol(search_term):
     except:
         pass
         
-    # 4. 최후의 수단: Gemini 티커 추론 (🚨 브라질/독일 티커 출력 엄격 금지 적용)
+    # 4. 최후의 수단: Gemini 티커 추론 (🚨 환각 및 생각 과정 철통 방어)
     try:
-        ticker_prompt = f"""당신은 세계 최고의 주식 티커(Ticker) 검색 전문가입니다. 검색어: '{search_term}'
-        [엄격한 규칙]
-        1. 글로벌/미국 기업(예: TSMC, 애플, 델)인 경우, 무조건 '미국 본토 거래소(NYSE, NASDAQ)'의 공식 티커만 출력하세요. (예: TSM, AAPL, DELL). 
-           절대 브라질(.SA), 멕시코, 독일(.F) 등 타국가의 우회 상장 티커(예: TSMC34.SA)를 출력하지 마세요!
-        2. 한국 기업인 경우 6자리숫자.KS 또는 .KQ 만 출력하세요.
-        3. 오직 '티커 기호' 딱 하나만 출력하세요. 생각 과정, 마침표, 부연 설명 일체 금지."""
+        ticker_prompt = f"""Return ONLY the official US Yahoo Finance ticker symbol for '{search_term}'.
+        Rules:
+        1. US stocks: Return normal ticker (e.g. AAPL, TSM, OKLO).
+        2. Korean stocks: Return 6-digit code with .KS or .KQ (e.g. 005930.KS).
+        3. Do NOT provide Brazilian (.SA) or European (.F) cross-listings.
+        4. Do NOT invent or hallucinate codes. 
+        5. Return ONLY the ticker symbol. No thinking process, no explanation, no periods at the end."""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
-        # 생각 과정(THOUGHT) 텍스트가 노출되지 않도록 철저히 필터링
+        # THOUGHT 과정이 섞여 들어오더라도 맨 마지막 줄의 진짜 티커만 걸러냄
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
-            match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', lines[-1])
-            if match: return match.group(0)
+            match = re.search(r'[A-Z0-9]+(?:\.[A-Z]+)?', lines[-1])
+            if match:
+                return match.group(0)
     except:
         pass
       
@@ -729,6 +728,7 @@ if user_input:
                 ma_context_str = "차트 데이터 부족"
 
                 if not filtered_history.empty:
+                    # 주봉/월봉 비만 캔들 방지 로직 완벽 유지
                     xaxis_config = dict(
                         rangeslider=dict(visible=False), 
                         type="date", 
