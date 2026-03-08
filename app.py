@@ -632,6 +632,7 @@ if user_input:
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
         
+        # --- [오류 100% 차단 무적의 배당수익률 로직] ---
         def get_robust_dividend_yield(info_dict, div_data, current_p):
             for key in ['finviz_div_yield', 'naver_div_yield']:
                 val = info_dict.get(key)
@@ -680,6 +681,7 @@ if user_input:
             return 'N/A'
 
         div_yield = get_robust_dividend_yield(info, div_series, current_price)
+        # -----------------------------------------------
         
         debt = safe_info(info, ['debtToEquity'])
         current_ratio = safe_info(info, ['currentRatio'])
@@ -921,7 +923,7 @@ if user_input:
                     6. [핵심 강조]: 분석 내용 중 핵심이 되는 중요한 단어나 문장 및 주요 지지/저항 가격은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 절대 변경하지 마세요.
                     7. [어조 설정]: 반드시 '~습니다', '~입니다' 형태의 정중체를 사용하세요.
                     8. [항목 제한]: 분석 항목은 무조건 '1. 단기적인 추세', '2. 장기적인 추세' 딱 두 가지만 출력하세요.
-                    9. [뉴스 및 기사 수 언급 절대 금지]: 당신은 100개의 최신 시장 동향 기사를 배경지식으로 제공받았지만, 출력물에 '100개의 기사를 분석했습니다', '뉴스에 따르면' 등의 언급을 절대 하지 마세요. 오직 차트와 가격 움직임을 바탕으로 하되, 배경지식을 활용해 틀린 분석(환각)을 하지 않는 용도로만 조용히 참고하세요.
+                    9. [출처 표기 절대 금지]: 괄호 안에 기사 번호(예: 1, 2)를 적거나 출처를 언급하는 행위 완벽 금지.
                     
                     [출력 형식 가이드]
                     ### 1. 단기적인 추세 (Short-term trend)
@@ -963,7 +965,14 @@ if user_input:
             c3.metric("매출 성장률", fmt_pct(rev_growth))
             c3.metric("배당 수익률", fmt_pct(div_yield)) 
             
-            c4.metric("부채비율", f"{float(debt):.2f}%" if debt != 'N/A' and str(debt).replace('.', '').isdigit() else (f"{debt}%" if debt != 'N/A' else 'N/A'))
+            # 부채비율 소수점 완벽 수정
+            try:
+                debt_val = float(debt)
+                debt_str = f"{debt_val:.2f}%"
+            except:
+                debt_str = f"{debt}%" if debt != 'N/A' else 'N/A'
+                
+            c4.metric("부채비율", debt_str)
             c4.metric("유동비율", fmt_flt(current_ratio))
             c4.metric("당좌비율", fmt_flt(quick_ratio))
             c4.metric("이자보상배율", interest_cov)
@@ -1037,7 +1046,7 @@ if user_input:
 ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장률: {fmt_pct(rev_growth)}, 배당 수익률: {fmt_pct(div_yield)}
 매출총이익률: {fmt_pct(gross_margin)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}
 [안정성 지표]
-부채비율: {debt}%, 유동비율: {fmt_flt(current_ratio)}, 당좌비율: {fmt_flt(quick_ratio)}, 이자보상배율: {interest_cov}
+부채비율: {debt_str}, 유동비율: {fmt_flt(current_ratio)}, 당좌비율: {fmt_flt(quick_ratio)}, 이자보상배율: {interest_cov}
 [손익계산서]
 매출액: {v_rev}, 매출원가: {v_cogs}, 매출총이익: {v_gp}, 판매관리비: {v_sga}, 영업이익: {v_op}, 법인세차감전순이익: {v_pretax}, 당기순이익: {v_net}, 기타포괄손익: {v_oci}
 [재무상태표]
@@ -1108,7 +1117,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         except Exception as e:
                             st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
 
-        # --- [탭 4: 종합 리포트] ---
+        # --- [탭 4: 종합 리포트 및 투자의견 바] ---
         with tab4:
             st.subheader("AI 퀀트 애널리스트 최종 브리핑")
             if st.button("원클릭 종합 분석 리포트 생성"):
@@ -1123,7 +1132,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     
                     [2. 주요 재무 및 펀더멘털 지표]
                     - 시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
-                    - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt}%
+                    - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt_str}
                     - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}, 영업활동현금흐름: {v_cf_op}
                     - 배당 수익률: {fmt_pct(div_yield)}
                     
@@ -1163,14 +1172,64 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 마크다운 렌더링 오류를 막기 위해 절대 물결표 및 달러 기호를 사용하지 마세요. (금액은 반드시 '{currency}'으로 표기할 것)
                     - [기사 수 언급 절대 금지]: '100개의 기사를 분석했습니다' 등의 언급 금지.
                     - [출처 표기 절대 금지]: 괄호 안에 기사 번호를 적는 행위(예: 1, 2, 3)나 출처를 짐작할 수 있는 인용구를 완벽하게 금지합니다.
+                    
+                    🚨 [최종 투자의견 스코어 산출 지시사항 - 매우 중요]
+                    리포트 작성을 모두 마친 후, 맨 마지막 줄에 반드시 `[SCORE: 점수]` 형태로 AI 당신의 독자적인 투자의견 점수(0~100점)를 딱 한 번만 적어주세요.
+                    - 0~20: 강력 매도
+                    - 21~40: 매도
+                    - 41~60: 중립
+                    - 61~80: 매수
+                    - 81~100: 강력 매수
+                    당신은 AI이므로 보수적으로 평가할 필요가 전혀 없습니다! 차트의 손익비 자리, 재무 건전성, 최신 동향을 철저히 독자적으로 판단하여 과감하게 매수 또는 매도 쪽으로 점수를 부여하세요. 굳이 중립(50점)에 머물지 마십시오.
+                    예시: [SCORE: 85]
                     """
                     try:
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.1}
                         )
-                        st.info(response.text)
+                        
+                        report_text = response.text
+                        
+                        # AI가 남긴 점수를 추출
+                        score_match = re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
+                        final_score = None
+                        
+                        if score_match:
+                            final_score = int(score_match.group(1))
+                            # 텍스트에서 [SCORE: X] 부분은 지워서 화면에 보이지 않게 함
+                            report_text = report_text.replace(score_match.group(0), "")
+                            
+                        # 리포트 본문 출력
+                        st.info(report_text.strip())
+                        
+                        # 깔끔한 투자의견 바(Bar) 출력
+                        if final_score is not None:
+                            final_score = max(0, min(100, final_score)) # 0~100 사이로 안전하게 고정
+                            
+                            if final_score <= 20: opinion_text, text_color = "강력 매도", "#007aff"
+                            elif final_score <= 40: opinion_text, text_color = "매도", "#66b2ff"
+                            elif final_score <= 60: opinion_text, text_color = "중립", "#555555"
+                            elif final_score <= 80: opinion_text, text_color = "매수", "#ff6b6b"
+                            else: opinion_text, text_color = "강력 매수", "#ff2d55"
+                            
+                            bar_html = f"""
+                            <div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;">
+                                <h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
+                                    🤖 AI 독자적 투자의견: <span style="color: {text_color};">{opinion_text}</span>
+                                </h4>
+                                <div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
+                                    <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력매도</div>
+                                    <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div>
+                                    <div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div>
+                                    <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div>
+                                    <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력매수</div>
+                                    <div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
+                                </div>
+                            </div>
+                            """
+                            st.markdown(bar_html, unsafe_allow_html=True)
+                            
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
     else:
         st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 종목명이나 티커를 입력해 주세요!")
-
