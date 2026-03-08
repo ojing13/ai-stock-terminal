@@ -173,7 +173,6 @@ def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     search_clean = search_term.replace(" ", "").upper()
     
-    # 강력한 1:1 강제 매핑 (ETF 및 주요 주식 추가)
     custom_mapping = {
         "TSMC": "TSM",
         "티에스엠씨": "TSM",
@@ -469,7 +468,10 @@ def fetch_yf_data(ticker):
     except: bs_df = pd.DataFrame()
     try: cf_df = stock.cashflow
     except: cf_df = pd.DataFrame()
-    return hist_basic, info, fin_df, bs_df, cf_df
+    # 배당금 직접 계산을 위한 시리즈 추가
+    try: div_series = stock.dividends
+    except: div_series = pd.Series()
+    return hist_basic, info, fin_df, bs_df, cf_df, div_series
 
 @st.cache_data(ttl=600)
 def fetch_chart_history(ticker, interval):
@@ -513,13 +515,14 @@ st.markdown("---")
 
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL, 슈드)", "")
+    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL)", "")
 
 if user_input:
     ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
     
-    hist_basic, cached_info, fin_df, bs_df, cf_df = fetch_yf_data(ticker)
+    # div_series 변수 추가로 받기
+    hist_basic, cached_info, fin_df, bs_df, cf_df, div_series = fetch_yf_data(ticker)
     info = copy.deepcopy(cached_info) if isinstance(cached_info, dict) else {}
   
     if not hist_basic.empty:
@@ -627,45 +630,47 @@ if user_input:
         op_margin = safe_info(info, ['operatingMargins', 'operatingMargin'])
         rev_growth = safe_info(info, ['revenueGrowth'])
         
-        # --- [안전한 배당수익률 추출 (ETF 완벽 지원)] ---
-        def get_dividend_yield(info_dict, current_p):
+        # --- [가장 완벽한 무적의 배당수익률 계산 로직] ---
+        def get_robust_dividend_yield(info_dict, div_data, current_p):
             candidates = []
             
-            dy = info_dict.get('dividendYield')
-            if dy is not None and str(dy).strip() != '' and str(dy).upper() != 'N/A':
-                try: candidates.append(float(dy))
-                except: pass
-                
-            # 슈드(SCHD) 같은 ETF 전용 지표
-            ey = info_dict.get('yield')
-            if ey is not None and str(ey).strip() != '' and str(ey).upper() != 'N/A':
-                try: candidates.append(float(ey))
-                except: pass
-                
+            # 1. API에서 제공하는 기본 배당 항목 우선 탐색
+            for key in ['dividendYield', 'yield']:
+                val = info_dict.get(key)
+                if val is not None and str(val).strip() != '' and str(val).upper() != 'N/A':
+                    try: candidates.append(float(val))
+                    except: pass
+            
+            # 2. (핵심) 야후가 정보를 안 주면 최근 1년 실제 배당금을 주가로 직접 나눠버림
+            try:
+                if not div_data.empty and current_p > 0:
+                    # 마지막 배당일 기준으로 1년(365일) 전 데이터까지만 합산
+                    one_year_ago = div_data.index[-1] - pd.Timedelta(days=365)
+                    recent_divs = div_data[div_data.index > one_year_ago]
+                    if not recent_divs.empty:
+                        candidates.append(float(recent_divs.sum()) / float(current_p))
+            except Exception:
+                pass
+            
+            # 3. 마지막 수단: Trailing 데이터 (단, ADR 환율 버그 방지)
             tdy = info_dict.get('trailingAnnualDividendYield')
             if tdy is not None and str(tdy).strip() != '' and str(tdy).upper() != 'N/A':
                 try: 
                     curr = info_dict.get('currency', 'USD')
                     f_curr = info_dict.get('financialCurrency', 'USD')
                     val = float(tdy)
-                    if curr != f_curr and val > 0.04: pass
+                    # 대만 달러 등을 미국 달러 주가로 나누는 버그 데이터(5% 이상 시)는 과감히 버림
+                    if curr != f_curr and val > 0.05: pass
                     else: candidates.append(val)
                 except: pass
                 
-            rate = info_dict.get('dividendRate') or info_dict.get('trailingAnnualDividendRate')
-            if rate is not None and str(rate).strip() != '' and str(rate).upper() != 'N/A':
-                try:
-                    curr = info_dict.get('currency', 'USD')
-                    f_curr = info_dict.get('financialCurrency', 'USD')
-                    if curr == f_curr and current_p > 0:
-                        candidates.append(float(rate) / current_p)
-                except: pass
-                
+            # 수집된 후보 중, 현실적인 수익률(0.00% 초과, 30% 미만)인 진짜 데이터만 반환
             for val in candidates:
-                if 0 < val < 0.3: return val  # 0.00% 이거나 30% 이상인 가짜 수치 차단
+                if 0 < val < 0.3: return val
+                
             return 'N/A'
 
-        div_yield = get_dividend_yield(info, current_price)
+        div_yield = get_robust_dividend_yield(info, div_series, current_price)
         # -----------------------------------------------
         
         debt = safe_info(info, ['debtToEquity'])
