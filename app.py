@@ -11,11 +11,20 @@ from bs4 import BeautifulSoup
 import math
 import re
 
-# --- [1. 세션 상태 로직 (새로고침 방지용)] ---
+# --- [1. 세션 상태 및 완벽한 URL 파라미터 클릭 감지 로직] ---
 if 'search_history' not in st.session_state:
     st.session_state['search_history'] = []
-if 'search_input' not in st.session_state:
-    st.session_state['search_input'] = ""
+
+# HTML <a> 태그를 통해 들어온 클릭(검색/삭제) 이벤트를 가로채서 처리합니다.
+if "search" in st.query_params:
+    st.session_state["search_input_box"] = st.query_params["search"]
+    del st.query_params["search"]
+
+if "delete" in st.query_params:
+    del_val = st.query_params["delete"]
+    if del_val in st.session_state["search_history"]:
+        st.session_state["search_history"].remove(del_val)
+    del st.query_params["delete"]
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
@@ -82,6 +91,44 @@ st.markdown("""
     .fin-table td:first-child { text-align: left; font-weight: 600; color: #333; width: 40%; word-break: break-all; }
     div[data-testid="stMetricValue"] { white-space: normal !important; word-break: break-all !important; font-size: 1.4rem !important; line-height: 1.2 !important; }
 
+    /* === 💥 모바일/웹 완벽 대응: 순수 HTML 알약(Pill) UI 전용 CSS === */
+    .hist-pill-box {
+        display: flex;
+        align-items: center;
+        border: 1px solid #d1d5db;
+        border-radius: 16px;
+        background-color: #f8f9fa;
+        height: 32px;
+        overflow: hidden;
+        transition: border-color 0.2s;
+    }
+    .hist-pill-box:hover {
+        border-color: #adb5bd;
+    }
+    .hist-pill-text {
+        display: flex;
+        align-items: center;
+        height: 100%;
+        padding: 0 4px 0 12px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #212529 !important;
+        text-decoration: none !important;
+        transition: background 0.2s;
+    }
+    .hist-pill-text:hover { background-color: #e9ecef; }
+    .hist-pill-del {
+        display: flex;
+        align-items: center;
+        height: 100%;
+        padding: 0 12px 0 6px;
+        font-size: 11px; /* ✖ 버튼 크기 앙증맞게 축소 */
+        color: #adb5bd !important;
+        text-decoration: none !important;
+        transition: color 0.2s, background 0.2s;
+    }
+    .hist-pill-del:hover { background-color: #ffe3e3; color: #ff4b4b !important; font-weight: 900; }
+
     /* 불필요한 UI 완벽 숨기기 */
     .stDeployButton { display: none !important; }
     [data-testid="stStatusWidget"] * { display: none !important; }
@@ -119,16 +166,13 @@ def get_ticker_and_korean_name(search_term):
     if not krx_df.empty:
         match_name = krx_df[krx_df['Name'] == search_term]
         if not match_name.empty:
-            # 💡 수정됨: str()과 zfill(6)을 사용해 앞의 0이 잘리지 않도록 강제 변환
-            code = str(match_name.iloc[0]['Code']).zfill(6)
+            code = match_name.iloc[0]['Code']
             market = match_name.iloc[0]['Market']
             ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
             return ticker, search_term
-        
         match_code = krx_df[krx_df['Code'] == search_upper]
         if not match_code.empty:
-            # 💡 여기도 동일하게 수정
-            code = str(match_code.iloc[0]['Code']).zfill(6)
+            code = match_code.iloc[0]['Code']
             market = match_code.iloc[0]['Market']
             ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
             return ticker, match_code.iloc[0]['Name']
@@ -381,36 +425,7 @@ st.markdown("---")
 
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input_val = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL, KORU)", value=st.session_state['search_input'])
-    user_input = user_input_val
-
-if user_input and user_input != st.session_state['search_input']:
-    st.session_state['search_input'] = user_input
-
-# 2. 검색기록 UI (Streamlit 네이티브 버튼 활용으로 새로고침 방지)
-if st.session_state['search_history']:
-    st.markdown("<div style='font-size: 13px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
-    
-    history_list = st.session_state['search_history'][:5]
-    
-    # 버튼 레이아웃용 컬럼 생성 (종목명은 길게, 삭제 버튼은 짧게)
-    col_ratios = []
-    for _ in range(len(history_list)):
-        col_ratios.extend([3, 1])
-        
-    cols = st.columns(col_ratios)
-    
-    for i, term in enumerate(history_list):
-        with cols[i * 2]:
-            if st.button(term, key=f"btn_{term}"):
-                st.session_state['search_input'] = term
-                st.rerun()
-        with cols[(i * 2) + 1]:
-            if st.button("✖", key=f"del_{term}"):
-                st.session_state['search_history'].remove(term)
-                if st.session_state['search_input'] == term:
-                    st.session_state['search_input'] = ""
-                st.rerun()
+    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL, KORU)", key="search_input_box")
 
 ticker = None
 display_name = ""
@@ -444,6 +459,22 @@ if user_input:
             st.session_state['search_history'].remove(display_name)
         st.session_state['search_history'].insert(0, display_name)
         st.session_state['search_history'] = st.session_state['search_history'][:10]
+
+# 2. 💥 완벽한 순수 HTML/CSS 검색기록 알약(Pill) UI 렌더링 (절대 깨지지 않음!)
+if st.session_state['search_history']:
+    st.markdown("<div style='font-size: 13px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
+    
+    # HTML을 한 덩어리로 만들어서 가로 나열 + 자동 줄바꿈을 완벽히 구현합니다.
+    history_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">'
+    for term in st.session_state['search_history'][:5]:
+        history_html += f"""
+        <div class="hist-pill-box">
+            <a href="?search={term}" target="_self" class="hist-pill-text">{term}</a>
+            <a href="?delete={term}" target="_self" class="hist-pill-del">✖</a>
+        </div>
+        """
+    history_html += '</div>'
+    st.markdown(history_html, unsafe_allow_html=True)
 
 # 3. 메인 주식 분석 로직 렌더링
 if user_input:
