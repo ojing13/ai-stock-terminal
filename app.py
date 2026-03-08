@@ -630,10 +630,10 @@ if user_input:
                         high=filtered_history['High'],
                         low=filtered_history['Low'],
                         close=filtered_history['Close'],
-                        increasing_line_color='#ff2d55',      # 양봉(상승) = 빨간색
-                        decreasing_line_color='#00b0ff',      # 음봉(하락) = 파란색
-                        increasing_fillcolor='#ff2d55',       # 양봉 몸통 빨간색
-                        decreasing_fillcolor='#00b0ff',       # 음봉 몸통 파란색
+                        increasing_line_color='#ff2d55',
+                        decreasing_line_color='#00b0ff',
+                        increasing_fillcolor='#ff2d55',
+                        decreasing_fillcolor='#00b0ff',
                         name="가격"
                     ))
                     for w, name, color in ma_settings:
@@ -668,9 +668,15 @@ if user_input:
                         dragmode=False,
                         xaxis=dict(
                             rangeslider=dict(visible=False),
-                            type="category",                    # ← 미국장 쉬는 날(주말/공휴일) 공간 완전 제거 (연속 표시)
+                            type="category",
                             hoverformat="%Y-%m-%d",
-                            fixedrange=True
+                            fixedrange=True,
+                            # ====================== 가로축 깔끔 정리 (핵심 수정) ======================
+                            tickmode='auto',           # 자동으로 적절한 개수만 표시
+                            nticks=12,                 # 최대 12개 정도만 표시 (10년 데이터면 대략 연단위)
+                            tickangle=45,              # 기울여서 겹침 방지
+                            tickformat="%Y-%m",        # 년-월만 표시 (일자까지 안 보이게)
+                            # =============================================================================
                         ),
                         yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
                         height=520,
