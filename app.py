@@ -57,7 +57,7 @@ st.markdown("""
         box-shadow: 0 0 0 1px #007bff !important;
     }
    
-    /* === Selectbox(차트 주기 등) 타이핑(편집) 방지 및 테두리 파란색 === */
+    /* Selectbox 포커스 */
     div[data-baseweb="select"] > div:hover,
     div[data-baseweb="select"] > div:focus-within {
         border-color: #007bff !important;
@@ -1140,16 +1140,20 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 출처 표기 절대 금지: 괄호 안에 기사 번호를 적거나 출처를 언급하는 행위 완벽 금지.
                     
                     🚨 [최종 스코어 산출 지시사항 - 매우 중요]
-                    리포트 작성을 모두 마친 후, 맨 마지막 줄에 반드시 다음 두 가지 점수를 `[SCORE: 점수]`, `[TENBAGGER: 점수]` 형태로 적어주세요.
-                    **주의: 동일한 재무 데이터와 주가 위치가 주어지면 항상 동일한 점수를 도출하도록, 감정을 배제하고 수치 기반의 기계적이고 일관된 잣대로 점수를 평가하세요.**
+                    리포트 작성을 모두 마친 후, 맨 마지막 줄에 반드시 다음 세 가지 점수를 `[SCORE: 점수]`, `[RISK: 점수]`, `[RETURN: 점수]` 형태로 적어주세요.
+                    **주의: 동일한 재무 데이터, 주가 위치, 최신 동향이 주어지면 항상 동일한 점수를 도출하도록 감정을 철저히 배제하고 객관적 수치 기반으로 기계적이고 일관된 평가를 진행하세요.**
 
                     1. [SCORE: 0~100] (AI 투자의견)
-                    - 철저한 트레이더 관점에서 '손익비(Risk/Reward)'를 가장 중요하게 봅니다.
-                    - 상승 여력과 하락 리스크를 고려하여 객관적인 점수를 부여하세요.
+                    - 철저한 트레이더 관점에서 현재 주가 자리의 '손익비(Risk/Reward)'와 '최신 시장 동향(호재/악재)'을 종합적으로 가장 중요하게 반영합니다.
+                    - 상승 여력과 하락 리스크, 뉴스의 파급력을 계산하여 객관적인 점수를 부여하세요.
                     
-                    2. [TENBAGGER: 0~100] (텐배거 지수)
-                    - 장기적인 성장 잠재력과 폭발력을 수치화합니다. 격식을 유지하여 평가하세요.
-                    - 안정적인 대형 가치주는 낮게, 혁신 성장주 및 턴어라운드 기대주는 높게 부여하세요.
+                    2. [RISK: 0~100] (리스크 지수)
+                    - 주식의 변동성, 재무 불안정성, 고평가 여부, 악재 등 현재 투자 시 감당해야 할 위험도를 평가합니다.
+                    - 0에 가까울수록 매우 안전(저위험), 100에 가까울수록 매우 위험(고위험)을 뜻합니다.
+
+                    3. [RETURN: 0~100] (기대수익 지수)
+                    - 주식의 상승 잠재력, 미래 성장성, 저평가 매력도, 호재 등을 평가합니다.
+                    - 0에 가까울수록 수익 기대감이 낮음(저수익), 100에 가까울수록 엄청난 상승 잠재력(고수익)을 뜻합니다.
                     """
                     try:
                         response = client.models.generate_content(
@@ -1159,18 +1163,24 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         report_text = response.text
                         
                         score_match = re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
-                        tenbagger_match = re.search(r'\[TENBAGGER:\s*(\d+)\s*\]', report_text)
+                        risk_match = re.search(r'\[RISK:\s*(\d+)\s*\]', report_text)
+                        return_match = re.search(r'\[RETURN:\s*(\d+)\s*\]', report_text)
                         
                         final_score = None
-                        tenbagger_score = None
+                        risk_score = None
+                        return_score = None
                         
                         if score_match:
                             final_score = int(score_match.group(1))
                             report_text = report_text.replace(score_match.group(0), "")
                         
-                        if tenbagger_match:
-                            tenbagger_score = int(tenbagger_match.group(1))
-                            report_text = report_text.replace(tenbagger_match.group(0), "")
+                        if risk_match:
+                            risk_score = int(risk_match.group(1))
+                            report_text = report_text.replace(risk_match.group(0), "")
+                            
+                        if return_match:
+                            return_score = int(return_match.group(1))
+                            report_text = report_text.replace(return_match.group(0), "")
                             
                         st.info(report_text.strip())
                         
@@ -1183,27 +1193,24 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             elif final_score <= 80: opinion_text, text_color = "매수", "#ff6b6b"
                             else: opinion_text, text_color = "강력 매수", "#ff2d55"
                             
-                            tb_html = ""
-                            if tenbagger_score is not None:
-                                tb_score = max(0, min(100, tenbagger_score))
-                                if tb_score <= 20: tb_color = "#888888"
-                                elif tb_score <= 40: tb_color = "#b2aa3a" 
-                                elif tb_score <= 60: tb_color = "#f2994a" 
-                                elif tb_score <= 80: tb_color = "#f25287" 
-                                else: tb_color = "#ff007f" 
+                            matrix_html = ""
+                            if risk_score is not None and return_score is not None:
+                                r_s = max(0, min(100, risk_score))
+                                ret_s = max(0, min(100, return_score))
                                 
-                                tb_html = f"""
+                                matrix_html = f"""
 <div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;">
-<h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
-텐배거 지수: <span style="color: {tb_color};">{tb_score}점</span>
+<h4 style="text-align: center; margin-bottom: 25px; color: #333; font-weight: 700;">
+리스크 대비 기대수익 매트릭스
 </h4>
-<div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #e0e0e0 0%, #b2aa3a 20%, #f2994a 40%, #f25287 60%, #ff007f 80%, #ff007f 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
-<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">가치주/안정형</div>
-<div style="width: 20%;"></div>
-<div style="width: 20%;"></div>
-<div style="width: 20%;"></div>
-<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">성장주/미래형</div>
-<div style="position: absolute; top: -28px; left: calc({tb_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
+<div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 1px solid #dcdcdc; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+<div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #d0d0d0;"></div>
+<div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #d0d0d0;"></div>
+<div style="position: absolute; top: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #ff6b6b;">저위험 고수익</div>
+<div style="position: absolute; top: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #ff2d55;">고위험 고수익</div>
+<div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div>
+<div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div>
+<div style="position: absolute; bottom: calc({ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div>
 </div>
 </div>
 """
@@ -1211,7 +1218,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             bar_html = f"""
 <div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;">
 <h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">
-AI 독자적 투자의견: <span style="color: {text_color};">{opinion_text}</span>
+AI 투자의견: <span style="color: {text_color};">{opinion_text}</span>
 </h4>
 <div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">
 <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div>
@@ -1221,7 +1228,7 @@ AI 독자적 투자의견: <span style="color: {text_color};">{opinion_text}</sp
 <div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div>
 <div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div>
 </div>
-{tb_html}
+{matrix_html}
 </div>
 """
                             st.markdown(bar_html, unsafe_allow_html=True)
