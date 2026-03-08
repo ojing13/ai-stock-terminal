@@ -152,7 +152,7 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# ⚠️ 새롭게 설계된 핵심 로직: 오타 교정 및 무조건 한글명칭 추출
+# ⚠️ 새롭게 설계된 핵심 로직: 알잘딱깔센 오타 교정 및 센스있는 명칭 추출
 def get_ticker_and_korean_name(search_term):
     search_term = search_term.strip()
     
@@ -165,29 +165,51 @@ def get_ticker_and_korean_name(search_term):
             ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
             return ticker, search_term
             
-    # 2. 유명한 미국 주식 매핑 (빠른 응답)
-    us_dict = {
-        "애플": "AAPL", "테슬라": "TSLA", "엔비디아": "NVDA", "마이크로소프트": "MSFT",
-        "알파벳": "GOOGL", "구글": "GOOGL", "아마존": "AMZN", "메타": "META",
-        "넷플릭스": "NFLX", "마이크론": "MU", "인텔": "INTC", "AMD": "AMD",
-        "오라클": "ORCL", "AAPL": "애플", "TSLA": "테슬라", "NVDA": "엔비디아", "ORCL": "오라클"
+    # 2. 유명한 주식/ETF 사전 매핑 (주인님 답답함 해소용 알잘딱깔센 패치!)
+    quick_map = {
+        "애플": ("AAPL", "애플"), "AAPL": ("AAPL", "애플"),
+        "테슬라": ("TSLA", "테슬라"), "TSLA": ("TSLA", "테슬라"),
+        "엔비디아": ("NVDA", "엔비디아"), "NVDA": ("NVDA", "엔비디아"),
+        "마이크로소프트": ("MSFT", "마이크로소프트"), "MSFT": ("MSFT", "마이크로소프트"), "마소": ("MSFT", "마이크로소프트"),
+        "알파벳": ("GOOGL", "구글(Alphabet)"), "구글": ("GOOGL", "구글(Alphabet)"), "GOOGL": ("GOOGL", "구글(Alphabet)"), "GOOG": ("GOOG", "구글(Alphabet)"),
+        "아마존": ("AMZN", "아마존"), "AMZN": ("AMZN", "아마존"),
+        "메타": ("META", "메타"), "META": ("META", "메타"),
+        "넷플릭스": ("NFLX", "넷플릭스"), "NFLX": ("NFLX", "넷플릭스"),
+        "TSMC": ("TSM", "TSMC"), "TSM": ("TSM", "TSMC"), "대만반도체": ("TSM", "TSMC"),
+        "ASML": ("ASML", "ASML"), "ARM": ("ARM", "ARM"), "AMD": ("AMD", "AMD"),
+        "TQQQ": ("TQQQ", "TQQQ (나스닥 100 3배 ETF)"),
+        "SQQQ": ("SQQQ", "SQQQ (나스닥 100 인버스 3배 ETF)"),
+        "SOXL": ("SOXL", "SOXL (반도체 3배 ETF)"),
+        "SOXS": ("SOXS", "SOXS (반도체 인버스 3배 ETF)"),
+        "QQQ": ("QQQ", "QQQ (나스닥 100 ETF)"),
+        "SPY": ("SPY", "SPY (S&P 500 ETF)"),
+        "VOO": ("VOO", "VOO (S&P 500 ETF)"),
+        "IVV": ("IVV", "IVV (S&P 500 ETF)"),
+        "SCHD": ("SCHD", "SCHD (미국 배당 다우존스 ETF)"),
+        "JEPI": ("JEPI", "JEPI (JP모건 커버드콜 ETF)"),
+        "오라클": ("ORCL", "오라클"), "ORCL": ("ORCL", "오라클"),
+        "팔란티어": ("PLTR", "팔란티어"), "PLTR": ("PLTR", "팔란티어")
     }
     
-    if search_term in us_dict:
-        val = us_dict[search_term]
-        if val.isalpha() and val == val.upper(): # 한글을 입력해서 티커가 나온 경우
-            return val, search_term
-        else: # 영문 티커를 입력해서 한글이 나온 경우
-            return search_term.upper(), val
+    search_upper = search_term.upper()
+    if search_term in quick_map:
+        return quick_map[search_term]
+    elif search_upper in quick_map:
+        return quick_map[search_upper]
             
-    # 3. 그 외의 경우 (오타, 기타 미국/한국 주식 등) AI에게 번역 및 교정 위임
+    # 3. 그 외의 경우 AI에게 알잘딱깔센 번역 및 교정 위임
     try:
-        prompt = f"""당신은 세계 최고의 주식 종목 번역 전문가입니다.
+        prompt = f"""당신은 센스있는 주식/ETF 종목명 번역 전문가입니다.
 사용자의 검색어: "{search_term}"
-이 검색어에 해당하는 주식의 '정확한 야후 파이낸스 티커'와 '네이버 증권에 등록된 공식 한국어 종목명'을 반환해주세요.
-(사용자가 '삼성전쟈', '오랴클' 처럼 오타를 냈거나 'ORCL' 처럼 영어 티커를 쳤어도, 찰떡같이 알아듣고 정확한 한글 이름을 찾아주세요.)
-출력 형식은 무조건 "티커|한국어이름" 이어야 합니다. 다른 설명은 절대 금지합니다.
-예시: AAPL|애플, 005930.KS|삼성전자, ORCL|오라클, MSFT|마이크로소프트"""
+이 검색어에 해당하는 종목의 '정확한 야후 파이낸스 티커'와 '한국 투자자들이 가장 흔하고 자연스럽게 부르는 종목명'을 반환해주세요.
+
+[🚨 알잘딱깔센(센스있게) 명칭 정제 규칙]
+1. 일반 기업: 오타가 있어도 찰떡같이 교정해서 한국어 공식 명칭을 반환 (예: AAPL -> 애플)
+2. 약어/영문 이름이 더 유명한 기업: 억지로 한국어로 직역하지 말고 익숙한 이름 사용 (예: 대만반도체제조회사(X) -> TSMC(O), 에이에스엠엘(X) -> ASML(O))
+3. ETF 종목: '프로셰어즈 울트라프로...' 처럼 길고 지저분하게 번역하지 말고, [티커 (주요 테마 간략 설명)] 형태로 깔끔하게 작성 (예: TQQQ -> TQQQ (나스닥 100 3배 ETF), SOXL -> SOXL (반도체 3배 ETF))
+
+출력 형식은 무조건 "티커|깔끔한종목명" 이어야 합니다. 다른 설명은 절대 금지합니다.
+예시: AAPL|애플, 005930.KS|삼성전자, TSM|TSMC, TQQQ|TQQQ (나스닥 100 3배 ETF)"""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         result = trans_response.text.strip()
         if "|" in result:
@@ -384,12 +406,12 @@ with col_search:
 ticker = None
 display_name = ""
 
-# 검색어 처리 및 정제 (오타 -> 공식 한글 명칭 변환 후 검색 기록 저장)
+# 검색어 처리 및 정제 (오타 -> 알잘딱깔센 공식 명칭 변환 후 검색 기록 저장)
 if user_input:
-    # 이제 get_ticker_and_korean_name 함수가 오타 교정 + 무조건 한글 명칭을 반환합니다.
+    # 완전히 개조된 함수가 찰떡같이 티커와 이쁜 종목명을 물어옵니다.
     ticker, display_name = get_ticker_and_korean_name(user_input)
 
-    # 🕒 완벽하게 교정된 한글 이름(display_name)으로 검색 기록 업데이트!
+    # 🕒 완벽하게 교정된 예쁜 이름(display_name)으로 검색 기록 업데이트!
     if display_name in st.session_state['search_history']:
         st.session_state['search_history'].remove(display_name)
     st.session_state['search_history'].insert(0, display_name)
@@ -435,7 +457,9 @@ if user_input and ticker:
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
         
-        # 무조건 오타가 교정된 완벽한 한글 이름을 모든 프롬프트와 화면에 고정
+        # 🚨 덮어씌우기 버그 완벽 수정!! 
+        # 이제 야후 파이낸스의 못생긴 영어 이름(longName)으로 절대 덮어씌우지 않고,
+        # 우리가 정제한 예쁜 한글 이름(display_name)을 끝까지 유지합니다.
         company_name = display_name
             
         today_date = datetime.now().strftime("%Y년 %m월 %d일")
@@ -452,12 +476,12 @@ if user_input and ticker:
         currency = "원" if is_korean_stock else "달러"
         price_fmt = ",.0f" if is_korean_stock else ",.2f"
         
-        # 뉴스 기사 수집 (한글 이름으로 검색해야 정확한 한국어 뉴스가 나옴)
+        # 뉴스 기사 수집 
         try:
             if is_korean_stock:
                 rss_url = f"https://news.google.com/rss/search?q={display_name}+주식&hl=ko-KR&gl=KR&ceid=KR:ko"
             else:
-                # 미국 주식은 티커명으로 검색해야 영문 외신도 놓치지 않고 긁어옵니다.
+                # 미국 주식은 영어 티커명으로 검색해야 영문 외신도 놓치지 않고 긁어옵니다.
                 rss_url = f"https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en"
             response = requests.get(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
             root = ET.fromstring(response.content)
@@ -613,8 +637,8 @@ if user_input and ticker:
         with tab1:
             col_price, col_interval = st.columns([3, 1])
             with col_price:
-                # 💥 이제 상단 제목에도 무조건 100% 한글 종목명이 뜹니다!
-                st.markdown(f"### {display_name} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
+                # 💥 이제 상단 제목에도 무조건 100% 예쁜 한글 종목명이 뜹니다!
+                st.markdown(f"### {company_name} ({ticker}) 현재가: {current_price:{price_fmt}} {currency}")
             
             with col_interval:
                 interval_option = st.selectbox("차트 주기", ("일봉", "주봉", "월봉"), index=0)
@@ -715,7 +739,7 @@ if user_input and ticker:
                     )
                     
                     fig.update_layout(
-                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
+                        title=dict(text=f"{company_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
                         template="plotly_dark",
                         dragmode=False, 
                         xaxis=dict(rangeslider=dict(visible=False), type="date", hoverformat="%Y-%m-%d", fixedrange=True),
