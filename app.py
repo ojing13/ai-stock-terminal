@@ -11,28 +11,21 @@ from bs4 import BeautifulSoup
 import math
 import re
 
-# --- [1. 세션 상태 및 완벽한 URL 파라미터 클릭 감지 로직] ---
-# 클릭 한 번으로 검색/삭제를 에러 없이 완벽하게 수행하기 위한 무적의 HTML 링크 방식입니다.
+# --- [세션 상태 초기화 - 검색 기록용] ---
 if 'search_history' not in st.session_state:
     st.session_state['search_history'] = []
 
-default_search = ""
-# URL에 search 파라미터가 있으면 검색창 기본값으로 넣고 파라미터 날리기
-if "search" in st.query_params:
-    default_search = st.query_params["search"]
-    st.query_params.clear()
+def set_search_input(term):
+    st.session_state['search_input_box'] = term
 
-# URL에 delete 파라미터가 있으면 기록에서 지우고 파라미터 날리기
-if "delete" in st.query_params:
-    del_val = st.query_params["delete"]
-    if del_val in st.session_state["search_history"]:
-        st.session_state["search_history"].remove(del_val)
-    st.query_params.clear()
+def remove_from_history(term):
+    if term in st.session_state['search_history']:
+        st.session_state['search_history'].remove(term)
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석기")
 
-# 최고급 웹 폰트 및 UI CSS 세팅
+# 최고급 세련된 웹 폰트 적용 및 모바일 최적화 UI 커스텀
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -57,10 +50,7 @@ st.markdown("""
         box-shadow: none !important;
     }
    
-    .stButton>button { border-radius: 6px; font-weight: 600; border: 1px solid #cccccc; width: 100%; transition: 0.3s; }
-    .stButton>button:hover { border-color: #007bff; color: #007bff; background-color: #f8f8f8; }
-    div[data-baseweb="select"] { cursor: pointer; }
-    
+    /* 텍스트 입력창 클릭(포커스) 시 테두리 파란색으로 변경 */
     .stTextInput div[data-baseweb="input"]:focus-within,
     div[data-baseweb="select"] > div:hover,
     div[data-baseweb="select"] > div:focus-within {
@@ -91,11 +81,82 @@ st.markdown("""
         font-weight: 700 !important;
     }
     
+    /* 재무제표 표 정렬 및 스타일 */
     .fin-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; table-layout: fixed; }
     .fin-table th { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; color: #555; }
     .fin-table td { border-bottom: 1px solid #eee; padding: 8px; text-align: right; vertical-align: middle; }
     .fin-table td:first-child { text-align: left; font-weight: 600; color: #333; width: 40%; word-break: break-all; }
     div[data-testid="stMetricValue"] { white-space: normal !important; word-break: break-all !important; font-size: 1.4rem !important; line-height: 1.2 !important; }
+
+    /* === 💥 모바일 웹 완벽 대응: 검색기록 알약(Pill) 찰싹 붙이기 & 가로 자동 줄바꿈 === */
+    
+    /* 1. 모바일에서 멍청하게 세로로 나열되는 현상 차단: 가로 정렬 및 줄바꿈 허용 */
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+        flex-direction: row !important;
+        gap: 0px !important;
+        row-gap: 10px !important;
+    }
+    @media (max-width: 768px) {
+        div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
+        }
+    }
+    
+    /* 2. 각 버튼이 화면을 무식하게 쪼개먹지 않도록 글자 크기에 딱 맞춤 */
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="column"] {
+        width: auto !important;
+        flex: 0 0 auto !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    /* 3. [왼쪽] 종목명 부분 (오른쪽 테두리 완전히 삭제, 둥근 모서리는 왼쪽만, 더 작게) */
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="column"]:nth-child(odd) button {
+        border-radius: 14px 0 0 14px !important;
+        border: 1px solid #d1d5db !important;
+        border-right: none !important;
+        background-color: #f8f9fa !important;
+        color: #212529 !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        padding: 0 4px 0 12px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+    }
+    
+    /* 4. [오른쪽] '✖' 삭제 부분 (왼쪽 테두리 삭제, 둥근 모서리는 오른쪽만, 크기는 아주 앙증맞게!) */
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="column"]:nth-child(even) button {
+        border-radius: 0 14px 14px 0 !important;
+        border: 1px solid #d1d5db !important;
+        border-left: none !important;
+        background-color: #f8f9fa !important;
+        color: #adb5bd !important;
+        font-size: 10px !important;
+        padding: 0 10px 0 2px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        margin: 0 8px 0 0 !important; /* 다음 알약과 간격 띄우기 */
+        box-shadow: none !important;
+    }
+    
+    /* 5. 마우스 호버 시 전체가 하나의 박스인 것처럼 일체감 부여 */
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="column"] button:hover {
+        background-color: #e9ecef !important;
+        border-color: #ced4da !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="column"]:nth-child(odd) button:hover {
+        color: #000 !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.history-marker) div[data-testid="column"]:nth-child(even) button:hover {
+        background-color: #ffe3e3 !important;
+        border-color: #ff8787 !important;
+        color: #ff4b4b !important;
+        font-weight: bold !important;
+    }
 
     /* 불필요한 UI 완벽 숨기기 */
     .stDeployButton { display: none !important; }
@@ -112,16 +173,13 @@ except:
     
 client = genai.Client(api_key=MY_API_KEY)
 
-# 💥 철통 방어 패치: KRX 서버가 죽어도 절대 앱이 터지지 않도록 무조건 에러를 삼킵니다.
 @st.cache_data
 def load_krx_data():
     try:
         df = fdr.StockListing('KRX')
-        if df is not None and not df.empty:
-            return df
+        if df is not None and not df.empty: return df
     except Exception:
         pass
-    # 실패 시 빈 깡통 프레임을 던져서 앱 다운을 완벽 방지!
     return pd.DataFrame(columns=['Code', 'Name', 'Market'])
 
 krx_df = load_krx_data()
@@ -182,10 +240,12 @@ def get_ticker_and_korean_name(search_term):
         if possible_ticker in quick_map:
             return quick_map[possible_ticker]
 
+    # 영문 1~5글자는 무조건 티커로 간주!
     is_pure_english_short = bool(re.match(r'^[A-Za-z]{1,5}$', search_term))
     if is_pure_english_short:
         return search_upper, search_upper
             
+    # 그 외의 경우 AI에게 번역 위임
     try:
         prompt = f"""당신은 주식/ETF 종목 식별 전문가입니다.
 사용자의 검색어: "{search_term}"
@@ -394,12 +454,13 @@ st.markdown("---")
 
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL, KORU)", value=default_search)
+    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL, KORU)", key="search_input_box")
 
 ticker = None
 display_name = ""
 info = {}
 hist_basic = pd.DataFrame()
+current_price = 0
 
 # 1. 입력 처리 및 검색어 정제
 if user_input:
@@ -408,19 +469,37 @@ if user_input:
     
     stock = yf.Ticker(ticker)
     
-    # 💥 주말 검색 먹통 방지: 한국 주식이어도 최근 5일치로 무조건 최신 가격 가져오기!
+    # 💥 주말 검색 먹통 방지: 한국 주식이어도 최근 1달치로 무조건 최신 가격 가져오기!
     try:
-        hist_basic = stock.history(period="5d")
+        hist_basic = stock.history(period="1mo")
     except Exception:
         pass
-
+        
     if not hist_basic.empty:
+        current_price = hist_basic['Close'].iloc[-1]
+    
+    # 💥 네이버 증권 가격 우회 크롤링 (야후 파이낸스 완전 먹통 시 최후의 보루)
+    if is_korean_stock and current_price == 0:
+        try:
+            code_only = ticker.split('.')[0]
+            url = f"https://finance.naver.com/item/main.naver?code={code_only}"
+            res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            price_tag = soup.find('p', {'class': 'no_today'})
+            if price_tag:
+                blind_tag = price_tag.find('span', {'class': 'blind'})
+                if blind_tag:
+                    current_price = float(blind_tag.text.replace(',', ''))
+        except:
+            pass
+
+    # 가격 데이터가 1원이라도 있으면 무조건 정상 작동 진행!
+    if current_price > 0:
         try:
             info = stock.info
         except Exception:
             pass
         
-        # 영문 티커를 입력해 AI를 패스한 경우 야후 파이낸스의 실제 기업명으로 덮어쓰기
         if display_name.upper() == ticker.upper() and info:
             display_name = info.get('shortName', info.get('longName', ticker))
             
@@ -432,32 +511,29 @@ if user_input:
         st.session_state['search_history'].insert(0, display_name)
         st.session_state['search_history'] = st.session_state['search_history'][:5]
 
-# 2. 💥 완벽한 순수 HTML/CSS 검색기록 알약(Pill) UI 렌더링
-# Streamlit의 컬럼이 깨지는 현상을 100% 원천 차단하기 위해 순수 웹 기술로만 그립니다.
+# 2. 💥 완벽한 순정 검색기록 알약(Pill) UI 렌더링
 if st.session_state['search_history']:
-    st.markdown("<div style='font-size: 13px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
-    
-    # 여기서부터 하나의 박스 안의 버튼이 가로로 예쁘게 정렬 및 자동 줄바꿈 됩니다.
-    html_str = '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">'
-    for term in st.session_state['search_history']:
-        # HTML 태그 하나하나가 모바일에서 절대 깨지지 않는 완벽한 둥근 박스를 만듭니다.
-        html_str += f"""
-        <div style="display: flex; align-items: center; background-color: #f8f9fa; border: 1px solid #d1d5db; border-radius: 16px; overflow: hidden; height: 30px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-            <a href="?search={term}" target="_self" style="padding: 0 6px 0 14px; color: #212529; text-decoration: none; font-size: 13px; font-weight: 600; line-height: 30px; display: block; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='transparent'">{term}</a>
-            <a href="?delete={term}" target="_self" style="padding: 0 12px 0 6px; color: #adb5bd; text-decoration: none; font-size: 10px; line-height: 30px; display: block; border-left: 1px solid #e9ecef; transition: color 0.2s, background 0.2s;" onmouseover="this.style.backgroundColor='#ffe3e3'; this.style.color='#ff4b4b'; this.style.fontWeight='900'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='#adb5bd'; this.style.fontWeight='normal'">✖</a>
-        </div>
-        """
-    html_str += '</div>'
-    st.markdown(html_str, unsafe_allow_html=True)
+    # 이 컨테이너 안에 마커를 심어 CSS가 이 영역만 정밀 타격하도록 합니다.
+    with st.container():
+        st.markdown('<div class="history-marker"></div>', unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 13px; font-weight: 600; color: #888; margin-top: -10px; margin-bottom: 5px;'>🕒 최근 검색 기록</div>", unsafe_allow_html=True)
+        
+        history_items = st.session_state['search_history'][:5]
+        # 아이템 1개당 2개의 컬럼 (총 길이의 2배 할당)
+        cols = st.columns(len(history_items) * 2)
+        
+        # CSS가 찰싹 붙여주므로 그냥 순서대로 배치하기만 하면 됩니다.
+        for i, term in enumerate(history_items):
+            with cols[i*2]:
+                st.button(term, key=f"hist_btn_{term}", on_click=set_search_input, args=(term,))
+            with cols[i*2 + 1]:
+                st.button("✖", key=f"del_btn_{term}", on_click=remove_from_history, args=(term,))
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # 3. 메인 주식 분석 로직 렌더링
 if user_input:
-    if not hist_basic.empty:
-        # 최근 5일치 중 가장 마지막 날짜(최신) 종가를 가져옵니다.
-        current_price = hist_basic['Close'].iloc[-1]
-            
+    if current_price > 0:
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
             
