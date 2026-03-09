@@ -25,7 +25,13 @@ st.markdown("""
     * {
         font-family: 'Pretendard', 'Noto Sans KR', sans-serif !important;
     }
-    h1, h2, h3 { font-weight: 700; letter-spacing: -0.5px; }
+    
+    /* 앱 전체 배경색 */
+    .stApp {
+        background-color: #ffffff;
+    }
+
+    h1, h2, h3 { font-weight: 700; letter-spacing: -0.5px; color: #111111; }
    
     /* 모바일 환경 폰트 사이즈 조절 */
     @media (max-width: 768px) {
@@ -33,7 +39,7 @@ st.markdown("""
     }
 
     /* 탭(항목) 기본 디자인 */
-    .stTabs [data-baseweb="tab-list"] { gap: 30px; border-bottom: 1px solid #e0e0e0; }
+    .stTabs [data-baseweb="tab-list"] { gap: 30px; border-bottom: 1px solid #eaeaea; }
     .stTabs [data-baseweb="tab"] {
         height: 50px; font-size: 16px; font-weight: 600; color: #888888;
         border-bottom: 2px solid transparent !important;
@@ -47,10 +53,15 @@ st.markdown("""
     }
    
     /* 버튼 디자인 */
-    .stButton>button { border-radius: 6px; font-weight: 600; border: 1px solid #cccccc; width: 100%; transition: 0.3s; }
-    .stButton>button:hover { border-color: #007bff; color: #007bff; background-color: #f8f8f8; }
+    .stButton>button { border-radius: 8px; font-weight: 600; border: 1px solid #cccccc; width: 100%; transition: 0.3s; background-color: #ffffff;}
+    .stButton>button:hover { border-color: #007bff; color: #007bff; background-color: #f8f9fa; }
     div[data-baseweb="select"] { cursor: pointer; }
     
+    /* 텍스트 입력창 및 셀렉트박스 모서리 둥글게 */
+    .stTextInput input, div[data-baseweb="select"] > div {
+        border-radius: 8px !important;
+    }
+
     /* 텍스트 입력창 포커스 시 디자인 */
     .stTextInput div[data-baseweb="input"]:focus-within {
         border-color: #007bff !important;
@@ -85,24 +96,60 @@ st.markdown("""
         font-weight: 700 !important;
     }
     
-    /* 재무제표 표 스타일 */
-    .fin-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; table-layout: fixed; }
-    .fin-table th { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; color: #555; }
-    .fin-table td { border-bottom: 1px solid #eee; padding: 8px; text-align: right; vertical-align: middle; }
-    .fin-table td:first-child {
-        text-align: left;
-        font-weight: 600;
-        color: #333;
-        width: 40%;
-        word-break: break-all;
+    /* 지표(Metric) 카드 디자인 - 탭 4 사진 분위기에 맞춤 */
+    [data-testid="stMetric"] {
+        background-color: #f8f9fa;
+        border: 1px solid #eaeaea;
+        border-radius: 12px;
+        padding: 15px 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 1rem !important;
+        color: #555555 !important;
+        font-weight: 600 !important;
     }
     
     /* Metric Value 스타일 */
     div[data-testid="stMetricValue"] {
         white-space: normal !important;
         word-break: break-all !important;
-        font-size: 1.4rem !important; 
+        font-size: 1.6rem !important; 
+        font-weight: 700 !important;
         line-height: 1.2 !important;
+        color: #111111 !important;
+    }
+
+    /* 재무제표 표 스타일 - 모서리 둥근 테이블 */
+    .fin-table { 
+        width: 100%; 
+        border-collapse: separate; 
+        border-spacing: 0;
+        margin-top: 10px; 
+        font-size: 14px; 
+        table-layout: fixed; 
+        border: 1px solid #eaeaea;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .fin-table th, .fin-table td { 
+        border-bottom: 1px solid #eaeaea; 
+        padding: 12px 15px; 
+        text-align: right; 
+        vertical-align: middle; 
+        background-color: #ffffff;
+    }
+    .fin-table tr:last-child td {
+        border-bottom: none;
+    }
+    .fin-table td:first-child {
+        text-align: left;
+        font-weight: 600;
+        color: #333;
+        width: 40%;
+        word-break: break-all;
+        background-color: #f8f9fa; /* 항목명 배경만 살짝 다르게 */
+        border-right: 1px solid #eaeaea;
     }
 
     /* 불필요한 UI 숨기기 */
@@ -844,14 +891,14 @@ if user_input:
                     )
                     
                     fig.update_layout(
-                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
-                        template="plotly_dark",
+                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=22, color="#111111")),
+                        template="plotly_white",
                         dragmode=False, 
                         xaxis=xaxis_config,
-                        yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
+                        yaxis=dict(range=[min_y, max_y], gridcolor="#eaeaea", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
                         height=520,
                         margin=dict(l=0, r=0, t=40, b=0),
-                        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
+                        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(255,255,255,0.8)", font=dict(color="#111111")),
                         hovermode="x unified",
                         clickmode="none",
                         hoverlabel=dict(font_family="Pretendard")
@@ -864,7 +911,7 @@ if user_input:
                         'doubleClick': False
                     })
                 else:
-                    st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더 조절해 주세요!")
+                    st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더를 조절해 주세요!")
             else:
                 ma_context_str = "차트 데이터 부족"
             
@@ -1208,5 +1255,5 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
-    else:
-        st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 종목명이나 티커를 입력해 주세요!")
+else:
+    st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 종목명이나 티커를 입력해 주세요!")
