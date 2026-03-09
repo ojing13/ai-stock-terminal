@@ -689,7 +689,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.markdown("""
 <div style="font-size: 1.75rem; font-weight: 900; color: #1a1a2e; letter-spacing: -0.8px; line-height: 1.2; margin-bottom: 6px;">
-    웅이의 AI 주식 분석 터미널
+    <a href="?" target="_self" style="text-decoration: none; color: inherit; cursor: pointer;">웅이의 AI 주식 분석 터미널</a>
 </div>
 <div style="color: #9ca3af; font-size: 13.5px; font-weight: 400; margin-bottom: 22px; letter-spacing: 0.1px;">
     
@@ -1524,4 +1524,5 @@ else:
         
     </div>
     """, unsafe_allow_html=True)
+
 
