@@ -1282,29 +1282,30 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
         # --- [탭 4: 종합 리포트 및 투자의견 바] ---
         with tab4:
             st.markdown('<div class="section-header"><span class="section-badge">AI</span> 퀀트 애널리스트 최종 브리핑</div>', unsafe_allow_html=True)
-            # 이전 결과 자동 표시 (버튼 안 눌러도 세션 내 유지)
-            if "report_cache" in st.session_state:
-                _cache_raw = f"{ticker}|{current_price}|{trailing_pe}|{forward_pe}|{pb}|{debt_str}|{op_margin}|{high_52}|{low_52}"
-                _cache_key = hashlib.md5(_cache_raw.encode()).hexdigest()
+
+            if "report_cache" not in st.session_state:
+                st.session_state.report_cache = {}
+
+            _cache_raw = f"{ticker}|{current_price}|{trailing_pe}|{forward_pe}|{pb}|{debt_str}|{op_margin}|{high_52}|{low_52}"
+            _cache_key = hashlib.md5(_cache_raw.encode()).hexdigest()
+
+            # 결과 표시 컨테이너 (덮어쓰기 방식으로 중복 방지)
+            _result_area = st.empty()
+
+            def _render_cached(container):
                 if _cache_key in st.session_state.report_cache:
-                    _cached = st.session_state.report_cache[_cache_key]
-                    st.markdown(f'<div class="ai-result-card">{_cached["html"]}</div>', unsafe_allow_html=True)
-                    if _cached.get("bar_html"):
-                        st.markdown(_cached["bar_html"].replace('\n', ''), unsafe_allow_html=True)
+                    _c = st.session_state.report_cache[_cache_key]
+                    with container.container():
+                        st.markdown(f'<div class="ai-result-card">{_c["html"]}</div>', unsafe_allow_html=True)
+                        if _c.get("bar_html"):
+                            st.markdown(_c["bar_html"].replace('\n', ''), unsafe_allow_html=True)
+
+            _render_cached(_result_area)
 
             if st.button("원클릭 종합 분석 리포트 생성"):
-                # 캐시 키: 종목+주요 수치 해시
-                _cache_raw = f"{ticker}|{current_price}|{trailing_pe}|{forward_pe}|{pb}|{debt_str}|{op_margin}|{high_52}|{low_52}"
-                _cache_key = hashlib.md5(_cache_raw.encode()).hexdigest()
-
-                if "report_cache" not in st.session_state:
-                    st.session_state.report_cache = {}
 
                 if _cache_key in st.session_state.report_cache:
-                    _cached = st.session_state.report_cache[_cache_key]
-                    st.markdown(f'<div class="ai-result-card">{_cached["html"]}</div>', unsafe_allow_html=True)
-                    if _cached.get("bar_html"):
-                        st.markdown(_cached["bar_html"].replace('\n', ''), unsafe_allow_html=True)
+                    _render_cached(_result_area)
                 else:
                   with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
                     prompt = f"""
@@ -1439,9 +1440,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         # 끝부분 잔여 쉼표/마침표/따옴표 등 정리
                         _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
                         _html = md_to_html(_cleaned)
-                        st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
-                        # 스코어 없을 경우 일단 캐시 저장 (bar_html은 아래에서 갱신)
                         st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
+                        _result_area.empty()
+                        _render_cached(_result_area)
                         
                         if final_score is not None:
                             final_score = max(0, min(100, final_score)) 
@@ -1461,10 +1462,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             
                             bar_html = f"""<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;"><h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h4><div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);"><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div><div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div></div>{matrix_html}</div>"""
                             
-                            clean_html = bar_html.replace('\n', '')
-                            st.markdown(clean_html, unsafe_allow_html=True)
-                            # 캐시 저장
                             st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": bar_html}
+                            _result_area.empty()
+                            _render_cached(_result_area)
                             
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
