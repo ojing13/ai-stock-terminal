@@ -1438,9 +1438,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
                         _html = md_to_html(_cleaned)
                         st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
-                        st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
-                        _result_area.empty()
-                        _render_cached(_result_area)
                         
                         if final_score is not None:
                             final_score = max(0, min(100, final_score)) 
