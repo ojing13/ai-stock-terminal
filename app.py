@@ -295,6 +295,9 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
+# ====================== [버그 수정] get_korean_display_name ======================
+# 네이버 AC API의 item[0]은 티커 코드, item[1]은 종목명입니다.
+# item[1]이 티커와 동일한 값을 반환하는 경우(미국 주식 등)를 방어 처리했습니다.
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
@@ -308,8 +311,10 @@ def get_korean_display_name(ticker, english_name):
             for item in ac_data['items'][0]:
                 if item[0].upper() == clean_ticker.upper():
                     korean_name = item[1]
+                    # item[1]이 티커와 동일하거나 비어있으면 무시
                     if korean_name and korean_name.upper() != clean_ticker.upper():
                         return korean_name
+            # 정확히 일치하는 항목이 없으면 첫 번째 결과의 종목명 시도
             first_name = ac_data['items'][0][0][1]
             if first_name and first_name.upper() != clean_ticker.upper():
                 return first_name
@@ -317,6 +322,7 @@ def get_korean_display_name(ticker, english_name):
         pass
     return english_name
 
+@st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     search_clean = search_term.replace(" ", "").upper()
@@ -359,21 +365,21 @@ def get_ticker_symbol(search_term):
     if not krx_df.empty:
         df_temp = krx_df.copy()
         df_temp['Name_clean'] = df_temp['Name'].astype(str).str.replace(" ", "").str.upper()
-        
+        # 완전일치
         match = df_temp[df_temp['Name_clean'] == search_clean]
         if not match.empty:
             code = match.iloc[0]['Code']
             market = match.iloc[0]['Market']
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
-            
+        # 부분일치 (검색어가 종목명에 포함)
         partial = df_temp[df_temp['Name_clean'].str.contains(search_clean, na=False)]
         if not partial.empty:
             code = partial.iloc[0]['Code']
             market = partial.iloc[0]['Market']
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
-            
+        # 역방향 부분일치 (종목명이 검색어에 포함)
         partial2 = df_temp[df_temp['Name_clean'].apply(lambda n: n in search_clean and len(n) >= 3)]
         if not partial2.empty:
             code = partial2.iloc[0]['Code']
@@ -398,7 +404,7 @@ def get_ticker_symbol(search_term):
             
             if '코스피' in market_str: return f"{code}.KS"
             elif '코스닥' in market_str: return f"{code}.KQ"
-            else: return code if code.isalpha() else f"{code}.KS"
+            else: return f"{code}.KS"
     except:
         pass
             
@@ -416,45 +422,40 @@ def get_ticker_symbol(search_term):
                 market_str = tds[2].text.strip()
                 if '코스피' in market_str: return f"{code}.KS"
                 elif '코스닥' in market_str: return f"{code}.KQ"
-                else: return code if code.isalpha() else f"{code}.KS"
+                else: return code
     except:
         pass
       
-    has_korean = bool(re.search(r'[가-힣]', search_term))
-    if not has_korean:
-        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        try:
-            res = requests.get(url, headers=headers, timeout=5)
-            data = res.json()
-            if 'quotes' in data and len(data['quotes']) > 0:
-                us_exchanges = ['NYQ', 'NMS', 'NYSE', 'NASDAQ']
-                for quote in data['quotes']:
-                    if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange', '').upper() in us_exchanges:
-                        return quote['symbol']
-                for quote in data['quotes']:
-                    if quote.get('type') in ['EQUITY', 'ETF', 'CRYPTOCURRENCY']:
-                        return quote['symbol']
-        except:
-            pass
+    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    try:
+        res = requests.get(url, headers=headers, timeout=5)
+        data = res.json()
+        if 'quotes' in data and len(data['quotes']) > 0:
+            us_exchanges = ['NYQ', 'NMS', 'NYSE', 'NASDAQ']
+            for quote in data['quotes']:
+                if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange', '').upper() in us_exchanges:
+                    return quote['symbol']
+            for quote in data['quotes']:
+                if quote.get('type') in ['EQUITY', 'ETF']:
+                    return quote['symbol']
+            return data['quotes'][0]['symbol']
+    except:
+        pass
         
     try:
-        # [버그 진짜 원인 수정] 비트마인, 써클 등 상장사를 멋대로 비상장사로 판단해 대장주를 찾도록 한 멍청한 프롬프트 완전 삭제 및 규칙 재정립
-        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')에 해당하는 정확한 야후 파이낸스 티커 딱 1개만 출력하세요.
+        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스 주식 티커 딱 1개만 출력하세요.
         [엄격한 규칙]
-        1. 사용자가 한글로 입력한 기업명(예: 비트마인, 써클, 리게티 등)의 실제 상장된 공식 영문 티커를 정확히 찾아주세요.
-        2. 절대 검색어와 다른 '관련 대장주'나 '경쟁사'를 임의로 찾지 마세요. 사용자가 찾고자 하는 해당 기업 본연의 티커만 반환해야 합니다.
-        3. 미국 주식: 영문 티커 (예: AAPL, BMNR, CRCL, RGTI)
-        4. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
-        5. 암호화폐: 야후 파이낸스 심볼 (예: BTC-USD)
-        6. 도저히 찾을 수 없다면 임의로 지어내지 말고 'NONE'이라고 출력하세요.
-        7. 사고 과정 추가 설명 없이 오직 '티커 기호' 하나만 출력하세요."""
+        1. 미국 주식: 영문 티커 (예: AAPL, HIMS, TSLA)
+        2. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
+        3. 확신할 수 없다면 절대 임의의 숫자를 지어내지 마세요.
+        4. 사고 과정 추가 설명 없이 오직 '티커 기호' 하나만 출력하세요."""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
-            match = re.search(r'[A-Z0-9\-]+\.[A-Z]+|[A-Z0-9\-]+', lines[-1])
+            match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', lines[-1])
             if match:
                 return match.group(0)
     except:
@@ -700,8 +701,7 @@ with col_search:
     user_input = st.text_input("분석할 종목명 또는 티커", placeholder="예: 삼성전자, AAPL, NVDA")
 
 if user_input:
-    clean_input = user_input.strip()
-    ticker = get_ticker_symbol(clean_input)
+    ticker = get_ticker_symbol(user_input)
     stock = yf.Ticker(ticker)
     
     hist_basic, cached_info, fin_df, bs_df, cf_df, div_series = fetch_yf_data(ticker)
@@ -735,6 +735,11 @@ if user_input:
                     display_name = info['shortName']
 
         else:
+            # ====================== [버그 수정] 미국 주식 종목명 ======================
+            # 1순위: Yahoo Finance 검색 API에서 정식 종목명 직접 조회
+            # 2순위: yfinance info의 longName
+            # 3순위: yfinance info의 shortName (티커와 동일한 값이면 제외)
+            # 4순위: 네이버 AC API
             yf_official_name = None
             try:
                 import urllib.parse as _up
@@ -941,6 +946,7 @@ if user_input:
         
         # --- [탭 1: 차트 분석] ---
         with tab1:
+            # 종목명 + 현재가 헤더 카드
             st.markdown(f"""
             <div class="price-header">
                 <span class="price-name">{display_name}</span>
@@ -1306,7 +1312,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             for item in news_list[:10]:
                                 st.markdown(f"• <a href='{item['link']}' target='_blank'>{item['title']}</a>", unsafe_allow_html=True)
                         else:
-                            st.write("뉴스 링크를 불러올 수 직접 없습니다.")
+                            st.write("뉴스 링크를 불러올 수 없습니다.")
           
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
