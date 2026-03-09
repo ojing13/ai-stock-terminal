@@ -12,121 +12,147 @@ import math
 import re
 import urllib.parse
 import copy
-import textwrap
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석 터미널")
 
-# 최고급 세련된 웹 폰트(Pretendard) 적용 및 전체 디자인(CSS) 프리미엄 개편
+# 최고급 세련된 웹 폰트(Pretendard) 적용 및 프리미엄 핀테크 테마 CSS
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
   
-    /* 전체 폰트 및 텍스트 컬러 통일 */
+    /* 전체 폰트 및 배경 설정 */
     * {
         font-family: 'Pretendard', 'Noto Sans KR', sans-serif !important;
     }
+    .stApp {
+        background-color: #f8f9fa;
+    }
+    
+    /* 메인 컨테이너 화이트 카드 스타일 */
+    .main .block-container {
+        background-color: #ffffff;
+        padding: 3rem;
+        border-radius: 1.5rem;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+        margin-top: 2rem;
+    }
+
+    /* 헤더 텍스트 디자인 */
     h1, h2, h3, h4, h5, h6 { 
-        color: #111111; 
+        color: #0f172a !important; 
         letter-spacing: -0.5px; 
         font-weight: 700; 
     }
-    p, span, div { color: #333333; line-height: 1.6; }
+    h1 {
+        border-bottom: 3px solid #0f172a;
+        padding-bottom: 12px;
+        margin-bottom: 30px;
+    }
    
     /* 모바일 환경 폰트 조절 */
     @media (max-width: 768px) {
         h1 { font-size: 1.6rem !important; word-break: keep-all; }
-    }
-
-    /* 메인 타이틀 하단 선 추가로 정돈된 느낌 부여 */
-    h1 {
-        border-bottom: 2px solid #111111;
-        padding-bottom: 12px;
-        margin-bottom: 30px;
+        .main .block-container { padding: 1.5rem; }
     }
 
     /* 탭(Tab) 메뉴 디자인 고급화 */
     .stTabs [data-baseweb="tab-list"] { 
-        gap: 24px; 
-        border-bottom: 1px solid #e5e5e5; 
+        gap: 30px; 
+        border-bottom: 2px solid #e2e8f0; 
     }
     .stTabs [data-baseweb="tab"] {
-        height: 48px; 
+        height: 50px; 
         font-size: 16px; 
         font-weight: 600; 
-        color: #888888;
+        color: #64748b;
         border-bottom: 3px solid transparent !important;
         padding: 0 4px;
         transition: color 0.2s, border-color 0.2s;
     }
     .stTabs [aria-selected="true"] {
-        color: #111111 !important;
-        border-bottom: 3px solid #111111 !important;
+        color: #0f172a !important;
+        border-bottom: 3px solid #3b82f6 !important;
         box-shadow: none !important;
     }
    
-    /* 버튼 모던 디자인 */
-    .stButton>button { 
-        border-radius: 8px; 
-        font-weight: 600; 
-        font-size: 15px;
-        color: #ffffff; 
-        background-color: #111111; 
-        border: none;
-        padding: 10px 0; 
-        width: 100%; 
-        transition: all 0.2s ease; 
+    /* 버튼 모던 디자인 (검은 바탕에 흰 글씨 강제 적용) */
+    .stButton > button { 
+        border-radius: 10px !important; 
+        background-color: #0f172a !important; 
+        border: none !important;
+        padding: 12px 0 !important; 
+        width: 100% !important; 
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1) !important;
+        transition: all 0.2s ease !important; 
     }
-    .stButton>button:hover { 
-        background-color: #333333; 
-        color: #ffffff; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
-        transform: translateY(-1px);
+    .stButton > button * {
+        color: #ffffff !important;
+        font-weight: 600 !important; 
+        font-size: 16px !important;
     }
+    .stButton > button:hover { 
+        background-color: #1e293b !important; 
+        transform: translateY(-2px) !important;
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1) !important; 
+    }
+    div[data-baseweb="select"] { cursor: pointer; }
     
-    /* 텍스트 입력창 & 셀렉트박스 포커스 시 고급스러운 다크톤 테두리 */
+    /* 텍스트 입력창 & 셀렉트박스 포커스 시 프리미엄 테두리 */
     .stTextInput div[data-baseweb="input"], div[data-baseweb="select"] > div {
-        border-radius: 8px !important;
-        border: 1px solid #dcdcdc !important;
-        background-color: #ffffff !important;
+        border-radius: 10px !important;
+        border: 1.5px solid #cbd5e1 !important;
+        background-color: #f8fafc !important;
+        padding: 4px 8px;
         transition: all 0.2s ease;
     }
     .stTextInput div[data-baseweb="input"]:focus-within, div[data-baseweb="select"] > div:focus-within {
-        border-color: #111111 !important;
-        box-shadow: 0 0 0 1px #111111 !important;
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+        background-color: #ffffff !important;
     }
     div[data-baseweb="select"] input {
         caret-color: transparent !important; 
         user-select: none !important;
     }
     
-    /* 슬라이더 세련된 다크 테마 */
+    /* 슬라이더 세련된 포인트 테마 */
     div[data-testid="stSlider"] div[role="slider"] {
-        background-color: #111111 !important;
+        background-color: #3b82f6 !important;
         border: 2px solid #ffffff !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
     }
     div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
     div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"],
-    div[data-testid="stSlider"] div[style*="background-color: rgb(0, 123, 255)"] {
-        background-color: #111111 !important;
+    div[data-testid="stSlider"] div[style*="background-color: rgb(0, 123, 255)"],
+    div[data-testid="stSlider"] div[style*="background-color: #ff2d55"] {
+        background-color: #3b82f6 !important;
     }
     [data-testid="stTickBarMin"], [data-testid="stTickBarMax"], [data-testid="stThumbValue"] {
-        color: #111111 !important; font-weight: 700 !important; font-size: 13px !important;
+        color: #0f172a !important; font-weight: 700 !important; font-size: 13px !important;
     }
     
     /* 재무제표 등 주요 수치 표시(Metric) 카드형 디자인 적용 */
     div[data-testid="stMetric"] {
         background-color: #ffffff;
-        border: 1px solid #eaeaea;
-        border-radius: 10px;
-        padding: 16px 20px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    div[data-testid="stMetricLabel"] p { font-size: 13px !important; color: #777777 !important; font-weight: 600 !important; }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.06);
+    }
+    div[data-testid="stMetricLabel"] p { 
+        font-size: 13px !important; 
+        color: #64748b !important; 
+        font-weight: 600 !important; 
+    }
     div[data-testid="stMetricValue"] { 
         font-size: 1.5rem !important; 
-        color: #111111 !important; 
+        color: #0f172a !important; 
         font-weight: 800 !important;
         white-space: normal !important;
         word-break: break-all !important;
@@ -135,43 +161,50 @@ st.markdown("""
     
     /* 재무제표 표 스타일 프리미엄화 */
     .fin-table { 
-        width: 100%; border-collapse: collapse; margin-top: 15px; 
-        font-size: 14px; background-color: #ffffff; border-radius: 8px; 
-        overflow: hidden; border: 1px solid #eaeaea; 
+        width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 15px; 
+        font-size: 14px; background-color: #ffffff; border-radius: 10px; 
+        overflow: hidden; border: 1px solid #e2e8f0; 
     }
     .fin-table th { 
-        text-align: left; padding: 12px 16px; 
-        background-color: #f8f9fa; color: #333333; 
-        font-weight: 700; border-bottom: 2px solid #e0e0e0; 
+        text-align: left; padding: 14px 16px; 
+        background-color: #f1f5f9; color: #475569; 
+        font-weight: 700; border-bottom: 1px solid #e2e8f0; 
     }
     .fin-table td { 
-        border-bottom: 1px solid #f0f0f0; padding: 12px 16px; 
-        text-align: right; vertical-align: middle; color: #444; 
+        padding: 14px 16px; border-bottom: 1px solid #f1f5f9; 
+        text-align: right; vertical-align: middle; color: #334155; 
     }
     .fin-table tr:last-child td { border-bottom: none; }
     .fin-table td:first-child { 
-        text-align: left; font-weight: 600; color: #222; width: 45%; 
+        text-align: left; font-weight: 600; color: #0f172a; width: 45%; 
+        background-color: #fafafa;
     }
     
     /* 정보 표출 박스(리포트 박스) 깔끔하게 */
     div[data-testid="stInfo"] {
-        background-color: #fbfbfb !important;
-        border: 1px solid #e5e5e5 !important;
-        border-left: 4px solid #111111 !important;
-        border-radius: 6px !important;
-        color: #222222 !important;
+        background-color: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+        border-left: 4px solid #3b82f6 !important;
+        border-radius: 8px !important;
+        color: #334155 !important;
         padding: 20px 24px !important;
+        line-height: 1.7 !important;
     }
     div[data-testid="stInfo"] svg { display: none !important; }
 
-    /* 불필요한 UI 숨기기 */
+    /* 불필요한 UI 숨기기 및 원래 문구 복구 */
     .stDeployButton { display: none !important; }
     [data-testid="stStatusWidget"] * { display: none !important; }
     [data-testid="stStatusWidget"]::after {
-        content: "데이터 분석 중...";
-        font-size: 13px; font-weight: 600; color: #888888;
-        display: flex; align-items: center; padding: 5px 15px;
+        content: "Loading...";
+        font-size: 14px;
+        font-weight: 600;
+        color: #888888;
+        display: flex;
+        align-items: center;
+        padding: 5px 15px;
     }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -867,7 +900,7 @@ if user_input:
                     fig.add_trace(go.Candlestick(
                         x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                         low=filtered_history['Low'], close=filtered_history['Close'],
-                        increasing_line_color='#ff2d55', decreasing_line_color='#007bff',
+                        increasing_line_color='#ff2d55', decreasing_line_color='#3b82f6',
                         name="가격"
                     ))
 
@@ -891,21 +924,21 @@ if user_input:
                     fig.add_annotation(
                         x=min_idx, y=price_min,
                         text=f"최저: {price_min:{price_fmt}} {currency}",
-                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#00b0ff",
+                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#3b82f6",
                         ax=0, ay=35,
                         font=dict(color="white", size=13, family="Pretendard"),
-                        bgcolor="#00b0ff", bordercolor="#00b0ff", borderwidth=1, borderpad=4, opacity=0.9
+                        bgcolor="#3b82f6", bordercolor="#3b82f6", borderwidth=1, borderpad=4, opacity=0.9
                     )
                     
                     fig.update_layout(
-                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
-                        template="plotly_dark",
+                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=20, color="#1e293b", family="Pretendard")),
+                        template="plotly_white",
                         dragmode=False, 
                         xaxis=xaxis_config,
-                        yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
+                        yaxis=dict(range=[min_y, max_y], gridcolor="#e2e8f0", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
                         height=520,
                         margin=dict(l=0, r=0, t=40, b=0),
-                        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
+                        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(255,255,255,0.8)", font=dict(color="#334155")),
                         hovermode="x unified",
                         clickmode="none",
                         hoverlabel=dict(font_family="Pretendard")
@@ -1158,7 +1191,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
         with tab4:
             st.subheader("AI 퀀트 애널리스트 최종 브리핑")
             if st.button("원클릭 종합 분석 리포트 생성"):
-                with st.spinner('AI가 데이터를 종합하여 논리적 점수를 산출 중입니다...'):
+                with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
                     prompt = f"""
                     오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합적으로 분석해주세요.
                     
@@ -1257,21 +1290,22 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         if final_score is not None:
                             final_score = max(0, min(100, final_score)) 
                             
-                            if final_score <= 20: opinion_text, text_color = "강력 매도", "#007aff"
-                            elif final_score <= 40: opinion_text, text_color = "매도", "#66b2ff"
-                            elif final_score <= 60: opinion_text, text_color = "중립", "#555555"
-                            elif final_score <= 80: opinion_text, text_color = "매수", "#ff6b6b"
-                            else: opinion_text, text_color = "강력 매수", "#ff2d55"
+                            if final_score <= 20: opinion_text, text_color = "강력 매도", "#0f172a"
+                            elif final_score <= 40: opinion_text, text_color = "매도", "#334155"
+                            elif final_score <= 60: opinion_text, text_color = "중립", "#64748b"
+                            elif final_score <= 80: opinion_text, text_color = "매수", "#3b82f6"
+                            else: opinion_text, text_color = "강력 매수", "#2563eb"
                             
                             matrix_html = ""
                             if risk_score is not None and return_score is not None:
                                 r_s = max(0, min(100, risk_score))
                                 ret_s = max(0, min(100, return_score))
                                 
-                                matrix_html = f"""<div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;"><h4 style="text-align: center; margin-bottom: 25px; color: #111111; font-weight: 700;">리스크 대비 기대수익 매트릭스</h4><div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: linear-gradient(135deg, #f9f9f9 0%, #eeeeee 100%); border: 1px solid #dcdcdc; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);"><div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #cccccc;"></div><div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #cccccc;"></div><div style="position: absolute; top: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #ff6b6b;">저위험 고수익</div><div style="position: absolute; top: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #ff2d55;">고위험 고수익</div><div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div><div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div><div style="position: absolute; bottom: calc({ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #111111; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 4px 8px rgba(0,0,0,0.2); z-index: 10;"></div></div></div>"""
+                                matrix_html = f"""<div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;"><h4 style="text-align: center; margin-bottom: 25px; color: #0f172a; font-weight: 700;">리스크 대비 기대수익 매트릭스</h4><div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);"><div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #cbd5e1;"></div><div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #cbd5e1;"></div><div style="position: absolute; top: 12px; left: 12px; font-size: 13px; font-weight: 700; color: #3b82f6;">저위험 고수익</div><div style="position: absolute; top: 12px; right: 12px; font-size: 13px; font-weight: 700; color: #2563eb;">고위험 고수익</div><div style="position: absolute; bottom: 12px; left: 12px; font-size: 13px; font-weight: 700; color: #64748b;">저위험 저수익</div><div style="position: absolute; bottom: 12px; right: 12px; font-size: 13px; font-weight: 700; color: #334155;">고위험 저수익</div><div style="position: absolute; bottom: calc({ret_s}% - 8px); left: calc({r_s}% - 8px); width: 16px; height: 16px; background-color: #0f172a; border: 2px solid #ffffff; border-radius: 50%; box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 10;"></div></div></div>"""
                             
-                            bar_html = f"""<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #ffffff; border: 1px solid #eaeaea; box-shadow: 0 2px 8px rgba(0,0,0,0.02);"><h4 style="text-align: center; margin-bottom: 30px; color: #111111; font-weight: 700;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h4><div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);"><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: #555555; font-weight: 800; font-size: 13px;">중립</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div><div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; color: #111111; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.3));">▼</div></div>{matrix_html}</div>"""
+                            bar_html = f"""<div style="margin-top: 30px; margin-bottom: 20px; padding: 30px 25px; border-radius: 16px; background-color: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.03);"><h4 style="text-align: center; margin-bottom: 30px; color: #0f172a; font-weight: 700;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h4><div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #94a3b8 0%, #94a3b8 20%, #64748b 20%, #64748b 40%, #e2e8f0 40%, #e2e8f0 60%, #60a5fa 60%, #60a5fa 80%, #3b82f6 80%, #3b82f6 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);"><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 700; font-size: 13px;">강력 매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 700; font-size: 13px;">매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: #475569; font-weight: 700; font-size: 13px;">중립</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 700; font-size: 13px;">매수</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 700; font-size: 13px;">강력 매수</div><div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 24px; color: #0f172a; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.15));">▼</div></div>{matrix_html}</div>"""
                             
+                            # 들여쓰기와 줄바꿈을 완벽히 제거하여 Streamlit 렌더링 오류 원천 차단
                             clean_html = bar_html.replace('\n', '')
                             st.markdown(clean_html, unsafe_allow_html=True)
                             
