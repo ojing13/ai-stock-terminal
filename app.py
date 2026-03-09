@@ -32,7 +32,7 @@ def md_to_html(text):
         line = lines[i].rstrip()
         # 헤딩
         if line.startswith('#### '):
-            html_parts.append(f'<h4 style="font-size:18px;font-weight:800;color:#111827;margin:22px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[5:].strip()}</h4>')
+            html_parts.append(f'<p style="font-size:16px;font-weight:800;color:#111827;margin:20px 0 4px 0;padding:0;border:none;">{line[5:].strip()}</p>')
         elif line.startswith('### '):
             html_parts.append(f'<h3 style="font-size:19px;font-weight:800;color:#111827;margin:24px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[4:].strip()}</h3>')
         elif line.startswith('## '):
@@ -1311,14 +1311,24 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                       "오늘은 {{today_date}}입니다. {{display_name}}({{ticker}}) 종목에 대한 종합 분석입니다."
                     - 각 항목의 제목(1, 2, 3, 4번)은 마크다운 헤딩(## 또는 ###)을 사용하여 작성하세요.
                     - 제목 아래에는 일반 문단으로 줄글을 작성하세요.
+                    - 3번 항목(상황별 대응 전략)은 반드시 아래 형식을 그대로 따르세요:
+                      #### 현재 보유자
+                      [본문 서술]
+
+                      #### 신규 매수 대기자
+                      [본문 서술]
+
+                      #### 매도 고려자
+                      [본문 서술]
+
                     - 4번 항목(구체적인 가격 제시)은 반드시 아래 형식을 그대로 따르세요. "(설명)" 같은 라벨 절대 금지:
-                      ### 진입 추천가: [가격 또는 가격범위]
+                      #### 진입 추천가: [가격 또는 가격범위]
                       [가격 근거와 전략을 바로 서술. 별도 라벨 없이 본문만]
 
-                      ### 1차 목표가: [가격]
+                      #### 1차 목표가: [가격]
                       [근거 바로 서술]
 
-                      ### 손절가: [가격]
+                      #### 손절가: [가격]
                       [근거 바로 서술]
                     
                     [분석 지침]
