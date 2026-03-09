@@ -283,6 +283,9 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
+# ====================== [버그 수정] get_korean_display_name ======================
+# 네이버 AC API의 item[0]은 티커 코드, item[1]은 종목명입니다.
+# item[1]이 티커와 동일한 값을 반환하는 경우(미국 주식 등)를 방어 처리했습니다.
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
@@ -295,12 +298,14 @@ def get_korean_display_name(ticker, english_name):
         if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
             for item in ac_data['items'][0]:
                 if item[0].upper() == clean_ticker.upper():
-                    korean_name = item[1] 
-                    if korean_name:
+                    korean_name = item[1]
+                    # item[1]이 티커와 동일하거나 비어있으면 무시
+                    if korean_name and korean_name.upper() != clean_ticker.upper():
                         return korean_name
-            korean_name = ac_data['items'][0][0][1] 
-            if korean_name:
-                return korean_name
+            # 정확히 일치하는 항목이 없으면 첫 번째 결과의 종목명 시도
+            first_name = ac_data['items'][0][0][1]
+            if first_name and first_name.upper() != clean_ticker.upper():
+                return first_name
     except:
         pass
     return english_name
@@ -718,7 +723,10 @@ if user_input:
                     display_name = info['shortName']
 
         else:
-            english_name = info.get('shortName', ticker)
+            # ====================== [버그 수정] 미국 주식 종목명 ======================
+            # longName 우선 사용 → shortName → 마지막으로 ticker 폴백
+            # shortName이 "NVDA" 같은 티커 자체를 반환하는 경우를 방어합니다.
+            english_name = info.get('longName') or info.get('shortName') or ticker
             display_name = get_korean_display_name(ticker, english_name)
         
         info = augment_korean_fundamentals(ticker, info)
