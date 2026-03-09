@@ -1417,85 +1417,22 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         report_text = response.text
 
-                        # 메인 리포트에서 점수/근거 제거한 클린 버전
+                        # 메인 리포트에서 직접 파싱
                         import re as _re
-                        _clean_report = _re.sub(r'RISK 근거:.*', '', report_text, flags=_re.DOTALL).strip()
-                        _clean_report = _re.sub(r'\[SCORE:\s*\d+\]', '', _clean_report)
-                        _clean_report = _re.sub(r'\[RISK:\s*\d+\]', '', _clean_report)
-                        _clean_report = _re.sub(r'\[RETURN:\s*\d+\]', '', _clean_report).strip()
+                        score_match = re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
+                        risk_match  = re.search(r'\[RISK:\s*(\d+)\s*\]',  report_text)
+                        return_match = re.search(r'\[RETURN:\s*(\d+)\s*\]', report_text)
 
-                        # 점수 산출용 프롬프트: 수치 + 클린 리포트 함께 제공
-                        _score_prompt = f"""아래 종목의 핵심 수치와 분석 리포트를 보고 투자 점수를 평가하세요.
-종목: {display_name} ({ticker})
+                        final_score  = int(score_match.group(1))  if score_match  else None
+                        risk_score   = int(risk_match.group(1))   if risk_match   else None
+                        return_score = int(return_match.group(1)) if return_match else None
 
-=== 핵심 수치 ===
-현재가의 52주 범위 위치: {round((current_price - low_52) / (high_52 - low_52) * 100) if high_52 != low_52 else 50}% (0%=52주최저, 100%=52주최고)
-현재가: {current_price:{price_fmt}} / 52주 고: {high_52:{price_fmt}} / 52주 저: {low_52:{price_fmt}} ({currency})
-시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}
-Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
-ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}
-부채비율: {debt_str}, 영업활동현금흐름: {v_cf_op}
-매출: {v_rev}, 영업이익: {v_op}, 순이익: {v_net}
-배당수익률: {fmt_pct(div_yield)}
-
-=== 분석 리포트 ===
-{{_clean_report}}
-
----
-중요 해석 지침:
-- PER/ROE/영업이익이 N/A 또는 적자: 수익성 없는 초기 성장주/고위험 섹터로 간주 → RISK 높게 반영
-- 미래 성장 스토리가 강한 섹터(양자컴퓨터, 바이오, AI 등): RETURN 잠재력 높게 반영
-- 업종 특성 필수 반영 (금융주 고부채=정상 / 바이오·양자·AI 적자=고위험이지만 고수익 가능성 병존)
-
-점수를 내기 전에 반드시 아래 순서로 근거를 먼저 서술하세요:
-RISK 근거: 재무/밸류에이션/사업구조/거시 리스크 각각 한 줄씩 (업종 특성 반영 필수)
-RETURN 근거: 이 종목이 잘 됐을 경우 최대 상승 포텐셜과 실현 가능성 한 줄
-SCORE 근거: 지금 이 가격에서의 손익비 판단 한 줄
-[투자자 전제: 자산 20% 투자, 레버리지 아닌 이상 평생 보유, 손실 허용 한도 -25%]
-
-근거와 반드시 일치하는 점수를 1단위로 정밀하게 출력:
-[SCORE: 숫자]
-[RISK: 숫자]
-[RETURN: 숫자]""".replace('{{_clean_report}}', _clean_report)
-
-                        import concurrent.futures as _cf
-
-                        def _call_score(_):
-                            try:
-                                _sr = client.models.generate_content(
-                                    model='gemini-2.5-flash',
-                                    contents=_score_prompt,
-                                    config={"temperature": 0.3}
-                                )
-                                _st = _sr.text
-                                _sm = re.search(r'\[SCORE:\s*(\d+)\s*\]', _st)
-                                _rm = re.search(r'\[RISK:\s*(\d+)\s*\]', _st)
-                                _rem = re.search(r'\[RETURN:\s*(\d+)\s*\]', _st)
-                                return (
-                                    int(_sm.group(1)) if _sm else None,
-                                    int(_rm.group(1)) if _rm else None,
-                                    int(_rem.group(1)) if _rem else None
-                                )
-                            except:
-                                return (None, None, None)
-
-                        with _cf.ThreadPoolExecutor(max_workers=7) as _ex:
-                            _results = list(_ex.map(_call_score, range(7)))
-
-                        _scores  = [r[0] for r in _results if r[0] is not None]
-                        _risks   = [r[1] for r in _results if r[1] is not None]
-                        _returns = [r[2] for r in _results if r[2] is not None]
-
-                        score_match = True if _scores else None
-                        risk_match  = True if _risks  else None
-                        return_match = True if _returns else None
-
-                        final_score  = round(sum(_scores)  / len(_scores))  if _scores  else None
-                        risk_score   = round(sum(_risks)   / len(_risks))   if _risks   else None
-                        return_score = round(sum(_returns) / len(_returns)) if _returns else None
-
-                        _cleaned = _clean_report
-                        # 끝부분 잔여 쉼표/마침표/따옴표 등 정리
+                        # 리포트 본문 정리 (근거 서술 + 점수 태그 제거)
+                        _cleaned = report_text.strip()
+                        _cleaned = _re.sub(r'RISK 근거:.*', '', _cleaned, flags=_re.DOTALL).strip()
+                        _cleaned = _re.sub(r'\[SCORE:\s*\d+\]', '', _cleaned)
+                        _cleaned = _re.sub(r'\[RISK:\s*\d+\]',  '', _cleaned)
+                        _cleaned = _re.sub(r'\[RETURN:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
                         _html = md_to_html(_cleaned)
                         st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
