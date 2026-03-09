@@ -33,11 +33,11 @@ def md_to_html(text):
         if line.startswith('#### '):
             html_parts.append(f'<h4 style="font-size:18px;font-weight:800;color:#111827;margin:22px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[5:].strip()}</h4>')
         elif line.startswith('### '):
-            html_parts.append(f'<h3 style="font-size:17px;font-weight:800;color:#111827;margin:24px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[4:].strip()}</h3>')
+            html_parts.append(f'<h3 style="font-size:19px;font-weight:800;color:#111827;margin:24px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[4:].strip()}</h3>')
         elif line.startswith('## '):
-            html_parts.append(f'<h2 style="font-size:17.5px;font-weight:800;color:#111827;margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[3:].strip()}</h2>')
+            html_parts.append(f'<h2 style="font-size:20px;font-weight:800;color:#111827;margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[3:].strip()}</h2>')
         elif line.startswith('# '):
-            html_parts.append(f'<h2 style="font-size:18px;font-weight:800;color:#111827;margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[2:].strip()}</h2>')
+            html_parts.append(f'<h2 style="font-size:20px;font-weight:800;color:#111827;margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[2:].strip()}</h2>')
         # 빈 줄 → 단락 간격
         elif line.strip() == '':
             html_parts.append('<div style="height:10px;"></div>')
@@ -227,6 +227,18 @@ st.markdown("""
     /* ===== 뉴스 링크 ===== */
     a { color: #3b82f6 !important; text-decoration: none !important; }
     a:hover { text-decoration: underline !important; }
+
+    /* ===== 상단 흰색 헤더 바 완전 제거 ===== */
+    header[data-testid="stHeader"] {
+        display: none !important;
+    }
+    /* 헤더 제거 후 생기는 상단 여백 보정 */
+    .block-container {
+        padding-top: 2.5rem !important;
+    }
+    @media (max-width: 768px) {
+        .block-container { padding-top: 2rem !important; }
+    }
 
     /* ===== 불필요한 UI 숨기기 ===== */
     .stDeployButton { display: none !important; }
