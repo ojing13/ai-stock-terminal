@@ -1364,6 +1364,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     현재 주가가 저평가 구간이라면 그 자체로 상승 여력이 높으므로 반영.
                     대형 계약, 신사업, 시장 독점, 산업 전환 수혜 등 성장 트리거를 중심으로 판단.
                     재무가 나빠도 미래 베팅 가치가 크면 높은 점수. 0(기대 없음) ~ 100(폭발적 상승 잠재력).
+                    리포트 본문만 작성하세요. 점수는 포함하지 마세요.
                     """
                     try:
                         response = client.models.generate_content(
@@ -1371,10 +1372,35 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         )
                         
                         report_text = response.text
-                        
-                        score_match = re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
-                        risk_match = re.search(r'\[RISK:\s*(\d+)\s*\]', report_text)
-                        return_match = re.search(r'\[RETURN:\s*(\d+)\s*\]', report_text)
+
+                        # 스코어 별도 호출 - 리포트 내용을 보고 숫자만 추출
+                        score_prompt = f"""아래는 {display_name}({ticker}) 종목에 대한 투자 분석 리포트입니다.
+
+{report_text}
+
+---
+위 리포트를 읽고, 다음 3가지 점수만 출력하세요. 설명 없이 숫자만.
+
+판단 전제: 당신이 지금 이 종목에 500만원을 직접 투자하고 당분간 팔지 않는다는 전제.
+각 점수의 역할을 엄격히 구분하세요:
+
+SCORE (0~100): 종합 투자의견. 저평가 여부, 손익비, 리스크 대비 잠재력을 종합해 "지금 500만원 넣겠는가". 0=절대안함, 50=중립, 100=강한확신
+RISK (0~100): 손실 위험도. 재무건전성·밸류에이션 부담·구조적위험 기반. 0=매우안전, 100=매우위험
+RETURN (0~100): 잘됐을때 상승잠재력. 미래시나리오 기반, 현재재무무관. 0=기대없음, 100=폭발적상승
+
+반드시 아래 형식으로만 출력:
+[SCORE: 숫자]
+[RISK: 숫자]
+[RETURN: 숫자]"""
+
+                        score_response = client.models.generate_content(
+                            model='gemini-2.5-flash', contents=score_prompt, config={"temperature": 0.0}
+                        )
+                        score_text = score_response.text
+
+                        score_match = re.search(r'\[SCORE:\s*(\d+)\s*\]', score_text)
+                        risk_match = re.search(r'\[RISK:\s*(\d+)\s*\]', score_text)
+                        return_match = re.search(r'\[RETURN:\s*(\d+)\s*\]', score_text)
                         
                         final_score = None
                         risk_score = None
@@ -1382,15 +1408,12 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         if score_match:
                             final_score = int(score_match.group(1))
-                            report_text = report_text.replace(score_match.group(0), "")
                         
                         if risk_match:
                             risk_score = int(risk_match.group(1))
-                            report_text = report_text.replace(risk_match.group(0), "")
                             
                         if return_match:
                             return_score = int(return_match.group(1))
-                            report_text = report_text.replace(return_match.group(0), "")
                             
                         import re as _re
                         _cleaned = report_text.strip()
