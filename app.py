@@ -1418,27 +1418,38 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         report_text = response.text
 
                         # 점수만 3회 별도 호출해서 평균 산출
-                        _score_prompt = f"""아래 리포트와 수치를 읽고 점수만 출력하세요.
+                        _score_prompt = f"""아래 종목의 핵심 수치를 보고 투자 점수를 평가하세요.
+종목: {display_name} ({ticker})
 
-=== 참고 수치 ===
-현재가의 52주 범위 위치: {round((current_price - low_52) / (high_52 - low_52) * 100) if high_52 != low_52 else 50}%
+=== 핵심 수치 ===
+현재가의 52주 범위 위치: {round((current_price - low_52) / (high_52 - low_52) * 100) if high_52 != low_52 else 50}% (0%=52주최저, 100%=52주최고)
 현재가: {current_price:{price_fmt}} / 52주 고: {high_52:{price_fmt}} / 52주 저: {low_52:{price_fmt}} ({currency})
-Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}
-부채비율: {debt_str}, 영업이익률: {fmt_pct(op_margin)}, ROE: {fmt_pct(roe)}
-
-=== 리포트 ===
-{report_text}
+시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}
+Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
+ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}
+부채비율: {debt_str}, 영업활동현금흐름: {v_cf_op}
+매출: {v_rev}, 영업이익: {v_op}, 순이익: {v_net}
+배당수익률: {fmt_pct(div_yield)}
 
 ---
 점수를 내기 전에 반드시 아래 순서로 근거를 먼저 서술하세요:
-RISK 근거: 재무/밸류에이션/사업구조/거시 리스크 각각 한 줄씩
-RETURN 근거: 잘 됐을 경우 상승 시나리오와 실현 가능성 한 줄
-SCORE 근거: 지금 이 가격의 손익비 판단 한 줄 (투자자 전제: 자산 20% 투자, 평생 보유, 손실 허용 -25%)
+RISK 근거: 재무/밸류에이션/사업구조/거시 리스크 각각 한 줄씩 (업종 특성 반영 필수)
+RETURN 근거: 이 종목이 잘 됐을 경우 최대 상승 포텐셜과 실현 가능성 한 줄
+SCORE 근거: 지금 이 가격에서의 손익비 판단 한 줄
+[투자자 전제: 자산 20% 투자, 레버리지 아닌 이상 평생 보유, 손실 허용 한도 -25%]
 
 근거와 반드시 일치하는 점수를 1단위로 정밀하게 출력:
 [SCORE: 숫자]
 [RISK: 숫자]
 [RETURN: 숫자]"""
+
+                        # report_text에서 점수/근거 제거 → 독립 판단용 클린 리포트
+                        import re as _re2
+                        _clean_report = _re2.sub(r'RISK 근거:.*', '', report_text, flags=_re2.DOTALL).strip()
+                        _clean_report = _re2.sub(r'\[SCORE:\s*\d+\]', '', _clean_report)
+                        _clean_report = _re2.sub(r'\[RISK:\s*\d+\]', '', _clean_report)
+                        _clean_report = _re2.sub(r'\[RETURN:\s*\d+\]', '', _clean_report)
+                        _score_prompt = _score_prompt.replace(report_text, _clean_report)
 
                         import concurrent.futures as _cf
 
