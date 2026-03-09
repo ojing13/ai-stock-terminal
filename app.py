@@ -13,7 +13,35 @@ import re
 import urllib.parse
 import copy
 import textwrap
-import markdown as md_lib
+
+def md_to_html(text):
+    """간단한 마크다운 → HTML 변환 (외부 라이브러리 불필요)"""
+    import re
+    lines = text.split('\n')
+    html_lines = []
+    in_p = False
+    for line in lines:
+        # ### 헤딩
+        if line.startswith('### '):
+            if in_p: html_lines.append('</p>'); in_p = False
+            html_lines.append(f'<h3>{line[4:].strip()}</h3>')
+        elif line.startswith('## '):
+            if in_p: html_lines.append('</p>'); in_p = False
+            html_lines.append(f'<h2>{line[3:].strip()}</h2>')
+        elif line.startswith('# '):
+            if in_p: html_lines.append('</p>'); in_p = False
+            html_lines.append(f'<h2>{line[2:].strip()}</h2>')
+        elif line.strip() == '':
+            if in_p: html_lines.append('</p>'); in_p = False
+            html_lines.append('<br>')
+        else:
+            if not in_p: html_lines.append('<p>'); in_p = True
+            else: html_lines.append(' ')
+            # **bold**
+            processed = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
+            html_lines.append(processed)
+    if in_p: html_lines.append('</p>')
+    return ''.join(html_lines)
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석 터미널")
@@ -1036,7 +1064,7 @@ if user_input:
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                         )
-                        _html = md_lib.markdown(response.text, extensions=['nl2br', 'tables'])
+                        _html = md_to_html(response.text)
                         st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
@@ -1171,7 +1199,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                         )
-                        _html = md_lib.markdown(response.text, extensions=['nl2br', 'tables'])
+                        _html = md_to_html(response.text)
                         st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
@@ -1190,7 +1218,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                             )
-                            _html = md_lib.markdown(response.text, extensions=['nl2br', 'tables'])
+                            _html = md_to_html(response.text)
                             st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
                         except Exception as e:
                             st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
@@ -1211,7 +1239,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                             )
-                            _html = md_lib.markdown(response.text, extensions=['nl2br', 'tables'])
+                            _html = md_to_html(response.text)
                             st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
                         except Exception as e:
                             st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
@@ -1299,7 +1327,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             return_score = int(return_match.group(1))
                             report_text = report_text.replace(return_match.group(0), "")
                             
-                        _html = md_lib.markdown(report_text.strip(), extensions=['nl2br', 'tables'])
+                        _html = md_to_html(report_text.strip())
                         st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
                         
                         if final_score is not None:
