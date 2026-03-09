@@ -14,6 +14,10 @@ import urllib.parse
 import copy
 import textwrap
 import pytz
+import hashlib
+
+# 종합 리포트 결과 캐시 (동일 종목+데이터 → 동일 결과 보장)
+_report_cache = {}
 
 def md_to_html(text):
     """마크다운 → HTML 변환"""
@@ -1281,7 +1285,18 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
         with tab4:
             st.markdown('<div class="section-header"><span class="section-badge">AI</span> 퀀트 애널리스트 최종 브리핑</div>', unsafe_allow_html=True)
             if st.button("원클릭 종합 분석 리포트 생성"):
-                with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
+                # 캐시 키: 종목+주요 수치 해시 (데이터가 같으면 항상 같은 결과)
+                _cache_raw = f"{ticker}|{current_price}|{trailing_pe}|{forward_pe}|{pb}|{debt_str}|{op_margin}|{high_52}|{low_52}"
+                _cache_key = hashlib.md5(_cache_raw.encode()).hexdigest()
+
+                if _cache_key in _report_cache:
+                    # 캐시 히트 - 저장된 결과 그대로 표시
+                    _cached = _report_cache[_cache_key]
+                    st.markdown(f'<div class="ai-result-card">{_cached["html"]}</div>', unsafe_allow_html=True)
+                    if _cached.get("bar_html"):
+                        st.markdown(_cached["bar_html"].replace('\n', ''), unsafe_allow_html=True)
+                else:
+                  with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
                     prompt = f"""
                     오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합적으로 분석해주세요.
                     
@@ -1426,6 +1441,8 @@ RETURN (0~100): 잘됐을때 상승잠재력. 미래시나리오 기반, 현재�
                         _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
                         _html = md_to_html(_cleaned)
                         st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
+                        # 스코어 없을 경우 일단 캐시 저장 (bar_html은 아래에서 갱신)
+                        _report_cache[_cache_key] = {"html": _html, "bar_html": None}
                         
                         if final_score is not None:
                             final_score = max(0, min(100, final_score)) 
@@ -1447,6 +1464,8 @@ RETURN (0~100): 잘됐을때 상승잠재력. 미래시나리오 기반, 현재�
                             
                             clean_html = bar_html.replace('\n', '')
                             st.markdown(clean_html, unsafe_allow_html=True)
+                            # 캐시 저장
+                            _report_cache[_cache_key] = {"html": _html, "bar_html": bar_html}
                             
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
