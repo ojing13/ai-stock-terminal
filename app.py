@@ -1521,13 +1521,14 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 else:
     st.markdown("""
     <div style="margin-top: 50px; font-size: 13px; color: #9ca3af; line-height: 1.8;">
-        <strong>업데이트 내용(2026.03.10)</strong><br>
+        <strong>업데이트 내용 (2026.03.10)</strong><br>
         • AI가 이전보다 훨씬 입체적으로 사고<br>
         • 종합 리포트에서 AI 투자의견과 리스크 기대수익 매트릭스를 추가<br>
-        • 기타 자잘한 버그, 디자인 수정
+        • 기타 자잘한 버그, 디자인 수정<br>
         • 아무튼 100배쯤 똑똑해짐
     </div>
     """, unsafe_allow_html=True)
+
 
 
 
