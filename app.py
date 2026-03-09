@@ -17,7 +17,7 @@ import textwrap
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석 터미널")
 
-# 프리미엄 글래스모피즘(Glassmorphism) & 모던 UI CSS 적용
+# 프리미엄 미니멀 핀테크 디자인 CSS 적용
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -27,30 +27,28 @@ st.markdown("""
         font-family: 'Pretendard', 'Noto Sans KR', sans-serif !important;
     }
     
-    /* 앱 전체 배경: 소프트한 파스텔 메쉬 그라데이션 느낌 */
+    /* 앱 전체 배경: 초기 디자인 소프트 파스텔 그라데이션 느낌 복구 */
     .stApp {
-        background-color: #f0f4f8;
-        background-image: radial-gradient(at 0% 0%, hsla(253,16%,7%,0.03) 0, transparent 50%), 
-                          radial-gradient(at 50% 0%, hsla(225,39%,30%,0.03) 0, transparent 50%), 
-                          radial-gradient(at 100% 0%, hsla(339,49%,30%,0.03) 0, transparent 50%);
+        background-color: #f7f9fc;
+        background-image: radial-gradient(at 0% 0%, hsla(253,16%,7%,0.02) 0, transparent 50%), 
+                          radial-gradient(at 50% 0%, hsla(225,39%,30%,0.02) 0, transparent 50%), 
+                          radial-gradient(at 100% 0%, hsla(339,49%,30%,0.02) 0, transparent 50%);
     }
 
-    /* 메인 블록: 투명한 유리 질감 (Glassmorphism) */
+    /* 메인 블록: 카드 UI 컨테이너 유지 및 미니멀림 */
     .main .block-container {
-        background: rgba(255, 255, 255, 0.5);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.8);
-        border-radius: 24px;
+        background-color: #ffffff;
+        border: 1px solid #e1e5ea;
+        border-radius: 20px;
         padding: 3rem;
-        box-shadow: 0 10px 40px rgba(31, 38, 135, 0.05);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
         margin-top: 2rem;
     }
 
-    /* 헤더 텍스트 디자인 (그라데이션 포인트) */
-    h1, h2, h3, h4, h5 { color: #2c3e50 !important; font-weight: 800 !important; letter-spacing: -0.5px; }
+    /* 헤더 텍스트 디자인 (초기 디자인 복구 및 세련미 추가) */
+    h1, h2, h3, h4, h5 { color: #1f293a !important; font-weight: 700 !important; letter-spacing: -0.5px; }
     h1 {
-        background: linear-gradient(135deg, #2980b9 0%, #8e44ad 100%);
+        background: linear-gradient(135deg, #1f293a 0%, #34495e 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         border-bottom: none;
@@ -64,32 +62,32 @@ st.markdown("""
         .main .block-container { padding: 1.5rem; border-radius: 16px; }
     }
 
-    /* 알약(Pill) 형태의 둥글고 세련된 탭 메뉴 */
+    /* 초기 탭 디자인 복구 및 미니멀림 */
     .stTabs [data-baseweb="tab-list"] { 
-        background-color: rgba(255, 255, 255, 0.6);
-        border-radius: 16px;
+        background-color: #ffffff;
+        border-radius: 14px;
         padding: 6px;
-        border: 1px solid rgba(255, 255, 255, 0.9);
-        gap: 4px;
-        box-shadow: inset 0 2px 5px rgba(0,0,0,0.02);
+        border: 1px solid #e1e5ea;
+        gap: 6px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.01);
     }
     .stTabs [data-baseweb="tab"] {
-        border-radius: 12px;
+        border-radius: 10px;
         border: none !important;
-        color: #7f8c8d;
+        color: #64748b;
         font-weight: 600;
         height: 44px;
         transition: all 0.3s ease;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #ffffff;
-        color: #2980b9 !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+        background-color: #f7f9fc;
+        color: #1f293a !important;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.01) !important;
     }
    
-    /* 그라데이션 버튼 (호버 시 입체감 증가) */
+    /* 차분한 그라데이션 버튼 (검은 바탕 흰 글씨 안 보임 해결) */
     .stButton > button { 
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        background: linear-gradient(135deg, #764ba2 0%, #a67bc6 100%) !important;
         color: white !important;
         border: none !important;
         border-radius: 14px !important;
@@ -97,28 +95,28 @@ st.markdown("""
         width: 100% !important; 
         font-size: 16px !important;
         font-weight: 700 !important;
-        box-shadow: 0 6px 15px rgba(118, 75, 162, 0.25) !important;
+        box-shadow: 0 4px 12px rgba(118, 75, 162, 0.2) !important;
         transition: all 0.3s ease !important; 
     }
     .stButton > button * { color: white !important; }
     .stButton > button:hover { 
         transform: translateY(-2px) !important;
-        box-shadow: 0 10px 20px rgba(118, 75, 162, 0.35) !important; 
+        box-shadow: 0 8px 18px rgba(118, 75, 162, 0.3) !important; 
     }
     div[data-baseweb="select"] { cursor: pointer; }
     
-    /* 텍스트 입력창 & 셀렉트박스 (부드러운 디자인) */
+    /* 텍스트 입력창 & 셀렉트박스 (부드러운 디자인 유지) */
     .stTextInput div[data-baseweb="input"], div[data-baseweb="select"] > div {
-        background: rgba(255, 255, 255, 0.8) !important;
-        border: 1px solid #dfe6e9 !important;
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e0 !important;
         border-radius: 14px !important;
         padding: 6px 10px;
-        box-shadow: inset 0 2px 5px rgba(0,0,0,0.01) !important;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.01) !important;
         transition: all 0.3s ease;
     }
     .stTextInput div[data-baseweb="input"]:focus-within, div[data-baseweb="select"] > div:focus-within {
         border-color: #764ba2 !important;
-        box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.15) !important;
+        box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.1) !important;
         background-color: #ffffff !important;
     }
     div[data-baseweb="select"] input {
@@ -126,92 +124,88 @@ st.markdown("""
         user-select: none !important;
     }
     
-    /* 슬라이더 세련된 퍼플 톤 */
+    /* 슬라이더 차분한 퍼플 톤 유지 */
     div[data-testid="stSlider"] div[role="slider"] {
         background-color: #764ba2 !important;
         border: 3px solid #ffffff !important;
-        box-shadow: 0 2px 6px rgba(118, 75, 162, 0.3) !important;
+        box-shadow: 0 2px 6px rgba(118, 75, 162, 0.2) !important;
     }
     div[data-testid="stSlider"] div[style*="background-color:"] {
         background-color: #764ba2 !important;
     }
     [data-testid="stTickBarMin"], [data-testid="stTickBarMax"], [data-testid="stThumbValue"] {
-        color: #2c3e50 !important; font-weight: 700 !important; font-size: 13px !important;
+        color: #1f293a !important; font-weight: 700 !important; font-size: 13px !important;
     }
     
-    /* 카드형 메트릭 디자인 (유리 재질) */
+    /* 초기 카드형 메트릭 디자인 복구 및 세련미 추가 */
     div[data-testid="stMetric"] {
-        background: rgba(255, 255, 255, 0.65);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.9);
-        border-radius: 18px;
+        background-color: #ffffff;
+        border: 1px solid #e1e5ea;
+        border-radius: 16px;
         padding: 20px;
         text-align: center;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.03);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.01);
         transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
     div[data-testid="stMetric"]:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 12px 30px rgba(0,0,0,0.06);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.04);
     }
     div[data-testid="stMetricLabel"] p { 
         font-size: 14px !important; 
-        color: #7f8c8d !important; 
+        color: #64748b !important; 
         font-weight: 600 !important; 
     }
     div[data-testid="stMetricValue"] { 
         font-size: 1.6rem !important; 
-        background: linear-gradient(120deg, #2c3e50, #3498db);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 800 !important;
+        color: #1f293a !important; 
+        font-weight: 700 !important;
         white-space: normal !important;
         word-break: break-all !important;
         line-height: 1.2 !important;
     }
     
-    /* 재무제표 표 모던화 */
+    /* 재무제표 표 모던화 및 세련미 추가 */
     .fin-table { 
         width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 15px; 
-        font-size: 14px; background: rgba(255, 255, 255, 0.7); 
-        border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.9); 
-        box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+        font-size: 14px; background-color: #ffffff; 
+        border-radius: 14px; overflow: hidden; border: 1px solid #e1e5ea; 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.01);
     }
     .fin-table th { 
         text-align: left; padding: 16px; 
-        background-color: rgba(255, 255, 255, 0.9); color: #34495e; 
-        font-weight: 700; border-bottom: 1px solid #ecf0f1; 
+        background-color: #f7f9fc; color: #4a5568; 
+        font-weight: 700; border-bottom: 1px solid #e1e5ea; 
     }
     .fin-table td { 
-        padding: 14px 16px; border-bottom: 1px solid #fdfdfd; 
-        text-align: right; vertical-align: middle; color: #555; 
+        padding: 14px 16px; border-bottom: 1px solid #f2f4f7; 
+        text-align: right; vertical-align: middle; color: #333; 
     }
     .fin-table tr:last-child td { border-bottom: none; }
     .fin-table td:first-child { 
-        text-align: left; font-weight: 600; color: #2c3e50; width: 45%; 
-        background-color: rgba(255, 255, 255, 0.3);
+        text-align: left; font-weight: 600; color: #1f293a; width: 45%; 
+        background-color: #fafafa;
     }
     
-    /* 정보 표출 박스(리포트 박스) 깔끔하게 */
+    /* 정보 표출 박스(리포트 박스) 깔끔하게 및 세련미 추가 */
     div[data-testid="stInfo"] {
-        background: rgba(255, 255, 255, 0.65) !important;
-        backdrop-filter: blur(10px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.9) !important;
+        background-color: #ffffff !important;
+        border: 1px solid #e1e5ea !important;
         border-left: 6px solid #764ba2 !important;
         border-radius: 14px !important;
-        color: #2c3e50 !important;
+        color: #1f293a !important;
         padding: 24px 28px !important;
         line-height: 1.8 !important;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.02) !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.01) !important;
         font-size: 15px !important;
     }
     div[data-testid="stInfo"] svg { display: none !important; }
 
-    /* 불필요한 UI 숨기기 */
+    /* 불필요한 UI 숨기기 및 초기 "Loading..." 문구 복구 */
     .stDeployButton { display: none !important; }
     [data-testid="stStatusWidget"] * { display: none !important; }
     [data-testid="stStatusWidget"]::after {
-        content: "데이터 분석 중...";
+        content: "Loading...";
         font-size: 13px; font-weight: 600; color: #888888;
         display: flex; align-items: center; padding: 5px 15px;
     }
@@ -1307,12 +1301,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             elif final_score <= 80: opinion_text, text_color = "매수", "#ec7063"
                             else: opinion_text, text_color = "강력 매수", "#c0392b"
                             
-                            matrix_html = ""
-                            if risk_score is not None and return_score is not None:
-                                r_s = max(0, min(100, risk_score))
-                                ret_s = max(0, min(100, return_score))
-                                
-                                matrix_html = f"""<div style="margin-top: 40px; padding-top: 30px; border-top: 1px solid rgba(0,0,0,0.05);"><h4 style="text-align: center; margin-bottom: 25px; color: #2c3e50; font-weight: 800;">리스크 대비 기대수익 매트릭스</h4><div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.8); border-radius: 16px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.02), 0 8px 24px rgba(0,0,0,0.04);"><div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: rgba(0,0,0,0.1);"></div><div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: rgba(0,0,0,0.1);"></div><div style="position: absolute; top: 12px; left: 12px; font-size: 13px; font-weight: 700; color: #2980b9;">저위험 고수익</div><div style="position: absolute; top: 12px; right: 12px; font-size: 13px; font-weight: 700; color: #e74c3c;">고위험 고수익</div><div style="position: absolute; bottom: 12px; left: 12px; font-size: 13px; font-weight: 700; color: #27ae60;">저위험 저수익</div><div style="position: absolute; bottom: 12px; right: 12px; font-size: 13px; font-weight: 700; color: #7f8c8d;">고위험 저수익</div><div style="position: absolute; bottom: calc({ret_s}% - 8px); left: calc({r_s}% - 8px); width: 16px; height: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: 2px solid #ffffff; border-radius: 50%; box-shadow: 0 4px 8px rgba(118, 75, 162, 0.4); z-index: 10;"></div></div></div>"""
+                            # 주인님 핵심 요청: 색상 스왑 및 디자인 유지
+                            # 저위험 고수익 (#2980b9 파랑 -> #27ae60 초록), 저위험 저수익 (#27ae60 초록 -> #2980b9 파랑)
+                            matrix_html = f"""<div style="margin-top: 40px; padding-top: 30px; border-top: 1px solid rgba(0,0,0,0.05);"><h4 style="text-align: center; margin-bottom: 25px; color: #2c3e50; font-weight: 800;">리스크 대비 기대수익 매트릭스</h4><div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.8); border-radius: 16px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.02), 0 8px 24px rgba(0,0,0,0.04);"><div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: rgba(0,0,0,0.1);"></div><div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: rgba(0,0,0,0.1);"></div><div style="position: absolute; top: 12px; left: 12px; font-size: 13px; font-weight: 700; color: #27ae60;">저위험 고수익</div><div style="position: absolute; top: 12px; right: 12px; font-size: 13px; font-weight: 700; color: #e74c3c;">고위험 고수익</div><div style="position: absolute; bottom: 12px; left: 12px; font-size: 13px; font-weight: 700; color: #2980b9;">저위험 저수익</div><div style="position: absolute; bottom: 12px; right: 12px; font-size: 13px; font-weight: 700; color: #7f8c8d;">고위험 저수익</div><div style="position: absolute; bottom: calc({ret_s}% - 8px); left: calc({r_s}% - 8px); width: 16px; height: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: 2px solid #ffffff; border-radius: 50%; box-shadow: 0 4px 8px rgba(118, 75, 162, 0.4); z-index: 10;"></div></div></div>"""
                             
                             bar_html = f"""<div style="margin-top: 30px; margin-bottom: 20px; padding: 30px 25px; border-radius: 20px; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.9); box-shadow: 0 8px 32px rgba(0,0,0,0.05);"><h3 style="text-align: center; margin-bottom: 30px; color: #2c3e50; font-weight: 800;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h3><div style="position: relative; width: 100%; height: 36px; background: linear-gradient(to right, #3498db 0%, #3498db 20%, #85c1e9 20%, #85c1e9 40%, #bdc3c7 40%, #bdc3c7 60%, #f1948a 60%, #f1948a 80%, #e74c3c 80%, #e74c3c 100%); border-radius: 18px; display: flex; box-shadow: inset 0 2px 6px rgba(0,0,0,0.1);"><div style="width: 20%; line-height: 36px; text-align: center; color: white; font-weight: 700; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">강력 매도</div><div style="width: 20%; line-height: 36px; text-align: center; color: white; font-weight: 700; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">매도</div><div style="width: 20%; line-height: 36px; text-align: center; color: #2c3e50; font-weight: 800; font-size: 13px;">중립</div><div style="width: 20%; line-height: 36px; text-align: center; color: white; font-weight: 700; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">매수</div><div style="width: 20%; line-height: 36px; text-align: center; color: white; font-weight: 700; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">강력 매수</div><div style="position: absolute; top: -30px; left: calc({final_score}% - 14px); font-size: 28px; color: #2c3e50; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.2));">▼</div></div>{matrix_html}</div>"""
                             
