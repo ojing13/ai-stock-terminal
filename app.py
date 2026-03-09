@@ -17,107 +17,161 @@ import textwrap
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석 터미널")
 
-# 최고급 세련된 웹 폰트(Pretendard) 적용 및 CSS 커스텀
+# 최고급 세련된 웹 폰트(Pretendard) 적용 및 전체 디자인(CSS) 프리미엄 개편
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
   
+    /* 전체 폰트 및 텍스트 컬러 통일 */
     * {
         font-family: 'Pretendard', 'Noto Sans KR', sans-serif !important;
     }
-    h1, h2, h3 { font-weight: 700; letter-spacing: -0.5px; }
+    h1, h2, h3, h4, h5, h6 { 
+        color: #111111; 
+        letter-spacing: -0.5px; 
+        font-weight: 700; 
+    }
+    p, span, div { color: #333333; line-height: 1.6; }
    
-    /* 모바일 환경 폰트 사이즈 조절 */
+    /* 모바일 환경 폰트 조절 */
     @media (max-width: 768px) {
-        h1 { font-size: 1.5rem !important; word-break: keep-all; }
+        h1 { font-size: 1.6rem !important; word-break: keep-all; }
     }
 
-    /* 탭(항목) 기본 디자인 */
-    .stTabs [data-baseweb="tab-list"] { gap: 30px; border-bottom: 1px solid #e0e0e0; }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px; font-size: 16px; font-weight: 600; color: #888888;
-        border-bottom: 2px solid transparent !important;
+    /* 메인 타이틀 하단 선 추가로 정돈된 느낌 부여 */
+    h1 {
+        border-bottom: 2px solid #111111;
+        padding-bottom: 12px;
+        margin-bottom: 30px;
     }
-   
-    /* 선택된 탭 디자인 */
+
+    /* 탭(Tab) 메뉴 디자인 고급화 */
+    .stTabs [data-baseweb="tab-list"] { 
+        gap: 24px; 
+        border-bottom: 1px solid #e5e5e5; 
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 48px; 
+        font-size: 16px; 
+        font-weight: 600; 
+        color: #888888;
+        border-bottom: 3px solid transparent !important;
+        padding: 0 4px;
+        transition: color 0.2s, border-color 0.2s;
+    }
     .stTabs [aria-selected="true"] {
         color: #111111 !important;
-        border-bottom: 2px solid #111111 !important;
+        border-bottom: 3px solid #111111 !important;
         box-shadow: none !important;
     }
    
-    /* 버튼 디자인 */
-    .stButton>button { border-radius: 6px; font-weight: 600; border: 1px solid #cccccc; width: 100%; transition: 0.3s; }
-    .stButton>button:hover { border-color: #007bff; color: #007bff; background-color: #f8f8f8; }
-    div[data-baseweb="select"] { cursor: pointer; }
-    
-    /* 텍스트 입력창 포커스 시 디자인 */
-    .stTextInput div[data-baseweb="input"]:focus-within {
-        border-color: #007bff !important;
-        box-shadow: 0 0 0 1px #007bff !important;
+    /* 버튼 모던 디자인 */
+    .stButton>button { 
+        border-radius: 8px; 
+        font-weight: 600; 
+        font-size: 15px;
+        color: #ffffff; 
+        background-color: #111111; 
+        border: none;
+        padding: 10px 0; 
+        width: 100%; 
+        transition: all 0.2s ease; 
     }
-   
-    /* === Selectbox(차트 주기 등) 타이핑(편집) 방지 및 테두리 파란색 === */
-    div[data-baseweb="select"] > div:hover,
-    div[data-baseweb="select"] > div:focus-within {
-        border-color: #007bff !important;
-        box-shadow: 0 0 0 1px #007bff !important;
+    .stButton>button:hover { 
+        background-color: #333333; 
+        color: #ffffff; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+        transform: translateY(-1px);
+    }
+    
+    /* 텍스트 입력창 & 셀렉트박스 포커스 시 고급스러운 다크톤 테두리 */
+    .stTextInput div[data-baseweb="input"], div[data-baseweb="select"] > div {
+        border-radius: 8px !important;
+        border: 1px solid #dcdcdc !important;
+        background-color: #ffffff !important;
+        transition: all 0.2s ease;
+    }
+    .stTextInput div[data-baseweb="input"]:focus-within, div[data-baseweb="select"] > div:focus-within {
+        border-color: #111111 !important;
+        box-shadow: 0 0 0 1px #111111 !important;
     }
     div[data-baseweb="select"] input {
         caret-color: transparent !important; 
         user-select: none !important;
     }
     
-    /* 슬라이더 디자인 개편 */
+    /* 슬라이더 세련된 다크 테마 */
     div[data-testid="stSlider"] div[role="slider"] {
-        background-color: #ff2d55 !important;
-        border-color: #ff2d55 !important;
-        box-shadow: none !important;
+        background-color: #111111 !important;
+        border: 2px solid #ffffff !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
     }
     div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
-    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"] {
-        background-color: #ff2d55 !important;
+    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"],
+    div[data-testid="stSlider"] div[style*="background-color: rgb(0, 123, 255)"] {
+        background-color: #111111 !important;
     }
-    [data-testid="stTickBarMin"],
-    [data-testid="stTickBarMax"],
-    [data-testid="stThumbValue"] {
-        color: #ff2d55 !important;
-        font-weight: 700 !important;
+    [data-testid="stTickBarMin"], [data-testid="stTickBarMax"], [data-testid="stThumbValue"] {
+        color: #111111 !important; font-weight: 700 !important; font-size: 13px !important;
     }
     
-    /* 재무제표 표 스타일 */
-    .fin-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; table-layout: fixed; }
-    .fin-table th { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; color: #555; }
-    .fin-table td { border-bottom: 1px solid #eee; padding: 8px; text-align: right; vertical-align: middle; }
-    .fin-table td:first-child {
-        text-align: left;
-        font-weight: 600;
-        color: #333;
-        width: 40%;
-        word-break: break-all;
+    /* 재무제표 등 주요 수치 표시(Metric) 카드형 디자인 적용 */
+    div[data-testid="stMetric"] {
+        background-color: #ffffff;
+        border: 1px solid #eaeaea;
+        border-radius: 10px;
+        padding: 16px 20px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
     }
-    
-    /* Metric Value 스타일 */
-    div[data-testid="stMetricValue"] {
+    div[data-testid="stMetricLabel"] p { font-size: 13px !important; color: #777777 !important; font-weight: 600 !important; }
+    div[data-testid="stMetricValue"] { 
+        font-size: 1.5rem !important; 
+        color: #111111 !important; 
+        font-weight: 800 !important;
         white-space: normal !important;
         word-break: break-all !important;
-        font-size: 1.4rem !important; 
         line-height: 1.2 !important;
     }
+    
+    /* 재무제표 표 스타일 프리미엄화 */
+    .fin-table { 
+        width: 100%; border-collapse: collapse; margin-top: 15px; 
+        font-size: 14px; background-color: #ffffff; border-radius: 8px; 
+        overflow: hidden; border: 1px solid #eaeaea; 
+    }
+    .fin-table th { 
+        text-align: left; padding: 12px 16px; 
+        background-color: #f8f9fa; color: #333333; 
+        font-weight: 700; border-bottom: 2px solid #e0e0e0; 
+    }
+    .fin-table td { 
+        border-bottom: 1px solid #f0f0f0; padding: 12px 16px; 
+        text-align: right; vertical-align: middle; color: #444; 
+    }
+    .fin-table tr:last-child td { border-bottom: none; }
+    .fin-table td:first-child { 
+        text-align: left; font-weight: 600; color: #222; width: 45%; 
+    }
+    
+    /* 정보 표출 박스(리포트 박스) 깔끔하게 */
+    div[data-testid="stInfo"] {
+        background-color: #fbfbfb !important;
+        border: 1px solid #e5e5e5 !important;
+        border-left: 4px solid #111111 !important;
+        border-radius: 6px !important;
+        color: #222222 !important;
+        padding: 20px 24px !important;
+    }
+    div[data-testid="stInfo"] svg { display: none !important; }
 
     /* 불필요한 UI 숨기기 */
     .stDeployButton { display: none !important; }
     [data-testid="stStatusWidget"] * { display: none !important; }
     [data-testid="stStatusWidget"]::after {
-        content: "분석 중...";
-        font-size: 14px;
-        font-weight: 600;
-        color: #888888;
-        display: flex;
-        align-items: center;
-        padding: 5px 15px;
+        content: "데이터 분석 중...";
+        font-size: 13px; font-weight: 600; color: #888888;
+        display: flex; align-items: center; padding: 5px 15px;
     }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -915,7 +969,7 @@ if user_input:
                     3. 이동평균선 표기 규칙: 올바른 한국어로 작성하세요.
                     4. 달러 기호 사용 금지. (금액은 반드시 '{currency}'로 표기할 것)
                     5. 가독성 철저: 소제목은 마크다운 헤딩(###)으로 작성하고, 일반 문단으로 작성하세요.
-                    6. 핵심 강조: 단순히 가격이나 숫자(예: 80 달러)에만 굵은 글씨를 쓰지 마세요!! 추세 전환의 신호, 지지/저항의 핵심적인 의미, 매수/매도 세력의 동향 등 **분석에서 가장 중요하고 유의미한 문장 전체나 키워드**를 **굵은 글씨(**)**로 강조하세요.
+                    6. 핵심 강조: 단순히 가격이나 숫자(예: 80 달러)에만 굵은 글씨를 쓰지 마세요!! 추세 전환의 신호, 지지/저항의 핵심적인 의미, 매수/매도 세력의 동향 등 **분석에서 가장 중요하고 유의미한 문장 전체나 키워드**를 **굵은 글씨(**)**로 강조하세요. 
                     7. 어조 설정: 정중체 사용. 깔끔한 전문가 톤 유지.
                     8. 항목 제한: 분석 항목은 무조건 '1. 단기적인 추세', '2. 장기적인 추세' 두 가지만 출력.
                     9. 출처 표기 절대 금지: 괄호 안에 기사 번호(예: 1, 2)를 적거나 출처를 언급하는 행위 완벽 금지.
@@ -1104,7 +1158,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
         with tab4:
             st.subheader("AI 퀀트 애널리스트 최종 브리핑")
             if st.button("원클릭 종합 분석 리포트 생성"):
-                with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
+                with st.spinner('AI가 데이터를 종합하여 논리적 점수를 산출 중입니다...'):
                     prompt = f"""
                     오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합적으로 분석해주세요.
                     
@@ -1141,8 +1195,18 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 출처 표기 절대 금지: 문장 끝에 (1, 5, 20) 같은 기사 번호를 괄호로 적는 행위를 완벽하게 금지합니다.
                     
                     🚨 [최종 스코어 산출 지시사항 - 매우 중요]
-                    리포트 작성을 모두 마친 후, 맨 마지막 줄에 반드시 다음 세 가지 점수를 `[SCORE: 점수]`, `[RISK: 점수]`, `[RETURN: 점수]` 형태로 적어주세요.
+                    점수가 매번 널뛰는 현상을 방지하기 위해, 점수를 매기기 직전에 반드시 `[사고 과정 시작]`과 `[사고 과정 끝]` 태그를 사용하여 내부적인 논리 전개 과정을 먼저 작성하세요.
+                    이 사고 과정에서는 산업 섹터의 특성, 현재 주가의 위치, 재무 상태의 상대적/절대적 의미를 종합적으로 따져서 점수의 근거를 확립하세요.
+                    사고 과정 작성이 끝난 후, 맨 마지막 줄에 반드시 다음 세 가지 점수를 `[SCORE: 점수]`, `[RISK: 점수]`, `[RETURN: 점수]` 형태로 적어주세요.
                     **주의: 동일한 재무 데이터, 주가 위치, 최신 동향이 주어지면 항상 동일한 점수를 도출하도록 감정을 철저히 배제하고 객관적 수치 기반으로 기계적이고 일관된 평가를 진행하세요.**
+
+                    예시 포맷:
+                    [사고 과정 시작]
+                    해당 기업은 대규모 장치 산업이므로 부채비율 200%는 업계 평균 수준임. 따라서 리스크 점수를 크게 높이지 않음... (중략)
+                    [사고 과정 끝]
+                    [SCORE: 85]
+                    [RISK: 40]
+                    [RETURN: 90]
 
                     1. [SCORE: 0~100] (AI 투자의견)
                     - 철저한 트레이더 관점에서 현재 주가 자리의 '손익비(Risk/Reward)'와 '최신 시장 동향(호재/악재)'을 종합적으로 가장 중요하게 반영합니다.
@@ -1163,6 +1227,11 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         report_text = response.text
                         
+                        # Chain of Thought 사고 과정 숨기기 (Parsing)
+                        cot_match = re.search(r'\[사고 과정 시작\].*?\[사고 과정 끝\]', report_text, flags=re.DOTALL)
+                        if cot_match:
+                            report_text = report_text.replace(cot_match.group(0), "")
+                            
                         score_match = re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
                         risk_match = re.search(r'\[RISK:\s*(\d+)\s*\]', report_text)
                         return_match = re.search(r'\[RETURN:\s*(\d+)\s*\]', report_text)
@@ -1199,9 +1268,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 r_s = max(0, min(100, risk_score))
                                 ret_s = max(0, min(100, return_score))
                                 
-                                matrix_html = f"""<div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;"><h4 style="text-align: center; margin-bottom: 25px; color: #333; font-weight: 700;">리스크 대비 기대수익 매트릭스</h4><div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 1px solid #dcdcdc; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);"><div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #d0d0d0;"></div><div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #d0d0d0;"></div><div style="position: absolute; top: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #ff6b6b;">저위험 고수익</div><div style="position: absolute; top: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #ff2d55;">고위험 고수익</div><div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div><div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div><div style="position: absolute; bottom: calc({ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div></div></div>"""
+                                matrix_html = f"""<div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;"><h4 style="text-align: center; margin-bottom: 25px; color: #111111; font-weight: 700;">리스크 대비 기대수익 매트릭스</h4><div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: linear-gradient(135deg, #f9f9f9 0%, #eeeeee 100%); border: 1px solid #dcdcdc; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);"><div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #cccccc;"></div><div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #cccccc;"></div><div style="position: absolute; top: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #ff6b6b;">저위험 고수익</div><div style="position: absolute; top: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #ff2d55;">고위험 고수익</div><div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div><div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div><div style="position: absolute; bottom: calc({ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #111111; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 4px 8px rgba(0,0,0,0.2); z-index: 10;"></div></div></div>"""
                             
-                            bar_html = f"""<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;"><h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h4><div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);"><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div><div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div></div>{matrix_html}</div>"""
+                            bar_html = f"""<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #ffffff; border: 1px solid #eaeaea; box-shadow: 0 2px 8px rgba(0,0,0,0.02);"><h4 style="text-align: center; margin-bottom: 30px; color: #111111; font-weight: 700;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h4><div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);"><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: #555555; font-weight: 800; font-size: 13px;">중립</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div><div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; color: #111111; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.3));">▼</div></div>{matrix_html}</div>"""
                             
                             clean_html = bar_html.replace('\n', '')
                             st.markdown(clean_html, unsafe_allow_html=True)
