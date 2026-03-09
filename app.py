@@ -133,43 +133,37 @@ st.markdown("""
     .fin-table tr:hover td { background-color: #f8f9fc; }
 
     /* ===== AI 분석 결과 카드 ===== */
-    div[data-testid="stAlert"] {
-        background-color: #e8eaed !important;
-        border: none !important;
-        border-radius: 14px !important;
-        color: #1f2937 !important;
-        box-shadow: none !important;
-        padding: 32px 36px !important;
-        position: relative;
+    .ai-result-card {
+        background-color: #e8eaed;
+        border-radius: 14px;
+        padding: 28px 32px;
+        margin-top: 8px;
     }
-    div[data-testid="stAlert"]::before {
-        content: none !important;
+    .ai-result-card p,
+    .ai-result-card li {
+        color: #374151;
+        line-height: 1.9;
+        font-size: 14.5px;
     }
-    div[data-testid="stAlert"] p,
-    div[data-testid="stAlert"] li {
-        color: #374151 !important;
-        line-height: 1.9 !important;
-        font-size: 14.5px !important;
-    }
-    div[data-testid="stAlert"] span {
-        color: #374151 !important;
-        font-size: 14.5px !important;
-    }
-    div[data-testid="stAlert"] h1,
-    div[data-testid="stAlert"] h2,
-    div[data-testid="stAlert"] h3 {
-        color: #111827 !important;
-        font-weight: 800 !important;
-        font-size: 15.5px !important;
-        margin-top: 28px !important;
-        margin-bottom: 10px !important;
-        padding-bottom: 8px !important;
-        border-bottom: 1px solid #d1d5db !important;
+    .ai-result-card h1,
+    .ai-result-card h2,
+    .ai-result-card h3 {
+        color: #111827;
+        font-weight: 800;
+        font-size: 15.5px;
+        margin-top: 28px;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #d1d5db;
         letter-spacing: -0.2px;
     }
-    div[data-testid="stAlert"] strong {
-        color: #111827 !important;
-        font-weight: 700 !important;
+    .ai-result-card strong {
+        color: #111827;
+        font-weight: 700;
+    }
+    /* stAlert 완전 숨기기 (혹시 남아있을 경우 대비) */
+    div[data-testid="stAlert"] {
+        display: none !important;
     }
 
     /* ===== 섹션 헤더 ===== */
@@ -1041,7 +1035,9 @@ if user_input:
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                         )
-                        st.info(response.text)
+                        st.markdown('<div class="ai-result-card">', unsafe_allow_html=True)
+                        st.markdown(response.text)
+                        st.markdown('</div>', unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
           
@@ -1175,7 +1171,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                         )
-                        st.info(response.text)
+                        st.markdown('<div class="ai-result-card">', unsafe_allow_html=True)
+                        st.markdown(response.text)
+                        st.markdown('</div>', unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
                     
@@ -1193,7 +1191,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                             )
-                            st.info(response.text)
+                            st.markdown('<div class="ai-result-card">', unsafe_allow_html=True)
+                            st.markdown(response.text)
+                            st.markdown('</div>', unsafe_allow_html=True)
                         except Exception as e:
                             st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
                         
@@ -1213,7 +1213,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                             )
-                            st.info(response.text)
+                            st.markdown('<div class="ai-result-card">', unsafe_allow_html=True)
+                            st.markdown(response.text)
+                            st.markdown('</div>', unsafe_allow_html=True)
                         except Exception as e:
                             st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
 
@@ -1300,7 +1302,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             return_score = int(return_match.group(1))
                             report_text = report_text.replace(return_match.group(0), "")
                             
-                        st.info(report_text.strip())
+                        st.markdown('<div class="ai-result-card">', unsafe_allow_html=True)
+                        st.markdown(report_text.strip())
+                        st.markdown('</div>', unsafe_allow_html=True)
                         
                         if final_score is not None:
                             final_score = max(0, min(100, final_score)) 
