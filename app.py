@@ -1289,25 +1289,19 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             _cache_raw = f"{ticker}|{current_price}|{trailing_pe}|{forward_pe}|{pb}|{debt_str}|{op_margin}|{high_52}|{low_52}"
             _cache_key = hashlib.md5(_cache_raw.encode()).hexdigest()
 
-            # 결과 표시 컨테이너 (덮어쓰기 방식으로 중복 방지)
-            _result_area = st.empty()
-
-            def _render_cached(container):
-                if _cache_key in st.session_state.report_cache:
-                    _c = st.session_state.report_cache[_cache_key]
-                    with container.container():
-                        st.markdown(f'<div class="ai-result-card">{_c["html"]}</div>', unsafe_allow_html=True)
-                        if _c.get("bar_html"):
-                            st.markdown(_c["bar_html"].replace('\n', ''), unsafe_allow_html=True)
-
-            _render_cached(_result_area)
-
+            # 버튼 항상 상단 고정
             if st.button("원클릭 종합 분석 리포트 생성"):
+                st.session_state.report_cache.pop(_cache_key, None)
+                st.rerun()
 
-                if _cache_key in st.session_state.report_cache:
-                    _render_cached(_result_area)
-                else:
-                  with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
+            # 결과 표시 (캐시 있으면 바로, 없으면 생성)
+            if _cache_key in st.session_state.report_cache:
+                _c = st.session_state.report_cache[_cache_key]
+                st.markdown(f'<div class="ai-result-card">{_c["html"]}</div>', unsafe_allow_html=True)
+                if _c.get("bar_html"):
+                    st.markdown(_c["bar_html"].replace('\n', ''), unsafe_allow_html=True)
+            else:
+                with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
                     prompt = f"""
                     오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합적으로 분석해주세요.
                     
@@ -1386,17 +1380,20 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     "이 리스크를 감수할 만큼 지금 이 자리가 매력적인가"가 핵심.
                     0(절대 안 한다) ~ 50(중립) ~ 100(강하게 확신하고 넣는다).
 
-                    2. [RISK: 0~100] — 현재 이 투자에서 손실이 날 위험도
-                    재무 관점(부채, 유동성, 이익 감소, 밸류에이션 고평가 여부 등)과
-                    구조적 위험(사업 실패 가능성, 경쟁 심화, 산업 사이클 등)을 종합.
-                    업종 특성을 반드시 반영할 것(금융주 고부채는 정상, 바이오 적자는 감안 등).
-                    현재 주가가 고평가 구간이면 하락 리스크도 반영. 0(매우 안전) ~ 100(매우 위험).
+                    2. [RISK: 0~100] — 이 투자의 종합적인 손실 위험도
+                    아래 모든 관점을 종합하여 평가:
+                    - 재무 리스크: 부채 수준, 유동성, 이익 감소 추세, 현금흐름 악화
+                    - 밸류에이션 리스크: 현재 주가 고평가 여부(PER·PBR 업종 맥락 반영)
+                    - 사업 구조 리스크: 사업 실패 가능성, 경쟁 심화, 산업 사이클 하락
+                    - 시장/거시 리스크: 금리, 환율, 규제, 지정학 등 외부 요인
+                    업종 특성 필수 반영(금융주 고부채=정상, 바이오 적자=감안 등).
+                    0(거의 무위험) ~ 100(매우 높은 손실 가능성).
 
-                    3. [RETURN: 0~100] — 잘 됐을 경우의 상승 잠재력
-                    현재 재무 상황이 아니라, 이 기업의 미래 시나리오가 실현됐을 때 얼마나 오를 수 있는가.
-                    현재 주가가 저평가 구간(52주 범위 하단)이라면 그 자체로 상승 여력이 높으므로 반영.
-                    대형 계약, 신사업, 시장 독점, 산업 전환 수혜 등 성장 트리거를 중심으로 판단.
-                    재무가 나빠도 미래 베팅 가치가 크면 높은 점수. 0(기대 없음) ~ 100(폭발적 상승 잠재력).
+                    3. [RETURN: 0~100] — 이 종목이 잘 됐을 경우의 최대 상승 포텐셜
+                    현재 재무 상황이 아니라, 미래 시나리오(신사업 성공, 대형 계약, 시장 독점, 산업 전환 수혜 등)가
+                    실현됐을 때 주가가 얼마나 오를 수 있는가. 재무 현황이 아니라 베팅 가치 중심으로 평가.
+                    현재 주가가 52주 저점 부근이면 기술적 반등 포텐셜도 반영.
+                    0(상승 기대 없음) ~ 100(수배 이상 폭발적 상승 잠재력).
 
                     중요: 세 점수가 서로 논리적으로 일관되어야 합니다.
                     (RISK=80이면 SCORE≤50 / RETURN=20이면 SCORE 높기 어려움)
@@ -1468,5 +1465,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
+
     else:
         st.error(f"'{user_input}' 종목을 찾을 수 없습니다. (시도한 티커: {ticker})\n\n정확한 종목명이나 티커 심볼을 입력해 주세요.\n예) 삼성전자, 005930.KS, AAPL, NVDA")
