@@ -51,7 +51,7 @@ def md_to_html(text):
     return '\n'.join(html_parts)
 
 # 전체 화면 넓게 쓰기 및 기본 설정
-st.set_page_config(layout="wide", page_title="AI 주식 분석 터미널")
+st.set_page_config(layout="wide", page_title="AI 주식 분석 터미널", menu_items={})
 
 # 라이트 테마 기반 세련된 디자인 (탭4 투자의견 바 스타일에 맞춤)
 st.markdown("""
@@ -250,6 +250,18 @@ st.markdown("""
         content: "분석 중..."; font-size: 13px; font-weight: 600; color: #6b7280;
         display: flex; align-items: center; padding: 5px 15px;
     }
+
+    /* ===== 모바일 우하단 Streamlit 툴바 완전 숨기기 ===== */
+    [data-testid="stToolbar"] { display: none !important; }
+    [data-testid="stDecoration"] { display: none !important; }
+    [data-testid="stMainMenu"] { display: none !important; }
+    .stActionButton { display: none !important; }
+    #MainMenu { display: none !important; }
+    footer { display: none !important; }
+    [class*="toolbar"] { display: none !important; }
+    [class*="Toolbar"] { display: none !important; }
+    div[class*="viewerBadge"] { display: none !important; }
+    #stDecoration { display: none !important; }
 
     /* ===== 재무 섹션 제목 ===== */
     .fin-section-title {
