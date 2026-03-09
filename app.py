@@ -1097,7 +1097,7 @@ if user_input:
                     """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0, "seed": 42}
                         )
                         _html = md_to_html(response.text)
                         st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
@@ -1232,7 +1232,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0, "seed": 42}
                         )
                         _html = md_to_html(response.text)
                         st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
@@ -1251,7 +1251,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용을 읽고, 현재 이 기업을 둘러싼 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 향후 실적에 미칠 파급력까지 전문가의 시선으로 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호(예: 1, 3, 50)를 작성하거나 인용구를 쓰는 것을 완벽 금지합니다.\n- 뉴스 헤드라인 직접 인용 절대 금지: 기사 제목이나 헤드라인을 따옴표로 그대로 쓰지 마세요."
                         try:
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
+                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0, "seed": 42}
                             )
                             _html = md_to_html(response.text)
                             st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
@@ -1272,7 +1272,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터를 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 파악하고, 단기 및 중장기 주가 흐름에 미칠 영향을 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호(예: 1, 3, 50)를 작성하거나 인용구를 쓰는 것을 완벽 금지합니다.\n- 뉴스 헤드라인 직접 인용 절대 금지: 기사 제목이나 헤드라인을 따옴표로 그대로 쓰지 마세요."
                         try:
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
+                                model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0, "seed": 42}
                             )
                             _html = md_to_html(response.text)
                             st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
@@ -1371,36 +1371,11 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 출처 표기 절대 금지: 문장 끝에 (1, 5, 20) 같은 기사 번호를 괄호로 적는 행위를 완벽하게 금지합니다.
                     - 뉴스 헤드라인 직접 인용 절대 금지: 기사 제목이나 헤드라인을 따옴표로 그대로 쓰지 마세요.
                     
-                    🚨 [최종 스코어 산출 지시사항 - 매우 중요]
-                    리포트 작성을 모두 마친 후, 맨 마지막 줄에 반드시 다음 세 가지 점수를 `[SCORE: 점수]`, `[RISK: 점수]`, `[RETURN: 점수]` 형태로 적어주세요.
-                    동일한 데이터가 주어지면 반드시 동일한 점수를 내야 합니다. 매번 실행해도 같은 결론이 나와야 하며, 기분이나 표현 방식에 따라 점수가 흔들려서는 안 됩니다.
-
-                    판단 전제: 당신이 지금 이 종목에 500만원을 직접 투자하고 당분간 팔지 않는다고 가정하세요.
-                    지금까지 분석한 모든 정보를 바탕으로 아래 세 점수를 매기세요. 어떤 기준표도 없습니다.
-                    단, 각 점수의 역할이 다르므로 아래 관점을 엄격히 구분하세요.
-
-                    1. [SCORE: 0~100] — 종합 투자의견: 이 종목에 지금 500만원을 넣겠는가?
-                    RISK와 RETURN을 모두 고려한 최종 판단. 아래 두 가지를 반드시 입체적으로 고려하세요:
-                    (a) 현재 주가가 저평가인가 고평가인가: PER, PBR, Forward PER, 역사적 밸류에이션 범위 등을 업종 맥락에 맞게 해석.
-                    (b) 현재 주가 자리의 손익비: 지금 이 가격에 들어갔을 때 하락 여지 대비 상승 여력이 얼마나 유리한가. 지지선, 이평선, 역사적 저점과의 거리 등을 고려.
-                    "이 리스크를 감수할 만큼 지금 이 자리가 매력적인가"가 핵심.
-                    0(절대 안 한다) ~ 50(중립) ~ 100(강하게 확신하고 넣는다).
-
-                    2. [RISK: 0~100] — 현재 이 투자에서 손실이 날 위험도
-                    재무 관점(부채, 유동성, 이익 감소, 밸류에이션 고평가 여부 등)과
-                    구조적 위험(사업 실패 가능성, 경쟁 심화, 산업 사이클 등)을 종합.
-                    현재 주가가 고평가 구간이면 하락 리스크도 반영. 0(매우 안전) ~ 100(매우 위험).
-
-                    3. [RETURN: 0~100] — 잘 됐을 경우의 상승 잠재력
-                    현재 재무 상황이 아니라, 이 기업의 미래 시나리오가 실현됐을 때 얼마나 오를 수 있는가.
-                    현재 주가가 저평가 구간이라면 그 자체로 상승 여력이 높으므로 반영.
-                    대형 계약, 신사업, 시장 독점, 산업 전환 수혜 등 성장 트리거를 중심으로 판단.
-                    재무가 나빠도 미래 베팅 가치가 크면 높은 점수. 0(기대 없음) ~ 100(폭발적 상승 잠재력).
-                    리포트 본문만 작성하세요. 점수는 포함하지 마세요.
+                    리포트 본문만 작성하세요. 점수는 별도로 산출하므로 포함하지 마세요.
                     """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0, "seed": 42}
                         )
                         
                         report_text = response.text
@@ -1450,7 +1425,7 @@ Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}
 [RETURN: 숫자]"""
 
                         score_response = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=score_prompt, config={"temperature": 0.0}
+                            model='gemini-2.5-flash', contents=score_prompt, config={"temperature": 0.0, "seed": 42}
                         )
                         score_text = score_response.text
 
