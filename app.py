@@ -1433,6 +1433,11 @@ ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_p
 
 ---
 점수를 내기 전에 반드시 아래 순서로 근거를 먼저 서술하세요:
+중요 해석 지침:
+- PER/ROE/영업이익이 N/A 또는 적자인 경우: 수익성 없는 초기 성장주 또는 고위험 섹터로 간주. RISK를 높게 반영.
+- 반대로 미래 성장 스토리가 강한 섹터(양자컴퓨터, 바이오, AI 등)는 RETURN 잠재력도 높게 반영.
+- 업종 특성 필수 반영 (금융주 고부채=정상 / 바이오·양자·AI 적자=고위험이지만 고수익 가능성 병존)
+
 RISK 근거: 재무/밸류에이션/사업구조/거시 리스크 각각 한 줄씩 (업종 특성 반영 필수)
 RETURN 근거: 이 종목이 잘 됐을 경우 최대 상승 포텐셜과 실현 가능성 한 줄
 SCORE 근거: 지금 이 가격에서의 손익비 판단 한 줄
@@ -1442,14 +1447,6 @@ SCORE 근거: 지금 이 가격에서의 손익비 판단 한 줄
 [SCORE: 숫자]
 [RISK: 숫자]
 [RETURN: 숫자]"""
-
-                        # report_text에서 점수/근거 제거 → 독립 판단용 클린 리포트
-                        import re as _re2
-                        _clean_report = _re2.sub(r'RISK 근거:.*', '', report_text, flags=_re2.DOTALL).strip()
-                        _clean_report = _re2.sub(r'\[SCORE:\s*\d+\]', '', _clean_report)
-                        _clean_report = _re2.sub(r'\[RISK:\s*\d+\]', '', _clean_report)
-                        _clean_report = _re2.sub(r'\[RETURN:\s*\d+\]', '', _clean_report)
-                        _score_prompt = _score_prompt.replace(report_text, _clean_report)
 
                         import concurrent.futures as _cf
 
@@ -1511,10 +1508,11 @@ SCORE 근거: 지금 이 가격에서의 손익비 판단 한 줄
                             
                             matrix_html = ""
                             if risk_score is not None and return_score is not None:
-                                r_s = max(0, min(100, risk_score))
-                                ret_s = max(0, min(100, return_score))
+                                # 0~100 점수를 5~95% 범위로 remapping (박스 경계 안에 표시)
+                                r_s = 5 + (max(0, min(100, risk_score)) / 100) * 90
+                                ret_s = 5 + (max(0, min(100, return_score)) / 100) * 90
                                 
-                                matrix_html = f"""<div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;"><h4 style="text-align: center; margin-bottom: 25px; color: #333; font-weight: 700;">리스크 대비 기대수익 매트릭스</h4><div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 1px solid #dcdcdc; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);"><div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #d0d0d0;"></div><div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #d0d0d0;"></div><div style="position: absolute; top: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #ff6b6b;">저위험 고수익</div><div style="position: absolute; top: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #ff2d55;">고위험 고수익</div><div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div><div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div><div style="position: absolute; bottom: calc({ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div></div></div>"""
+                                matrix_html = f"""<div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;"><h4 style="text-align: center; margin-bottom: 25px; color: #333; font-weight: 700;">리스크 대비 기대수익 매트릭스</h4><div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 1px solid #dcdcdc; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);"><div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #d0d0d0;"></div><div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #d0d0d0;"></div><div style="position: absolute; top: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #ff6b6b;">저위험 고수익</div><div style="position: absolute; top: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #ff2d55;">고위험 고수익</div><div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div><div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div><div style="position: absolute; top: calc({100 - ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div></div></div>"""
                             
                             bar_html = f"""<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;"><h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h4><div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);"><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div><div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div></div>{matrix_html}</div>"""
                             
