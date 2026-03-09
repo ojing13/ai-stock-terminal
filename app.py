@@ -135,33 +135,50 @@ st.markdown("""
     /* ===== AI 분석 결과 카드 ===== */
     div[data-testid="stAlert"] {
         background-color: #ffffff !important;
-        border: 1px solid #e4e7ed !important;
-        border-radius: 14px !important;
+        border: none !important;
+        border-radius: 16px !important;
         color: #374151 !important;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.08) !important;
-        padding: 28px 32px 28px 36px !important;
+        box-shadow: 0 2px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04) !important;
+        padding: 32px 36px !important;
         position: relative;
+        overflow: hidden;
     }
     div[data-testid="stAlert"]::before {
         content: '';
         position: absolute;
-        left: 0; top: 16px; bottom: 16px; width: 4px;
-        background: linear-gradient(180deg, #3b82f6 0%, #6366f1 100%);
-        border-radius: 0 4px 4px 0;
+        left: 0; top: 0; bottom: 0; width: 5px;
+        background: #1a1a2e;
+        border-radius: 0;
     }
     div[data-testid="stAlert"] p,
-    div[data-testid="stAlert"] li,
+    div[data-testid="stAlert"] li {
+        color: #4b5563 !important;
+        line-height: 1.9 !important;
+        font-size: 14.5px !important;
+    }
     div[data-testid="stAlert"] span {
-        color: #374151 !important; line-height: 1.85 !important; font-size: 14.5px !important;
+        color: #4b5563 !important;
+        font-size: 14.5px !important;
     }
     div[data-testid="stAlert"] h1,
     div[data-testid="stAlert"] h2,
     div[data-testid="stAlert"] h3 {
-        color: #1a1a2e !important; font-weight: 700 !important;
-        margin-top: 22px !important; margin-bottom: 8px !important;
-        padding-bottom: 6px !important; border-bottom: 1px solid #f0f2f5 !important;
+        color: #111827 !important;
+        font-weight: 800 !important;
+        font-size: 15px !important;
+        margin-top: 28px !important;
+        margin-bottom: 10px !important;
+        padding-bottom: 0 !important;
+        border-bottom: none !important;
+        letter-spacing: -0.2px;
     }
-    div[data-testid="stAlert"] strong { color: #1a1a2e !important; font-weight: 700 !important; }
+    div[data-testid="stAlert"] strong {
+        color: #111827 !important;
+        font-weight: 700 !important;
+        background: linear-gradient(120deg, rgba(59,130,246,0.10) 0%, rgba(59,130,246,0.10) 100%);
+        padding: 0 2px;
+        border-radius: 3px;
+    }
 
     /* ===== 섹션 헤더 ===== */
     .section-header {
@@ -950,17 +967,19 @@ if user_input:
                     )
                     
                     fig.update_layout(
-                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
+                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=20, color="#1a1a2e", family="Pretendard")),
                         template="plotly_dark",
-                        dragmode=False, 
-                        xaxis=xaxis_config,
-                        yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
+                        dragmode=False,
+                        xaxis=dict(**xaxis_config, gridcolor="#dde1e7", tickfont=dict(color="#6b7280", size=12), linecolor="#dde1e7"),
+                        yaxis=dict(range=[min_y, max_y], gridcolor="#dde1e7", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt, tickfont=dict(color="#6b7280", size=12), linecolor="#dde1e7"),
                         height=520,
-                        margin=dict(l=0, r=0, t=40, b=0),
-                        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
+                        margin=dict(l=0, r=10, t=48, b=0),
+                        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(240,242,245,0.92)", font=dict(color="#374151", size=12), bordercolor="#dde1e7", borderwidth=1),
                         hovermode="x unified",
                         clickmode="none",
-                        hoverlabel=dict(font_family="Pretendard")
+                        hoverlabel=dict(font_family="Pretendard", bgcolor="#1a1a2e", bordercolor="#374151", font_color="white"),
+                        paper_bgcolor="#f0f2f5",
+                        plot_bgcolor="#f0f2f5",
                     )
                     
                     st.plotly_chart(fig, use_container_width=True, config={
