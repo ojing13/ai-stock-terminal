@@ -679,11 +679,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
-# ============================
-# 매수 추천 기능
-# ============================
-
+col_search, _ = st.columns([1, 2])
 with col_search:
     user_input = st.text_input("분석할 종목명 또는 티커", placeholder="예: 삼성전자, AAPL, NVDA")
 
