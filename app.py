@@ -1388,6 +1388,7 @@ SCORE (0~100): 종합 투자의견. 저평가 여부, 손익비, 리스크 대�
 RISK (0~100): 손실 위험도. 재무건전성·밸류에이션 부담·구조적위험 기반. 0=매우안전, 100=매우위험
 RETURN (0~100): 잘됐을때 상승잠재력. 미래시나리오 기반, 현재재무무관. 0=기대없음, 100=폭발적상승
 
+10단위(10, 20, 30...)가 아니라 1단위로 정밀하게 평가하세요. 예: 67, 43, 78
 반드시 아래 형식으로만 출력:
 [SCORE: 숫자]
 [RISK: 숫자]
@@ -1417,6 +1418,10 @@ RETURN (0~100): 잘됐을때 상승잠재력. 미래시나리오 기반, 현재�
                             
                         import re as _re
                         _cleaned = report_text.strip()
+                        # SCORE/RISK/RETURN 태그 제거
+                        _cleaned = _re.sub(r'\[SCORE:\s*\d+\]', '', _cleaned)
+                        _cleaned = _re.sub(r'\[RISK:\s*\d+\]', '', _cleaned)
+                        _cleaned = _re.sub(r'\[RETURN:\s*\d+\]', '', _cleaned)
                         # 끝부분 잔여 쉼표/마침표/따옴표 등 정리
                         _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
                         _html = md_to_html(_cleaned)
