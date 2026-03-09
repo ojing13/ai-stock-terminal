@@ -231,6 +231,10 @@ st.markdown("""
     a { color: #3b82f6 !important; text-decoration: none !important; }
     a:hover { text-decoration: underline !important; }
 
+    /* ===== 타이틀 클릭을 위한 전용 클래스 (기본 디자인 유지) ===== */
+    .title-link { color: #1a1a2e !important; text-decoration: none !important; }
+    .title-link:hover { text-decoration: none !important; color: #1a1a2e !important; cursor: pointer; }
+
     /* ===== 상단 흰색 헤더 바 완전 제거 ===== */
     header[data-testid="stHeader"] {
         display: none !important;
@@ -425,7 +429,7 @@ def get_ticker_symbol(search_term):
                 else: return code
     except:
         pass
-      
+       
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
@@ -460,7 +464,7 @@ def get_ticker_symbol(search_term):
                 return match.group(0)
     except:
         pass
-      
+       
     return search_term.upper()
 
 def safe_get_fin(df, keys, default='N/A'):
@@ -687,9 +691,10 @@ st.markdown("""
     <span style="font-size: 10px; font-weight: 700; letter-spacing: 2.5px; color: #9ca3af; text-transform: uppercase; background:#eef0f4; padding:3px 10px; border-radius:20px;">AI Stock Analysis Terminal</span>
 </div>
 """, unsafe_allow_html=True)
+
 st.markdown("""
-<div style="font-size: 1.75rem; font-weight: 900; color: #1a1a2e; letter-spacing: -0.8px; line-height: 1.2; margin-bottom: 6px;">
-    <a href="?" target="_self" style="text-decoration: none; color: inherit; cursor: pointer;">웅이의 AI 주식 분석 터미널</a>
+<div style="font-size: 1.75rem; font-weight: 900; letter-spacing: -0.8px; line-height: 1.2; margin-bottom: 6px;">
+    <a href="?" target="_self" class="title-link">웅이의 AI 주식 분석 터미널</a>
 </div>
 <div style="color: #9ca3af; font-size: 13.5px; font-weight: 400; margin-bottom: 22px; letter-spacing: 0.1px;">
     
@@ -698,7 +703,7 @@ st.markdown("""
 
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input = st.text_input("분석할 종목명 또는 티커", placeholder="예: 삼성전자, AAPL, NVDA")
+    user_input = st.text_input("분석할 종목명 또는 티커", placeholder="예: 삼성전자, AAPL, NVDA", key="main_search_input")
 
 if user_input:
     ticker = get_ticker_symbol(user_input)
@@ -1513,16 +1518,12 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
     else:
         st.error(f"'{user_input}' 종목을 찾을 수 없습니다. (시도한 티커: {ticker})\n\n정확한 종목명이나 티커 심볼을 입력해 주세요.\n예) 삼성전자, 005930.KS, AAPL, NVDA")
 
-# ====================== [수정된 부분] 초기 화면 하단 업데이트 내용 추가 ======================
 else:
     st.markdown("""
     <div style="margin-top: 50px; font-size: 13px; color: #9ca3af; line-height: 1.8;">
         <strong>업데이트 내용</strong><br>
         • AI가 이전보다 훨씬 입체적으로 사고<br>
-        • 종합 리포트에서 AI 투자의견과 리스크 기대수익 매트릭스를 추가<br>
+        • 종합 리포트에서 AI의 독자적 투자의견과 리스크 대비 기대수익 매트릭스를 추가<br>
         • 기타 자잘한 버그, 디자인 수정
-        
     </div>
     """, unsafe_allow_html=True)
-
-
