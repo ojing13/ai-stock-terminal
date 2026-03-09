@@ -296,8 +296,6 @@ def load_krx_data():
 krx_df = load_krx_data()
 
 # ====================== [버그 수정] get_korean_display_name ======================
-# 네이버 AC API의 item[0]은 티커 코드, item[1]은 종목명입니다.
-# item[1]이 티커와 동일한 값을 반환하는 경우(미국 주식 등)를 방어 처리했습니다.
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
@@ -311,10 +309,8 @@ def get_korean_display_name(ticker, english_name):
             for item in ac_data['items'][0]:
                 if item[0].upper() == clean_ticker.upper():
                     korean_name = item[1]
-                    # item[1]이 티커와 동일하거나 비어있으면 무시
                     if korean_name and korean_name.upper() != clean_ticker.upper():
                         return korean_name
-            # 정확히 일치하는 항목이 없으면 첫 번째 결과의 종목명 시도
             first_name = ac_data['items'][0][0][1]
             if first_name and first_name.upper() != clean_ticker.upper():
                 return first_name
@@ -322,7 +318,7 @@ def get_korean_display_name(ticker, english_name):
         pass
     return english_name
 
-@st.cache_data(ttl=3600)
+# [버그 수정 포인트 1] 실패 기록이 캐싱되지 않도록 @st.cache_data 제거
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     search_clean = search_term.replace(" ", "").upper()
@@ -365,21 +361,21 @@ def get_ticker_symbol(search_term):
     if not krx_df.empty:
         df_temp = krx_df.copy()
         df_temp['Name_clean'] = df_temp['Name'].astype(str).str.replace(" ", "").str.upper()
-        # 완전일치
+        
         match = df_temp[df_temp['Name_clean'] == search_clean]
         if not match.empty:
             code = match.iloc[0]['Code']
             market = match.iloc[0]['Market']
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
-        # 부분일치 (검색어가 종목명에 포함)
+            
         partial = df_temp[df_temp['Name_clean'].str.contains(search_clean, na=False)]
         if not partial.empty:
             code = partial.iloc[0]['Code']
             market = partial.iloc[0]['Market']
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
-        # 역방향 부분일치 (종목명이 검색어에 포함)
+            
         partial2 = df_temp[df_temp['Name_clean'].apply(lambda n: n in search_clean and len(n) >= 3)]
         if not partial2.empty:
             code = partial2.iloc[0]['Code']
@@ -402,9 +398,10 @@ def get_ticker_symbol(search_term):
             code = item[0]
             market_str = item[2] if len(item) > 2 else ""
             
+            # [버그 수정 포인트 2] 미국 주식 등 알파벳 티커에 무조건 .KS가 붙는 문제 방지
             if '코스피' in market_str: return f"{code}.KS"
             elif '코스닥' in market_str: return f"{code}.KQ"
-            else: return f"{code}.KS"
+            else: return code if code.isalpha() else f"{code}.KS"
     except:
         pass
             
@@ -422,7 +419,7 @@ def get_ticker_symbol(search_term):
                 market_str = tds[2].text.strip()
                 if '코스피' in market_str: return f"{code}.KS"
                 elif '코스닥' in market_str: return f"{code}.KQ"
-                else: return code
+                else: return code if code.isalpha() else f"{code}.KS"
     except:
         pass
       
@@ -455,7 +452,8 @@ def get_ticker_symbol(search_term):
         
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
-            match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', lines[-1])
+            # [버그 수정 포인트 3] 순수 영문 티커(알파벳만 있는 경우) 추출 보장
+            match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z]+', lines[-1])
             if match:
                 return match.group(0)
     except:
@@ -701,7 +699,9 @@ with col_search:
     user_input = st.text_input("분석할 종목명 또는 티커", placeholder="예: 삼성전자, AAPL, NVDA")
 
 if user_input:
-    ticker = get_ticker_symbol(user_input)
+    # [버그 수정 포인트 4] 입력값 양쪽 공백 정리 후 전달
+    clean_input = user_input.strip()
+    ticker = get_ticker_symbol(clean_input)
     stock = yf.Ticker(ticker)
     
     hist_basic, cached_info, fin_df, bs_df, cf_df, div_series = fetch_yf_data(ticker)
@@ -735,11 +735,6 @@ if user_input:
                     display_name = info['shortName']
 
         else:
-            # ====================== [버그 수정] 미국 주식 종목명 ======================
-            # 1순위: Yahoo Finance 검색 API에서 정식 종목명 직접 조회
-            # 2순위: yfinance info의 longName
-            # 3순위: yfinance info의 shortName (티커와 동일한 값이면 제외)
-            # 4순위: 네이버 AC API
             yf_official_name = None
             try:
                 import urllib.parse as _up
@@ -946,7 +941,6 @@ if user_input:
         
         # --- [탭 1: 차트 분석] ---
         with tab1:
-            # 종목명 + 현재가 헤더 카드
             st.markdown(f"""
             <div class="price-header">
                 <span class="price-name">{display_name}</span>
