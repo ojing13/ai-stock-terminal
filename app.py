@@ -15,33 +15,37 @@ import copy
 import textwrap
 
 def md_to_html(text):
-    """간단한 마크다운 → HTML 변환 (외부 라이브러리 불필요)"""
+    """마크다운 → HTML 변환"""
     import re
+    # ** 완전 제거 (bold 태그 변환 없이 그냥 텍스트만 남김)
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    # * 단독 제거
+    text = re.sub(r'(?<![\w\d])\*(?![\*])', '', text)
+    # 숫자-단위 사이 하이픈 보호 (예: 5-일 → 5일, 13-주 → 13주, 9-월 → 9월)
+    text = re.sub(r'(\d+)-(일|주|월|년|개월)', r'\1\2', text)
+
     lines = text.split('\n')
-    html_lines = []
-    in_p = False
-    for line in lines:
-        # ### 헤딩
-        if line.startswith('### '):
-            if in_p: html_lines.append('</p>'); in_p = False
-            html_lines.append(f'<h3>{line[4:].strip()}</h3>')
+    html_parts = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip()
+        # 헤딩
+        if line.startswith('#### '):
+            html_parts.append(f'<h4 style="font-size:14.5px;font-weight:800;color:#111827;margin:22px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[5:].strip()}</h4>')
+        elif line.startswith('### '):
+            html_parts.append(f'<h3 style="font-size:15px;font-weight:800;color:#111827;margin:24px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[4:].strip()}</h3>')
         elif line.startswith('## '):
-            if in_p: html_lines.append('</p>'); in_p = False
-            html_lines.append(f'<h2>{line[3:].strip()}</h2>')
+            html_parts.append(f'<h2 style="font-size:15.5px;font-weight:800;color:#111827;margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[3:].strip()}</h2>')
         elif line.startswith('# '):
-            if in_p: html_lines.append('</p>'); in_p = False
-            html_lines.append(f'<h2>{line[2:].strip()}</h2>')
+            html_parts.append(f'<h2 style="font-size:16px;font-weight:800;color:#111827;margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[2:].strip()}</h2>')
+        # 빈 줄 → 단락 간격
         elif line.strip() == '':
-            if in_p: html_lines.append('</p>'); in_p = False
-            html_lines.append('<br>')
+            html_parts.append('<div style="height:10px;"></div>')
+        # 일반 텍스트
         else:
-            if not in_p: html_lines.append('<p>'); in_p = True
-            else: html_lines.append(' ')
-            # **bold**
-            processed = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
-            html_lines.append(processed)
-    if in_p: html_lines.append('</p>')
-    return ''.join(html_lines)
+            html_parts.append(f'<p style="margin:0 0 10px 0;line-height:1.85;color:#374151;font-size:14.5px;">{line}</p>')
+        i += 1
+    return '\n'.join(html_parts)
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석 터미널")
