@@ -134,30 +134,25 @@ st.markdown("""
 
     /* ===== AI 분석 결과 카드 ===== */
     div[data-testid="stAlert"] {
-        background-color: #ffffff !important;
+        background-color: #e8eaed !important;
         border: none !important;
-        border-radius: 16px !important;
-        color: #374151 !important;
-        box-shadow: 0 2px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04) !important;
+        border-radius: 14px !important;
+        color: #1f2937 !important;
+        box-shadow: none !important;
         padding: 32px 36px !important;
         position: relative;
-        overflow: hidden;
     }
     div[data-testid="stAlert"]::before {
-        content: '';
-        position: absolute;
-        left: 0; top: 0; bottom: 0; width: 5px;
-        background: #1a1a2e;
-        border-radius: 0;
+        content: none !important;
     }
     div[data-testid="stAlert"] p,
     div[data-testid="stAlert"] li {
-        color: #4b5563 !important;
+        color: #374151 !important;
         line-height: 1.9 !important;
         font-size: 14.5px !important;
     }
     div[data-testid="stAlert"] span {
-        color: #4b5563 !important;
+        color: #374151 !important;
         font-size: 14.5px !important;
     }
     div[data-testid="stAlert"] h1,
@@ -165,19 +160,16 @@ st.markdown("""
     div[data-testid="stAlert"] h3 {
         color: #111827 !important;
         font-weight: 800 !important;
-        font-size: 15px !important;
+        font-size: 15.5px !important;
         margin-top: 28px !important;
         margin-bottom: 10px !important;
-        padding-bottom: 0 !important;
-        border-bottom: none !important;
+        padding-bottom: 8px !important;
+        border-bottom: 1px solid #d1d5db !important;
         letter-spacing: -0.2px;
     }
     div[data-testid="stAlert"] strong {
         color: #111827 !important;
         font-weight: 700 !important;
-        background: linear-gradient(120deg, rgba(59,130,246,0.10) 0%, rgba(59,130,246,0.10) 100%);
-        padding: 0 2px;
-        border-radius: 3px;
     }
 
     /* ===== 섹션 헤더 ===== */
