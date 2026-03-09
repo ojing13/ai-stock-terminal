@@ -1512,3 +1512,14 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 
     else:
         st.error(f"'{user_input}' 종목을 찾을 수 없습니다. (시도한 티커: {ticker})\n\n정확한 종목명이나 티커 심볼을 입력해 주세요.\n예) 삼성전자, 005930.KS, AAPL, NVDA")
+
+# ====================== [수정된 부분] 초기 화면 하단 업데이트 내용 추가 ======================
+else:
+    st.markdown("""
+    <div style="margin-top: 50px; font-size: 13px; color: #9ca3af; line-height: 1.8;">
+        <strong>업데이트 내용</strong><br>
+        • AI가 이전보다 훨씬 입체적으로 사고<br>
+        • 종합 리포트에서 AI의 독자적 투자의견과 리스크 대비 기대수익 매트릭스를 추가<br>
+        • 기타 자잘한 버그, 디자인 수정
+    </div>
+    """, unsafe_allow_html=True)
