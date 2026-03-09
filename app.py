@@ -657,7 +657,7 @@ st.markdown("""
     웅이의 AI 주식 분석 터미널
 </div>
 <div style="color: #9ca3af; font-size: 13.5px; font-weight: 400; margin-bottom: 22px; letter-spacing: 0.1px;">
-    종목명 또는 티커를 입력하면 AI가 차트 · 재무 · 뉴스를 종합 분석해드립니다.
+    대규모 업데이트해서 성능 짱짱임ㅋ
 </div>
 """, unsafe_allow_html=True)
 
@@ -998,7 +998,7 @@ if user_input:
                     )
                     
                     fig.update_layout(
-                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=20, color="#1a1a2e", family="Pretendard")),
+                        title=None,
                         template="plotly_dark",
                         dragmode=False,
                         xaxis=dict(**xaxis_config, gridcolor="#dde1e7", tickfont=dict(color="#6b7280", size=12), linecolor="#dde1e7"),
