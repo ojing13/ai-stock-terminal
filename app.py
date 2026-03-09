@@ -13,6 +13,7 @@ import re
 import urllib.parse
 import copy
 import textwrap
+import markdown as md_lib
 
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석 터미널")
@@ -1035,9 +1036,8 @@ if user_input:
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                         )
-                        st.markdown('<div class="ai-result-card">', unsafe_allow_html=True)
-                        st.markdown(response.text)
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        _html = md_lib.markdown(response.text, extensions=['nl2br', 'tables'])
+                        st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
           
@@ -1171,9 +1171,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         response = client.models.generate_content(
                             model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                         )
-                        st.markdown('<div class="ai-result-card">', unsafe_allow_html=True)
-                        st.markdown(response.text)
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        _html = md_lib.markdown(response.text, extensions=['nl2br', 'tables'])
+                        st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
                     
@@ -1191,9 +1190,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                             )
-                            st.markdown('<div class="ai-result-card">', unsafe_allow_html=True)
-                            st.markdown(response.text)
-                            st.markdown('</div>', unsafe_allow_html=True)
+                            _html = md_lib.markdown(response.text, extensions=['nl2br', 'tables'])
+                            st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
                         except Exception as e:
                             st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
                         
@@ -1213,9 +1211,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
                             )
-                            st.markdown('<div class="ai-result-card">', unsafe_allow_html=True)
-                            st.markdown(response.text)
-                            st.markdown('</div>', unsafe_allow_html=True)
+                            _html = md_lib.markdown(response.text, extensions=['nl2br', 'tables'])
+                            st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
                         except Exception as e:
                             st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
 
@@ -1302,9 +1299,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             return_score = int(return_match.group(1))
                             report_text = report_text.replace(return_match.group(0), "")
                             
-                        st.markdown('<div class="ai-result-card">', unsafe_allow_html=True)
-                        st.markdown(report_text.strip())
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        _html = md_lib.markdown(report_text.strip(), extensions=['nl2br', 'tables'])
+                        st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
                         
                         if final_score is not None:
                             final_score = max(0, min(100, final_score)) 
