@@ -671,11 +671,8 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 st.markdown("""
-<div style="font-size: 1.75rem; font-weight: 900; color: #1a1a2e; letter-spacing: -0.8px; line-height: 1.2; margin-bottom: 6px;">
-    웅이의 AI 주식 분석 터미널
-</div>
-<div style="color: #9ca3af; font-size: 13.5px; font-weight: 400; margin-bottom: 22px; letter-spacing: 0.1px;">
-    
+<div style="font-size: 1.75rem; font-weight: 900; color: #1a1a2e; letter-spacing: -0.8px; line-height: 1.2; margin-bottom: 22px;">
+    <a href="/" target="_self" style="text-decoration:none; color:inherit; cursor:pointer;">웅이의 AI 주식 분석 터미널</a>
 </div>
 """, unsafe_allow_html=True)
 
@@ -879,8 +876,9 @@ def pick_quota(scored, n_each=2):
     return result
 
 
+
 # ============================
-# 추천 섹션
+# 추천 섹션 - session state
 # ============================
 if 'recommend_kr' not in st.session_state:
     st.session_state.recommend_kr = None
@@ -889,7 +887,7 @@ if 'recommend_us' not in st.session_state:
 
 def render_recommend(results, label):
     if not results:
-        st.info(f"{label}: 조건을 충족하는 추천 종목을 찾지 못했습니다.")
+        st.info(f"{label}: 조건 충족 추천 종목을 찾지 못했습니다.")
         return
     st.markdown(f"**{label} 저평가 추천 종목**")
     for r in results:
@@ -908,133 +906,135 @@ def render_recommend(results, label):
   </div>
 </div>""", unsafe_allow_html=True)
 
-_rc1, _rc2, _rc3 = st.columns([1, 1, 5])
-with _rc1:
-    run_kr = st.button("한국장 추천", key="btn_kr_recommend", use_container_width=True)
-with _rc2:
-    run_us = st.button("미국장 추천", key="btn_us_recommend", use_container_width=True)
-
-if run_kr:
-    with st.spinner("한국 시장 스크리닝 중... (1~2분 소요)"):
-        try:
-            import concurrent.futures as _cf2, random
-            kr_raw = fdr.StockListing('KRX')
-            candidates_kr = []
-            if kr_raw is not None and not kr_raw.empty:
-                for _, row in kr_raw.iterrows():
-                    try:
-                        code = str(row.get('Code', row.get('Symbol', ''))).zfill(6)
-                        name = row.get('Name', '')
-                        if not code or not name:
-                            continue
-                        mkt = str(row.get('Market', row.get('MarketId', ''))).upper()
-                        suffix = '.KQ' if 'KOSDAQ' in mkt or 'KQ' in mkt else '.KS'
-                        candidates_kr.append({'ticker': code + suffix, 'name': name})
-                    except:
-                        continue
-
-            def quick_filter_kr(item):
-                try:
-                    stk = yf.Ticker(item['ticker'])
-                    inf = stk.fast_info
-                    vol = getattr(inf, 'three_month_average_volume', 0) or 0
-                    if vol < 5000:
-                        return None
-                    price = getattr(inf, 'last_price', None)
-                    mkt_cap = getattr(inf, 'market_cap', None)
-                    if not price or not mkt_cap:
-                        return None
-                    info_d = stk.info
-                    per = info_d.get('trailingPE')
-                    pbr = info_d.get('priceToBook')
-                    op_margin = info_d.get('operatingMargins')
-                    if per is None or pbr is None:
-                        return None
-                    if per <= 0 or per > 50:
-                        return None
-                    if op_margin is not None and op_margin <= 0:
-                        return None
-                    return {**item, 'per': per, 'pbr': pbr, 'market_cap': mkt_cap, 'price': price}
-                except:
-                    return None
-
-            sample_kr = random.sample(candidates_kr, min(300, len(candidates_kr)))
-            with _cf2.ThreadPoolExecutor(max_workers=20) as ex:
-                filtered_kr = [r for r in ex.map(quick_filter_kr, sample_kr) if r]
-
-            if not filtered_kr:
-                st.session_state.recommend_kr = []
-            else:
-                _client_rec = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-                def _score_kr(item):
-                    return score_candidate_quick(item['ticker'], item['name'], _client_rec)
-                with _cf2.ThreadPoolExecutor(max_workers=10) as ex:
-                    scored_kr = [r for r in ex.map(_score_kr, filtered_kr[:30]) if r]
-                st.session_state.recommend_kr = pick_quota(scored_kr, n_each=2)
-        except Exception as e:
-            st.error(f"한국 스크리닝 오류: {e}")
-
-if run_us:
-    with st.spinner("미국 시장 스크리닝 중... (30초~1분 소요)"):
-        try:
-            import concurrent.futures as _cf3, urllib.request as _ur
-            _url = "https://finviz.com/screener.ashx?v=111&f=fa_eps_pos,fa_pe_u20,fa_pb_u2,sh_avgvol_o100&ft=4&o=-marketcap"
-            _req = _ur.Request(_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-            _html = _ur.urlopen(_req, timeout=15).read().decode('utf-8', errors='ignore')
-            _soup = BeautifulSoup(_html, 'html.parser')
-
-            us_candidates = []
-            for _row in _soup.select('tr'):
-                cols = _row.find_all('td')
-                if len(cols) < 12:
-                    continue
-                try:
-                    ticker_str = cols[1].get_text(strip=True)
-                    name = cols[2].get_text(strip=True)
-                    per_t = cols[9].get_text(strip=True)
-                    pbr_t = cols[10].get_text(strip=True)
-                    cap_t = cols[6].get_text(strip=True)
-                    if not ticker_str or per_t in ['-', ''] or pbr_t in ['-', '']:
-                        continue
-                    def _mc(s):
-                        s = s.strip()
-                        if s.endswith('B'): return float(s[:-1]) * 1e9
-                        if s.endswith('M'): return float(s[:-1]) * 1e6
-                        return 0
-                    per_v = float(per_t)
-                    pbr_v = float(pbr_t)
-                    if per_v <= 0 or pbr_v <= 0:
-                        continue
-                    us_candidates.append({'ticker': ticker_str, 'name': name, 'per': per_v, 'pbr': pbr_v, 'market_cap': _mc(cap_t)})
-                except:
-                    continue
-
-            if not us_candidates:
-                st.session_state.recommend_us = []
-            else:
-                _client_rec2 = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-                def _score_us(item):
-                    return score_candidate_quick(item['ticker'], item['name'], _client_rec2)
-                _large = [x for x in us_candidates if x['market_cap'] >= 1e10][:10]
-                _mid   = [x for x in us_candidates if 1e9 <= x['market_cap'] < 1e10][:10]
-                _small = [x for x in us_candidates if x['market_cap'] < 1e9][:10]
-                _sample_us = _large + _mid + _small
-                with _cf3.ThreadPoolExecutor(max_workers=10) as ex:
-                    scored_us = [r for r in ex.map(_score_us, _sample_us) if r]
-                st.session_state.recommend_us = pick_quota(scored_us, n_each=2)
-        except Exception as e:
-            st.error(f"미국 스크리닝 오류: {e}")
-
-if st.session_state.recommend_kr is not None:
-    render_recommend(st.session_state.recommend_kr, "한국장")
-if st.session_state.recommend_us is not None:
-    render_recommend(st.session_state.recommend_us, "미국장")
-
-st.markdown("---")
-
+# ============================
+# 검색창
+# ============================
 col_search, _ = st.columns([1, 2])
 with col_search:
     user_input = st.text_input("분석할 종목명 또는 티커", placeholder="예: 삼성전자, AAPL, NVDA")
+
+# 검색 전 화면: 추천 버튼 + 결과
+if not user_input:
+    st.markdown("")
+    _rc1, _rc2, _rc3 = st.columns([1, 1, 5])
+    with _rc1:
+        run_kr = st.button("한국장 추천", key="btn_kr_recommend", use_container_width=True)
+    with _rc2:
+        run_us = st.button("미국장 추천", key="btn_us_recommend", use_container_width=True)
+
+    if run_kr:
+        with st.spinner("한국 시장 스크리닝 중... (1~2분 소요)"):
+            try:
+                import concurrent.futures as _cf2, random
+                kr_raw = fdr.StockListing('KRX')
+                candidates_kr = []
+                if kr_raw is not None and not kr_raw.empty:
+                    for _, row in kr_raw.iterrows():
+                        try:
+                            code = str(row.get('Code', row.get('Symbol', ''))).zfill(6)
+                            name_kr = row.get('Name', '')
+                            if not code or not name_kr:
+                                continue
+                            mkt = str(row.get('Market', row.get('MarketId', ''))).upper()
+                            suffix = '.KQ' if 'KOSDAQ' in mkt or 'KQ' in mkt else '.KS'
+                            candidates_kr.append({'ticker': code + suffix, 'name': name_kr})
+                        except:
+                            continue
+
+                def quick_filter_kr(item):
+                    try:
+                        stk = yf.Ticker(item['ticker'])
+                        inf = stk.fast_info
+                        vol = getattr(inf, 'three_month_average_volume', 0) or 0
+                        if vol < 5000:
+                            return None
+                        price = getattr(inf, 'last_price', None)
+                        mkt_cap = getattr(inf, 'market_cap', None)
+                        if not price or not mkt_cap:
+                            return None
+                        info_d = stk.info
+                        per = info_d.get('trailingPE')
+                        pbr = info_d.get('priceToBook')
+                        op_margin = info_d.get('operatingMargins')
+                        if per is None or pbr is None:
+                            return None
+                        if per <= 0 or per > 50:
+                            return None
+                        if op_margin is not None and op_margin <= 0:
+                            return None
+                        return {**item, 'per': per, 'pbr': pbr, 'market_cap': mkt_cap, 'price': price}
+                    except:
+                        return None
+
+                sample_kr = random.sample(candidates_kr, min(300, len(candidates_kr)))
+                with _cf2.ThreadPoolExecutor(max_workers=20) as ex:
+                    filtered_kr = [r for r in ex.map(quick_filter_kr, sample_kr) if r]
+
+                if not filtered_kr:
+                    st.session_state.recommend_kr = []
+                else:
+                    _client_rec = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+                    def _score_kr(item):
+                        return score_candidate_quick(item['ticker'], item['name'], _client_rec)
+                    with _cf2.ThreadPoolExecutor(max_workers=10) as ex:
+                        scored_kr = [r for r in ex.map(_score_kr, filtered_kr[:30]) if r]
+                    st.session_state.recommend_kr = pick_quota(scored_kr, n_each=2)
+            except Exception as e:
+                st.error(f"한국 스크리닝 오류: {e}")
+
+    if run_us:
+        with st.spinner("미국 시장 스크리닝 중... (30초~1분 소요)"):
+            try:
+                import concurrent.futures as _cf3, urllib.request as _ur
+                _url = "https://finviz.com/screener.ashx?v=111&f=fa_eps_pos,fa_pe_u20,fa_pb_u2,sh_avgvol_o100&ft=4&o=-marketcap"
+                _req = _ur.Request(_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                _html = _ur.urlopen(_req, timeout=15).read().decode('utf-8', errors='ignore')
+                _soup = BeautifulSoup(_html, 'html.parser')
+                us_candidates = []
+                for _row in _soup.select('tr'):
+                    cols = _row.find_all('td')
+                    if len(cols) < 12:
+                        continue
+                    try:
+                        ticker_str = cols[1].get_text(strip=True)
+                        name_us = cols[2].get_text(strip=True)
+                        per_t = cols[9].get_text(strip=True)
+                        pbr_t = cols[10].get_text(strip=True)
+                        cap_t = cols[6].get_text(strip=True)
+                        if not ticker_str or per_t in ['-', ''] or pbr_t in ['-', '']:
+                            continue
+                        def _mc(s):
+                            s = s.strip()
+                            if s.endswith('B'): return float(s[:-1]) * 1e9
+                            if s.endswith('M'): return float(s[:-1]) * 1e6
+                            return 0
+                        per_v = float(per_t)
+                        pbr_v = float(pbr_t)
+                        if per_v <= 0 or pbr_v <= 0:
+                            continue
+                        us_candidates.append({'ticker': ticker_str, 'name': name_us, 'per': per_v, 'pbr': pbr_v, 'market_cap': _mc(cap_t)})
+                    except:
+                        continue
+                if not us_candidates:
+                    st.session_state.recommend_us = []
+                else:
+                    _client_rec2 = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+                    def _score_us(item):
+                        return score_candidate_quick(item['ticker'], item['name'], _client_rec2)
+                    _large = [x for x in us_candidates if x['market_cap'] >= 1e10][:10]
+                    _mid   = [x for x in us_candidates if 1e9 <= x['market_cap'] < 1e10][:10]
+                    _small = [x for x in us_candidates if x['market_cap'] < 1e9][:10]
+                    _sample_us = _large + _mid + _small
+                    with _cf3.ThreadPoolExecutor(max_workers=10) as ex:
+                        scored_us = [r for r in ex.map(_score_us, _sample_us) if r]
+                    st.session_state.recommend_us = pick_quota(scored_us, n_each=2)
+            except Exception as e:
+                st.error(f"미국 스크리닝 오류: {e}")
+
+    if st.session_state.recommend_kr is not None:
+        render_recommend(st.session_state.recommend_kr, "한국장")
+    if st.session_state.recommend_us is not None:
+        render_recommend(st.session_state.recommend_us, "미국장")
 
 if user_input:
     ticker = get_ticker_symbol(user_input)
