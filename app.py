@@ -1440,10 +1440,9 @@ SCORE 근거: 지금 이 가격의 손익비 판단 한 줄 (투자자 전제: �
 [RISK: 숫자]
 [RETURN: 숫자]"""
 
-                        _scores = []
-                        _risks = []
-                        _returns = []
-                        for _i in range(3):
+                        import concurrent.futures as _cf
+
+                        def _call_score(_):
                             try:
                                 _sr = client.models.generate_content(
                                     model='gemini-2.5-flash',
@@ -1454,18 +1453,27 @@ SCORE 근거: 지금 이 가격의 손익비 판단 한 줄 (투자자 전제: �
                                 _sm = re.search(r'\[SCORE:\s*(\d+)\s*\]', _st)
                                 _rm = re.search(r'\[RISK:\s*(\d+)\s*\]', _st)
                                 _rem = re.search(r'\[RETURN:\s*(\d+)\s*\]', _st)
-                                if _sm: _scores.append(int(_sm.group(1)))
-                                if _rm: _risks.append(int(_rm.group(1)))
-                                if _rem: _returns.append(int(_rem.group(1)))
+                                return (
+                                    int(_sm.group(1)) if _sm else None,
+                                    int(_rm.group(1)) if _rm else None,
+                                    int(_rem.group(1)) if _rem else None
+                                )
                             except:
-                                pass
+                                return (None, None, None)
+
+                        with _cf.ThreadPoolExecutor(max_workers=7) as _ex:
+                            _results = list(_ex.map(_call_score, range(7)))
+
+                        _scores  = [r[0] for r in _results if r[0] is not None]
+                        _risks   = [r[1] for r in _results if r[1] is not None]
+                        _returns = [r[2] for r in _results if r[2] is not None]
 
                         score_match = True if _scores else None
-                        risk_match = True if _risks else None
+                        risk_match  = True if _risks  else None
                         return_match = True if _returns else None
 
-                        final_score = round(sum(_scores) / len(_scores)) if _scores else None
-                        risk_score = round(sum(_risks) / len(_risks)) if _risks else None
+                        final_score  = round(sum(_scores)  / len(_scores))  if _scores  else None
+                        risk_score   = round(sum(_risks)   / len(_risks))   if _risks   else None
                         return_score = round(sum(_returns) / len(_returns)) if _returns else None
 
                         import re as _re
