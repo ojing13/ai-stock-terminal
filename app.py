@@ -16,8 +16,6 @@ import textwrap
 import pytz
 import hashlib
 
-# 종합 리포트 결과 캐시 (동일 종목+데이터 → 동일 결과 보장)
-_report_cache = {}
 
 def md_to_html(text):
     """마크다운 → HTML 변환"""
@@ -1284,14 +1282,26 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
         # --- [탭 4: 종합 리포트 및 투자의견 바] ---
         with tab4:
             st.markdown('<div class="section-header"><span class="section-badge">AI</span> 퀀트 애널리스트 최종 브리핑</div>', unsafe_allow_html=True)
+            # 이전 결과 자동 표시 (버튼 안 눌러도 세션 내 유지)
+            if "report_cache" in st.session_state:
+                _cache_raw = f"{ticker}|{current_price}|{trailing_pe}|{forward_pe}|{pb}|{debt_str}|{op_margin}|{high_52}|{low_52}"
+                _cache_key = hashlib.md5(_cache_raw.encode()).hexdigest()
+                if _cache_key in st.session_state.report_cache:
+                    _cached = st.session_state.report_cache[_cache_key]
+                    st.markdown(f'<div class="ai-result-card">{_cached["html"]}</div>', unsafe_allow_html=True)
+                    if _cached.get("bar_html"):
+                        st.markdown(_cached["bar_html"].replace('\n', ''), unsafe_allow_html=True)
+
             if st.button("원클릭 종합 분석 리포트 생성"):
-                # 캐시 키: 종목+주요 수치 해시 (데이터가 같으면 항상 같은 결과)
+                # 캐시 키: 종목+주요 수치 해시
                 _cache_raw = f"{ticker}|{current_price}|{trailing_pe}|{forward_pe}|{pb}|{debt_str}|{op_margin}|{high_52}|{low_52}"
                 _cache_key = hashlib.md5(_cache_raw.encode()).hexdigest()
 
-                if _cache_key in _report_cache:
-                    # 캐시 히트 - 저장된 결과 그대로 표시
-                    _cached = _report_cache[_cache_key]
+                if "report_cache" not in st.session_state:
+                    st.session_state.report_cache = {}
+
+                if _cache_key in st.session_state.report_cache:
+                    _cached = st.session_state.report_cache[_cache_key]
                     st.markdown(f'<div class="ai-result-card">{_cached["html"]}</div>', unsafe_allow_html=True)
                     if _cached.get("bar_html"):
                         st.markdown(_cached["bar_html"].replace('\n', ''), unsafe_allow_html=True)
@@ -1442,7 +1452,7 @@ RETURN (0~100): 잘됐을때 상승잠재력. 미래시나리오 기반, 현재�
                         _html = md_to_html(_cleaned)
                         st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
                         # 스코어 없을 경우 일단 캐시 저장 (bar_html은 아래에서 갱신)
-                        _report_cache[_cache_key] = {"html": _html, "bar_html": None}
+                        st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
                         
                         if final_score is not None:
                             final_score = max(0, min(100, final_score)) 
@@ -1465,7 +1475,7 @@ RETURN (0~100): 잘됐을때 상승잠재력. 미래시나리오 기반, 현재�
                             clean_html = bar_html.replace('\n', '')
                             st.markdown(clean_html, unsafe_allow_html=True)
                             # 캐시 저장
-                            _report_cache[_cache_key] = {"html": _html, "bar_html": bar_html}
+                            st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": bar_html}
                             
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
