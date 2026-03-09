@@ -420,41 +420,40 @@ def get_ticker_symbol(search_term):
     except:
         pass
       
-    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    try:
-        res = requests.get(url, headers=headers, timeout=5)
-        data = res.json()
-        if 'quotes' in data and len(data['quotes']) > 0:
-            us_exchanges = ['NYQ', 'NMS', 'NYSE', 'NASDAQ']
-            for quote in data['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange', '').upper() in us_exchanges:
-                    return quote['symbol']
-            for quote in data['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF']:
-                    return quote['symbol']
-            # [버그 수정] 주식이나 ETF가 아닐 경우, 무작정 반환하여 검색을 막아버리는 로직을 주석 처리했습니다.
-            # 이 코드가 없어야 뒤에 있는 스마트 AI 검색으로 안전하게 넘어가게 됩니다.
-            # return data['quotes'][0]['symbol']
-    except:
-        pass
+    has_korean = bool(re.search(r'[가-힣]', search_term))
+    if not has_korean:
+        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        try:
+            res = requests.get(url, headers=headers, timeout=5)
+            data = res.json()
+            if 'quotes' in data and len(data['quotes']) > 0:
+                us_exchanges = ['NYQ', 'NMS', 'NYSE', 'NASDAQ']
+                for quote in data['quotes']:
+                    if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange', '').upper() in us_exchanges:
+                        return quote['symbol']
+                for quote in data['quotes']:
+                    if quote.get('type') in ['EQUITY', 'ETF', 'CRYPTOCURRENCY']:
+                        return quote['symbol']
+        except:
+            pass
         
     try:
-        # [버그 수정] AI가 오타와 암호화폐 기호까지 넓게 파악해서 찾아올 수 있도록 명령어를 더욱 똑똑하게 수정했습니다.
-        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 가장 정확한 야후 파이낸스 티커 딱 1개만 출력하세요.
+        # [버그 진짜 원인 수정] 비트마인, 써클 등 상장사를 멋대로 비상장사로 판단해 대장주를 찾도록 한 멍청한 프롬프트 완전 삭제 및 규칙 재정립
+        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')에 해당하는 정확한 야후 파이낸스 티커 딱 1개만 출력하세요.
         [엄격한 규칙]
-        1. 한글 오타나 발음(예: 비트마인, 써클 등)을 파악해서 사용자가 의도한 실제 상장 주식/ETF/암호화폐 티커를 찾아주세요.
-        2. 미국 주식: 영문 티커 (예: AAPL, HIMS, TSLA)
-        3. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
-        4. 암호화폐: 야후 파이낸스 심볼 (예: BTC-USD)
-        5. 비상장사거나 도저히 찾을 수 없다면 임의로 지어내지 말고 'NONE'이라고 출력하세요.
-        6. 사고 과정 추가 설명 없이 오직 '티커 기호' 하나만 출력하세요."""
+        1. 사용자가 한글로 입력한 기업명(예: 비트마인, 써클, 리게티 등)의 실제 상장된 공식 영문 티커를 정확히 찾아주세요.
+        2. 절대 검색어와 다른 '관련 대장주'나 '경쟁사'를 임의로 찾지 마세요. 사용자가 찾고자 하는 해당 기업 본연의 티커만 반환해야 합니다.
+        3. 미국 주식: 영문 티커 (예: AAPL, BMNR, CRCL, RGTI)
+        4. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
+        5. 암호화폐: 야후 파이낸스 심볼 (예: BTC-USD)
+        6. 도저히 찾을 수 없다면 임의로 지어내지 말고 'NONE'이라고 출력하세요.
+        7. 사고 과정 추가 설명 없이 오직 '티커 기호' 하나만 출력하세요."""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
-            # [버그 수정] BTC-USD 처럼 하이픈이 들어간 기호도 추출할 수 있도록 정규식(Regex)을 보완했습니다.
             match = re.search(r'[A-Z0-9\-]+\.[A-Z]+|[A-Z0-9\-]+', lines[-1])
             if match:
                 return match.group(0)
@@ -1307,7 +1306,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             for item in news_list[:10]:
                                 st.markdown(f"• <a href='{item['link']}' target='_blank'>{item['title']}</a>", unsafe_allow_html=True)
                         else:
-                            st.write("뉴스 링크를 불러올 수 없습니다.")
+                            st.write("뉴스 링크를 불러올 수 직접 없습니다.")
           
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
@@ -1403,7 +1402,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     
                     [분석 지침]
                     - 어조: 정중체 사용. 깔끔한 전문가 톤을 유지하세요. 이모티콘은 절대 사용하지 마세요.
-                    - 균형 잡문을 차트 분석: 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 설명.
+                    - 균형 잡힌 차트 분석: 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 설명.
                     - 핵심 강조: 핵심 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 
                     - 달러 기호 금지. 금액은 반드시 '{currency}'으로 표기할 것.
                     - 출처 표기 절대 금지: 문장 끝에 (1, 5, 20) 같은 기사 번호를 괄호로 적는 행위를 완벽하게 금지합니다.
