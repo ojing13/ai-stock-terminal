@@ -724,9 +724,37 @@ if user_input:
 
         else:
             # ====================== [버그 수정] 미국 주식 종목명 ======================
-            # longName 우선 사용 → shortName → 마지막으로 ticker 폴백
-            # shortName이 "NVDA" 같은 티커 자체를 반환하는 경우를 방어합니다.
-            english_name = info.get('longName') or info.get('shortName') or ticker
+            # 1순위: Yahoo Finance 검색 API에서 정식 종목명 직접 조회
+            # 2순위: yfinance info의 longName
+            # 3순위: yfinance info의 shortName (티커와 동일한 값이면 제외)
+            # 4순위: 네이버 AC API
+            yf_official_name = None
+            try:
+                import urllib.parse as _up
+                _yf_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={_up.quote(ticker)}&quotesCount=1&newsCount=0"
+                _yf_res = requests.get(_yf_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=4)
+                _yf_data = _yf_res.json()
+                for _q in _yf_data.get('quotes', []):
+                    if _q.get('symbol', '').upper() == ticker.upper():
+                        _name = _q.get('longname') or _q.get('shortname') or ''
+                        if _name and _name.upper() != ticker.upper():
+                            yf_official_name = _name
+                            break
+            except:
+                pass
+
+            if yf_official_name:
+                english_name = yf_official_name
+            else:
+                _ln = info.get('longName', '')
+                _sn = info.get('shortName', '')
+                if _ln and _ln.upper() != ticker.upper():
+                    english_name = _ln
+                elif _sn and _sn.upper() != ticker.upper():
+                    english_name = _sn
+                else:
+                    english_name = ticker
+
             display_name = get_korean_display_name(ticker, english_name)
         
         info = augment_korean_fundamentals(ticker, info)
