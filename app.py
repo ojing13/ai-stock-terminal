@@ -22,315 +22,189 @@ st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
   
-    * {
-        font-family: 'Pretendard', 'Noto Sans KR', sans-serif !important;
-    }
+    * { font-family: 'Pretendard', 'Noto Sans KR', sans-serif !important; }
 
-    /* ===== 전체 배경 및 기본 색상 ===== */
-    .stApp {
-        background-color: #f0f2f5 !important;
-    }
+    /* ===== 전체 배경 ===== */
+    .stApp { background-color: #f0f2f5 !important; }
     .block-container {
         background-color: #f0f2f5 !important;
-        padding-top: 2rem !important;
+        padding-top: 3.5rem !important;
+    }
+    @media (max-width: 768px) {
+        .block-container { padding-top: 2.8rem !important; }
+        h1 { font-size: 1.35rem !important; word-break: keep-all; }
     }
 
     /* ===== 타이틀 ===== */
-    h1 {
-        font-weight: 800 !important;
-        font-size: 2rem !important;
-        color: #1a1a2e !important;
-        letter-spacing: -0.5px;
-    }
-    h2, h3 {
-        font-weight: 700 !important;
-        color: #1a1a2e !important;
-        letter-spacing: -0.3px;
-    }
-    @media (max-width: 768px) {
-        h1 { font-size: 1.4rem !important; word-break: keep-all; }
-    }
+    h1 { font-weight: 800 !important; font-size: 2rem !important; color: #1a1a2e !important; letter-spacing: -0.5px; }
+    h2, h3 { font-weight: 700 !important; color: #1a1a2e !important; letter-spacing: -0.3px; }
 
     /* ===== 구분선 ===== */
-    hr {
-        border-color: #e0e3e8 !important;
-        margin: 1.5rem 0 !important;
-    }
+    hr { border-color: #e0e3e8 !important; margin: 1.5rem 0 !important; }
 
-    /* ===== 탭 디자인 ===== */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0px;
-        border-bottom: 2px solid #e0e3e8;
-        background-color: transparent;
-    }
+    /* ===== 탭 ===== */
+    .stTabs [data-baseweb="tab-list"] { gap: 0px; border-bottom: 2px solid #e0e3e8; background-color: transparent; }
     .stTabs [data-baseweb="tab"] {
-        height: 48px;
-        font-size: 15px;
-        font-weight: 600;
-        color: #888;
-        background-color: transparent;
-        border-bottom: 3px solid transparent !important;
-        padding: 0 24px;
-        transition: color 0.2s;
+        height: 48px; font-size: 15px; font-weight: 600; color: #9ca3af;
+        background-color: transparent; border-bottom: 3px solid transparent !important;
+        padding: 0 24px; transition: color 0.2s;
     }
     .stTabs [aria-selected="true"] {
-        color: #1a1a2e !important;
-        border-bottom: 3px solid #1a1a2e !important;
-        box-shadow: none !important;
-        background-color: transparent !important;
+        color: #1a1a2e !important; border-bottom: 3px solid #1a1a2e !important;
+        box-shadow: none !important; background-color: transparent !important;
     }
-    .stTabs [data-baseweb="tab"]:hover {
-        color: #333 !important;
-    }
+    .stTabs [data-baseweb="tab"]:hover { color: #374151 !important; }
 
     /* ===== 버튼 ===== */
     .stButton > button {
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 14px;
-        border: 1.5px solid #dde1e7;
-        background-color: #ffffff;
-        color: #1a1a2e;
-        width: 100%;
-        padding: 10px 16px;
-        transition: all 0.2s ease;
+        border-radius: 8px; font-weight: 700; font-size: 14px;
+        border: 1.5px solid #dde1e7; background-color: #ffffff; color: #1a1a2e;
+        width: 100%; padding: 10px 16px; transition: all 0.2s ease;
         box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
     .stButton > button:hover {
-        border-color: #3b82f6;
-        color: #3b82f6;
-        background-color: #f0f6ff;
+        border-color: #3b82f6; color: #3b82f6; background-color: #f0f6ff;
         box-shadow: 0 2px 8px rgba(59,130,246,0.15);
     }
-    .stButton > button:active {
-        transform: scale(0.98);
-    }
+    .stButton > button:active { transform: scale(0.98); }
 
     /* ===== 텍스트 입력창 ===== */
     .stTextInput div[data-baseweb="input"] {
-        background-color: #ffffff !important;
-        border-radius: 8px !important;
-        border: 1.5px solid #dde1e7 !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+        background-color: #ffffff !important; border-radius: 10px !important;
+        border: 1.5px solid #dde1e7 !important; box-shadow: 0 1px 4px rgba(0,0,0,0.07) !important;
+        height: 48px !important;
     }
     .stTextInput div[data-baseweb="input"]:focus-within {
-        border-color: #3b82f6 !important;
-        box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important;
+        border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important;
     }
-    .stTextInput input {
-        color: #1a1a2e !important;
-        font-weight: 500 !important;
-    }
+    .stTextInput input { color: #1a1a2e !important; font-weight: 500 !important; font-size: 15px !important; }
+    .stTextInput label { font-size: 13px !important; font-weight: 600 !important; color: #6b7280 !important; }
 
     /* ===== Selectbox ===== */
     div[data-baseweb="select"] > div {
-        background-color: #ffffff !important;
-        border-radius: 8px !important;
-        border: 1.5px solid #dde1e7 !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+        background-color: #ffffff !important; border-radius: 8px !important;
+        border: 1.5px solid #dde1e7 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
     }
-    div[data-baseweb="select"] > div:hover,
-    div[data-baseweb="select"] > div:focus-within {
-        border-color: #3b82f6 !important;
-        box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important;
+    div[data-baseweb="select"] > div:hover, div[data-baseweb="select"] > div:focus-within {
+        border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important;
     }
-    div[data-baseweb="select"] input {
-        caret-color: transparent !important;
-        user-select: none !important;
-    }
+    div[data-baseweb="select"] input { caret-color: transparent !important; user-select: none !important; }
 
     /* ===== 슬라이더 ===== */
     div[data-testid="stSlider"] div[role="slider"] {
-        background-color: #ef4444 !important;
-        border-color: #ef4444 !important;
+        background-color: #ef4444 !important; border-color: #ef4444 !important;
         box-shadow: 0 0 0 3px rgba(239,68,68,0.2) !important;
     }
     div[data-testid="stSlider"] div[style*="background-color: rgb(255, 75, 75)"],
-    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"] {
-        background-color: #ef4444 !important;
-    }
-    [data-testid="stTickBarMin"],
-    [data-testid="stTickBarMax"],
-    [data-testid="stThumbValue"] {
-        color: #ef4444 !important;
-        font-weight: 700 !important;
+    div[data-testid="stSlider"] div[style*="background-color: #ff4b4b"] { background-color: #ef4444 !important; }
+    [data-testid="stTickBarMin"], [data-testid="stTickBarMax"], [data-testid="stThumbValue"] {
+        color: #ef4444 !important; font-weight: 700 !important;
     }
 
     /* ===== Metric 카드 ===== */
     div[data-testid="metric-container"] {
-        background-color: #ffffff;
-        border: 1px solid #e8ebf0;
-        border-radius: 10px;
-        padding: 14px 16px !important;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-        margin-bottom: 10px;
+        background-color: #ffffff; border: 1px solid #e8ebf0; border-radius: 10px;
+        padding: 14px 16px !important; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 10px;
     }
     div[data-testid="stMetricLabel"] {
-        color: #6b7280 !important;
-        font-size: 12px !important;
-        font-weight: 600 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        color: #6b7280 !important; font-size: 12px !important; font-weight: 600 !important;
+        text-transform: uppercase; letter-spacing: 0.5px;
     }
     div[data-testid="stMetricValue"] {
-        white-space: normal !important;
-        word-break: break-all !important;
-        font-size: 1.3rem !important;
-        line-height: 1.2 !important;
-        font-weight: 800 !important;
-        color: #1a1a2e !important;
+        white-space: normal !important; word-break: break-all !important;
+        font-size: 1.3rem !important; line-height: 1.2 !important;
+        font-weight: 800 !important; color: #1a1a2e !important;
     }
 
-    /* ===== 재무제표 표 스타일 ===== */
+    /* ===== 재무제표 표 ===== */
     .fin-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 8px;
-        font-size: 13px;
-        table-layout: fixed;
-        background-color: #ffffff;
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px;
+        table-layout: fixed; background-color: #ffffff; border-radius: 10px;
+        overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     }
     .fin-table th {
-        text-align: left;
-        border-bottom: 2px solid #e8ebf0;
-        padding: 10px 12px;
-        color: #6b7280;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        background-color: #f8f9fc;
+        text-align: left; border-bottom: 2px solid #e8ebf0; padding: 10px 12px;
+        color: #6b7280; font-size: 12px; text-transform: uppercase;
+        letter-spacing: 0.5px; background-color: #f8f9fc;
     }
-    .fin-table td {
-        border-bottom: 1px solid #f0f2f5;
-        padding: 9px 12px;
-        text-align: right;
-        vertical-align: middle;
-        color: #374151;
-    }
-    .fin-table td:first-child {
-        text-align: left;
-        font-weight: 600;
-        color: #1a1a2e;
-        width: 45%;
-    }
-    .fin-table tr:last-child td {
-        border-bottom: none;
-    }
-    .fin-table tr:hover td {
-        background-color: #f8f9fc;
-    }
+    .fin-table td { border-bottom: 1px solid #f0f2f5; padding: 9px 12px; text-align: right; vertical-align: middle; color: #374151; }
+    .fin-table td:first-child { text-align: left; font-weight: 600; color: #1a1a2e; width: 45%; }
+    .fin-table tr:last-child td { border-bottom: none; }
+    .fin-table tr:hover td { background-color: #f8f9fc; }
 
-    /* ===== st.info 스타일 재정의 ===== */
+    /* ===== AI 분석 결과 카드 ===== */
     div[data-testid="stAlert"] {
         background-color: #ffffff !important;
-        border: 1px solid #e8ebf0 !important;
-        border-left: 4px solid #3b82f6 !important;
-        border-radius: 10px !important;
+        border: 1px solid #e4e7ed !important;
+        border-radius: 14px !important;
         color: #374151 !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-        padding: 20px 24px !important;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.08) !important;
+        padding: 28px 32px 28px 36px !important;
+        position: relative;
     }
-    div[data-testid="stAlert"] p {
-        color: #374151 !important;
-        line-height: 1.8 !important;
+    div[data-testid="stAlert"]::before {
+        content: '';
+        position: absolute;
+        left: 0; top: 16px; bottom: 16px; width: 4px;
+        background: linear-gradient(180deg, #3b82f6 0%, #6366f1 100%);
+        border-radius: 0 4px 4px 0;
     }
+    div[data-testid="stAlert"] p,
+    div[data-testid="stAlert"] li,
+    div[data-testid="stAlert"] span {
+        color: #374151 !important; line-height: 1.85 !important; font-size: 14.5px !important;
+    }
+    div[data-testid="stAlert"] h1,
+    div[data-testid="stAlert"] h2,
+    div[data-testid="stAlert"] h3 {
+        color: #1a1a2e !important; font-weight: 700 !important;
+        margin-top: 22px !important; margin-bottom: 8px !important;
+        padding-bottom: 6px !important; border-bottom: 1px solid #f0f2f5 !important;
+    }
+    div[data-testid="stAlert"] strong { color: #1a1a2e !important; font-weight: 700 !important; }
 
-    /* ===== st.error ===== */
-    div[data-testid="stAlert"][kind="error"],
-    .element-container .stAlert[data-baseweb="notification"] {
-        border-left-color: #ef4444 !important;
-    }
-
-    /* ===== 섹션 서브헤더 ===== */
+    /* ===== 섹션 헤더 ===== */
     .section-header {
-        font-size: 16px;
-        font-weight: 800;
-        color: #1a1a2e;
-        margin-bottom: 16px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #e8ebf0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        font-size: 15px; font-weight: 800; color: #1a1a2e;
+        margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid #e8ebf0;
+        display: flex; align-items: center; gap: 8px;
     }
     .section-badge {
-        display: inline-block;
-        background-color: #1a1a2e;
-        color: white;
-        font-size: 11px;
-        font-weight: 700;
-        padding: 2px 8px;
-        border-radius: 20px;
-        letter-spacing: 0.5px;
+        display: inline-block; background-color: #1a1a2e; color: white;
+        font-size: 10px; font-weight: 700; padding: 2px 9px;
+        border-radius: 20px; letter-spacing: 0.8px;
     }
 
     /* ===== 종목명 가격 헤더 ===== */
     .price-header {
-        background-color: #ffffff;
-        border: 1px solid #e8ebf0;
-        border-radius: 12px;
-        padding: 18px 24px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        display: flex;
-        align-items: center;
-        gap: 12px;
+        background-color: #ffffff; border: 1px solid #e8ebf0; border-radius: 12px;
+        padding: 18px 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     }
     .price-ticker {
-        font-size: 13px;
-        font-weight: 600;
-        color: #6b7280;
-        background-color: #f0f2f5;
-        padding: 3px 10px;
-        border-radius: 6px;
+        font-size: 12px; font-weight: 600; color: #6b7280;
+        background-color: #f0f2f5; padding: 3px 10px; border-radius: 6px;
     }
-    .price-name {
-        font-size: 20px;
-        font-weight: 800;
-        color: #1a1a2e;
-    }
-    .price-value {
-        font-size: 22px;
-        font-weight: 800;
-        color: #ef4444;
-        margin-left: auto;
-    }
+    .price-name { font-size: 20px; font-weight: 800; color: #1a1a2e; }
+    .price-value { font-size: 22px; font-weight: 800; color: #ef4444; margin-left: auto; }
 
     /* ===== 뉴스 링크 ===== */
-    a {
-        color: #3b82f6 !important;
-        text-decoration: none !important;
-    }
-    a:hover {
-        text-decoration: underline !important;
-    }
+    a { color: #3b82f6 !important; text-decoration: none !important; }
+    a:hover { text-decoration: underline !important; }
 
     /* ===== 불필요한 UI 숨기기 ===== */
     .stDeployButton { display: none !important; }
     [data-testid="stStatusWidget"] * { display: none !important; }
     [data-testid="stStatusWidget"]::after {
-        content: "분석 중...";
-        font-size: 13px;
-        font-weight: 600;
-        color: #6b7280;
-        display: flex;
-        align-items: center;
-        padding: 5px 15px;
+        content: "분석 중..."; font-size: 13px; font-weight: 600; color: #6b7280;
+        display: flex; align-items: center; padding: 5px 15px;
     }
 
-    /* ===== 재무 섹션 컨테이너 ===== */
+    /* ===== 재무 섹션 제목 ===== */
     .fin-section-title {
-        font-size: 14px;
-        font-weight: 700;
-        color: #374151;
-        margin-bottom: 8px;
-        padding: 8px 12px;
-        background-color: #f8f9fc;
-        border-radius: 8px;
-        border-left: 3px solid #1a1a2e;
+        font-size: 13px; font-weight: 700; color: #374151;
+        margin-bottom: 8px; padding: 7px 12px; background-color: #f8f9fc;
+        border-radius: 7px; border-left: 3px solid #1a1a2e; letter-spacing: 0.2px;
     }
 
 </style>
@@ -725,12 +599,23 @@ def fetch_news_data(ticker, official_name, search_korean_news):
     return news_list
 
 # ====================== 메인 ======================
-st.title("웅이의 AI 주식 분석 터미널")
-st.markdown("---")
+st.markdown("""
+<div style="margin-bottom: 6px;">
+    <span style="font-size: 10px; font-weight: 700; letter-spacing: 2.5px; color: #9ca3af; text-transform: uppercase; background:#eef0f4; padding:3px 10px; border-radius:20px;">AI Stock Analysis Terminal</span>
+</div>
+""", unsafe_allow_html=True)
+st.markdown("""
+<div style="font-size: 1.75rem; font-weight: 900; color: #1a1a2e; letter-spacing: -0.8px; line-height: 1.2; margin-bottom: 6px;">
+    웅이의 AI 주식 분석 터미널
+</div>
+<div style="color: #9ca3af; font-size: 13.5px; font-weight: 400; margin-bottom: 22px; letter-spacing: 0.1px;">
+    종목명 또는 티커를 입력하면 AI가 차트 · 재무 · 뉴스를 종합 분석해드립니다.
+</div>
+""", unsafe_allow_html=True)
 
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input = st.text_input("분석할 종목명 또는 티커 (예: 삼성전자, AAPL)", "")
+    user_input = st.text_input("분석할 종목명 또는 티커", placeholder="예: 삼성전자, AAPL, NVDA")
 
 if user_input:
     ticker = get_ticker_symbol(user_input)
@@ -987,11 +872,11 @@ if user_input:
                 mask = (history.index.date >= selected_start) & (history.index.date <= selected_end)
                 
                 if interval_option == "일봉":
-                    ma_settings = [(5, "MA1(5일)", "#3b82f6"), (20, "MA2(20일)", "#f59e0b"), (60, "MA3(60일)", "#ef4444"), (120, "MA4(120일)", "#8b5cf6")]
+                    ma_settings = [(5, "MA1(5일)", "#00b0ff"), (20, "MA2(20일)", "#ff9100"), (60, "MA3(60일)", "#ff4081"), (120, "MA4(120일)", "#aa00ff")]
                 elif interval_option == "주봉":
-                    ma_settings = [(13, "MA1(13주)", "#3b82f6"), (26, "MA2(26주)", "#f59e0b"), (52, "MA3(52주)", "#ef4444")]
+                    ma_settings = [(13, "MA1(13주)", "#00b0ff"), (26, "MA2(26주)", "#ff9100"), (52, "MA3(52주)", "#ff4081")]
                 else:
-                    ma_settings = [(9, "MA1(9개월)", "#3b82f6"), (24, "MA2(24개월)", "#f59e0b"), (60, "MA3(60개월)", "#ef4444")]
+                    ma_settings = [(9, "MA1(9개월)", "#00b0ff"), (24, "MA2(24개월)", "#ff9100"), (60, "MA3(60개월)", "#ff4081")]
                     
                 for w, name, color in ma_settings:
                     history[f'MA_{w}'] = history['Close'].rolling(window=w).mean()
@@ -1034,7 +919,7 @@ if user_input:
                     fig.add_trace(go.Candlestick(
                         x=filtered_history.index, open=filtered_history['Open'], high=filtered_history['High'],
                         low=filtered_history['Low'], close=filtered_history['Close'],
-                        increasing_line_color='#ef4444', decreasing_line_color='#3b82f6',
+                        increasing_line_color='#ff2d55', decreasing_line_color='#007bff',
                         name="가격"
                     ))
 
@@ -1050,34 +935,32 @@ if user_input:
                     fig.add_annotation(
                         x=max_idx, y=price_max,
                         text=f"최고: {price_max:{price_fmt}} {currency}",
-                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#ef4444",
+                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#ff2d55",
                         ax=0, ay=-35,
                         font=dict(color="white", size=13, family="Pretendard"),
-                        bgcolor="#ef4444", bordercolor="#ef4444", borderwidth=1, borderpad=4, opacity=0.9
+                        bgcolor="#ff2d55", bordercolor="#ff2d55", borderwidth=1, borderpad=4, opacity=0.9
                     )
                     fig.add_annotation(
                         x=min_idx, y=price_min,
                         text=f"최저: {price_min:{price_fmt}} {currency}",
-                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#3b82f6",
+                        showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#00b0ff",
                         ax=0, ay=35,
                         font=dict(color="white", size=13, family="Pretendard"),
-                        bgcolor="#3b82f6", bordercolor="#3b82f6", borderwidth=1, borderpad=4, opacity=0.9
+                        bgcolor="#00b0ff", bordercolor="#00b0ff", borderwidth=1, borderpad=4, opacity=0.9
                     )
                     
                     fig.update_layout(
-                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=18, color="#1a1a2e", family="Pretendard")),
-                        template="plotly_white",
+                        title=dict(text=f"{display_name} ({ticker}) - {interval_option}", font=dict(size=22, color="white")),
+                        template="plotly_dark",
                         dragmode=False, 
                         xaxis=xaxis_config,
-                        yaxis=dict(range=[min_y, max_y], gridcolor="#f0f2f5", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
+                        yaxis=dict(range=[min_y, max_y], gridcolor="#333", autorange=False, fixedrange=True, tickformat=price_fmt, hoverformat=price_fmt),
                         height=520,
-                        margin=dict(l=0, r=0, t=50, b=0),
-                        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(255,255,255,0.9)", font=dict(color="#374151"), bordercolor="#e8ebf0", borderwidth=1),
+                        margin=dict(l=0, r=0, t=40, b=0),
+                        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.6)", font=dict(color="white")),
                         hovermode="x unified",
                         clickmode="none",
-                        hoverlabel=dict(font_family="Pretendard", bgcolor="white", bordercolor="#e8ebf0", font_color="#374151"),
-                        paper_bgcolor="#ffffff",
-                        plot_bgcolor="#ffffff",
+                        hoverlabel=dict(font_family="Pretendard")
                     )
                     
                     st.plotly_chart(fig, use_container_width=True, config={
@@ -1191,7 +1074,7 @@ if user_input:
             fc1, fc2, fc3 = st.columns(3)
             
             with fc1:
-                st.markdown('<div class="fin-section-title">📋 손익계산서</div>', unsafe_allow_html=True)
+                st.markdown('<div class="fin-section-title">손익계산서</div>', unsafe_allow_html=True)
                 st.markdown(f"""
                 <table class="fin-table">
                     <tr><td>매출액</td><td>{v_rev}</td></tr>
@@ -1206,7 +1089,7 @@ if user_input:
                 """, unsafe_allow_html=True)
                 
             with fc2:
-                st.markdown('<div class="fin-section-title">🏦 재무상태표</div>', unsafe_allow_html=True)
+                st.markdown('<div class="fin-section-title">재무상태표</div>', unsafe_allow_html=True)
                 st.markdown(f"""
                 <table class="fin-table">
                     <tr><td>자산총계</td><td>{v_tot_assets}</td></tr>
@@ -1229,7 +1112,7 @@ if user_input:
                 </table>
                 """, unsafe_allow_html=True)
             with fc3:
-                st.markdown('<div class="fin-section-title">💵 현금흐름표</div>', unsafe_allow_html=True)
+                st.markdown('<div class="fin-section-title">현금흐름표</div>', unsafe_allow_html=True)
                 st.markdown(f"""
                 <table class="fin-table">
                     <tr><td>기초현금</td><td>{v_cf_beg}</td></tr>
