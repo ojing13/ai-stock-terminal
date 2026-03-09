@@ -295,7 +295,6 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# ====================== [버그 수정] get_korean_display_name ======================
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
@@ -318,7 +317,6 @@ def get_korean_display_name(ticker, english_name):
         pass
     return english_name
 
-# [버그 수정 포인트 1] 실패 기록이 캐싱되지 않도록 @st.cache_data 제거
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     search_clean = search_term.replace(" ", "").upper()
@@ -398,7 +396,6 @@ def get_ticker_symbol(search_term):
             code = item[0]
             market_str = item[2] if len(item) > 2 else ""
             
-            # [버그 수정 포인트 2] 미국 주식 등 알파벳 티커에 무조건 .KS가 붙는 문제 방지
             if '코스피' in market_str: return f"{code}.KS"
             elif '코스닥' in market_str: return f"{code}.KQ"
             else: return code if code.isalpha() else f"{code}.KS"
@@ -436,24 +433,29 @@ def get_ticker_symbol(search_term):
             for quote in data['quotes']:
                 if quote.get('type') in ['EQUITY', 'ETF']:
                     return quote['symbol']
-            return data['quotes'][0]['symbol']
+            # [버그 수정] 주식이나 ETF가 아닐 경우, 무작정 반환하여 검색을 막아버리는 로직을 주석 처리했습니다.
+            # 이 코드가 없어야 뒤에 있는 스마트 AI 검색으로 안전하게 넘어가게 됩니다.
+            # return data['quotes'][0]['symbol']
     except:
         pass
         
     try:
-        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스 주식 티커 딱 1개만 출력하세요.
+        # [버그 수정] AI가 오타와 암호화폐 기호까지 넓게 파악해서 찾아올 수 있도록 명령어를 더욱 똑똑하게 수정했습니다.
+        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 가장 정확한 야후 파이낸스 티커 딱 1개만 출력하세요.
         [엄격한 규칙]
-        1. 미국 주식: 영문 티커 (예: AAPL, HIMS, TSLA)
-        2. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
-        3. 확신할 수 없다면 절대 임의의 숫자를 지어내지 마세요.
-        4. 사고 과정 추가 설명 없이 오직 '티커 기호' 하나만 출력하세요."""
+        1. 한글 오타나 발음(예: 비트마인, 써클 등)을 파악해서 사용자가 의도한 실제 상장 주식/ETF/암호화폐 티커를 찾아주세요.
+        2. 미국 주식: 영문 티커 (예: AAPL, HIMS, TSLA)
+        3. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
+        4. 암호화폐: 야후 파이낸스 심볼 (예: BTC-USD)
+        5. 비상장사거나 도저히 찾을 수 없다면 임의로 지어내지 말고 'NONE'이라고 출력하세요.
+        6. 사고 과정 추가 설명 없이 오직 '티커 기호' 하나만 출력하세요."""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
         eng_ticker = trans_response.text.strip().upper()
         
         lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
         if lines:
-            # [버그 수정 포인트 3] 순수 영문 티커(알파벳만 있는 경우) 추출 보장
-            match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z]+', lines[-1])
+            # [버그 수정] BTC-USD 처럼 하이픈이 들어간 기호도 추출할 수 있도록 정규식(Regex)을 보완했습니다.
+            match = re.search(r'[A-Z0-9\-]+\.[A-Z]+|[A-Z0-9\-]+', lines[-1])
             if match:
                 return match.group(0)
     except:
@@ -699,7 +701,6 @@ with col_search:
     user_input = st.text_input("분석할 종목명 또는 티커", placeholder="예: 삼성전자, AAPL, NVDA")
 
 if user_input:
-    # [버그 수정 포인트 4] 입력값 양쪽 공백 정리 후 전달
     clean_input = user_input.strip()
     ticker = get_ticker_symbol(clean_input)
     stock = yf.Ticker(ticker)
@@ -1402,7 +1403,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     
                     [분석 지침]
                     - 어조: 정중체 사용. 깔끔한 전문가 톤을 유지하세요. 이모티콘은 절대 사용하지 마세요.
-                    - 균형 잡힌 차트 분석: 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 설명.
+                    - 균형 잡문을 차트 분석: 큰 틀에서의 가격 흐름(Price Action)과 지지/저항, 추세 등을 다각도로 고려하여 설명.
                     - 핵심 강조: 핵심 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 
                     - 달러 기호 금지. 금액은 반드시 '{currency}'으로 표기할 것.
                     - 출처 표기 절대 금지: 문장 끝에 (1, 5, 20) 같은 기사 번호를 괄호로 적는 행위를 완벽하게 금지합니다.
