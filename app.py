@@ -13,6 +13,7 @@ import re
 import urllib.parse
 import copy
 import textwrap
+import pytz
 
 def md_to_html(text):
     """마크다운 → HTML 변환"""
@@ -721,7 +722,7 @@ if user_input:
         info = augment_korean_fundamentals(ticker, info)
         info = augment_us_fundamentals(ticker, info) 
         
-        today_date = datetime.now().strftime("%Y년 %m월 %d일")
+        today_date = datetime.now(pytz.timezone('Asia/Seoul')).strftime("%Y년 %m월 %d일")
         
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         is_japanese_stock = ticker.endswith('.T')
@@ -1305,9 +1306,18 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     3. 상황별 대응 전략 (현재 보유자 / 신규 매수 대기자 / 매도 고려자)
                     4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가)
                     
-                    [출력 형식 가이드]
+                    [출력 형식 가이드 - 반드시 준수]
+                    - 첫 문장은 반드시 다음 형식으로 시작하세요 (내용 변경 금지):
+                      "오늘은 {{today_date}}입니다. {{display_name}}({{ticker}}) 종목에 대한 종합 분석입니다."
                     - 각 항목의 제목(1, 2, 3, 4번)은 마크다운 헤딩(## 또는 ###)을 사용하여 작성하세요.
                     - 제목 아래에는 일반 문단으로 줄글을 작성하세요.
+                    - 4번 항목(구체적인 가격 제시)은 반드시 아래 형식을 유지하세요:
+                      ### 진입 추천가: [가격 또는 가격범위]
+                      (설명)
+                      ### 1차 목표가: [가격]
+                      (설명)
+                      ### 손절가: [가격]
+                      (설명)
                     
                     [분석 지침]
                     - 어조: 정중체 사용. 깔끔한 전문가 톤을 유지하세요. 이모티콘은 절대 사용하지 마세요.
