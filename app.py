@@ -1417,24 +1417,57 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         report_text = response.text
 
-                        # 메인 리포트에서 직접 파싱
-                        score_match = re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
-                        risk_match = re.search(r'\[RISK:\s*(\d+)\s*\]', report_text)
-                        return_match = re.search(r'\[RETURN:\s*(\d+)\s*\]', report_text)
-                        
-                        final_score = None
-                        risk_score = None
-                        return_score = None
-                        
-                        if score_match:
-                            final_score = int(score_match.group(1))
-                        
-                        if risk_match:
-                            risk_score = int(risk_match.group(1))
-                            
-                        if return_match:
-                            return_score = int(return_match.group(1))
-                            
+                        # 점수만 3회 별도 호출해서 평균 산출
+                        _score_prompt = f"""아래 리포트와 수치를 읽고 점수만 출력하세요.
+
+=== 참고 수치 ===
+현재가의 52주 범위 위치: {round((current_price - low_52) / (high_52 - low_52) * 100) if high_52 != low_52 else 50}%
+현재가: {current_price:{price_fmt}} / 52주 고: {high_52:{price_fmt}} / 52주 저: {low_52:{price_fmt}} ({currency})
+Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}
+부채비율: {debt_str}, 영업이익률: {fmt_pct(op_margin)}, ROE: {fmt_pct(roe)}
+
+=== 리포트 ===
+{report_text}
+
+---
+점수를 내기 전에 반드시 아래 순서로 근거를 먼저 서술하세요:
+RISK 근거: 재무/밸류에이션/사업구조/거시 리스크 각각 한 줄씩
+RETURN 근거: 잘 됐을 경우 상승 시나리오와 실현 가능성 한 줄
+SCORE 근거: 지금 이 가격의 손익비 판단 한 줄 (투자자 전제: 자산 20% 투자, 평생 보유, 손실 허용 -25%)
+
+근거와 반드시 일치하는 점수를 1단위로 정밀하게 출력:
+[SCORE: 숫자]
+[RISK: 숫자]
+[RETURN: 숫자]"""
+
+                        _scores = []
+                        _risks = []
+                        _returns = []
+                        for _i in range(3):
+                            try:
+                                _sr = client.models.generate_content(
+                                    model='gemini-2.5-flash',
+                                    contents=_score_prompt,
+                                    config={"temperature": 0.3}
+                                )
+                                _st = _sr.text
+                                _sm = re.search(r'\[SCORE:\s*(\d+)\s*\]', _st)
+                                _rm = re.search(r'\[RISK:\s*(\d+)\s*\]', _st)
+                                _rem = re.search(r'\[RETURN:\s*(\d+)\s*\]', _st)
+                                if _sm: _scores.append(int(_sm.group(1)))
+                                if _rm: _risks.append(int(_rm.group(1)))
+                                if _rem: _returns.append(int(_rem.group(1)))
+                            except:
+                                pass
+
+                        score_match = True if _scores else None
+                        risk_match = True if _risks else None
+                        return_match = True if _returns else None
+
+                        final_score = round(sum(_scores) / len(_scores)) if _scores else None
+                        risk_score = round(sum(_risks) / len(_risks)) if _risks else None
+                        return_score = round(sum(_returns) / len(_returns)) if _returns else None
+
                         import re as _re
                         _cleaned = report_text.strip()
                         # 점수 근거 서술 + 태그 전체 제거 (RISK 근거: 이후부터 끝까지)
