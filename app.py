@@ -1290,9 +1290,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             _cache_key = hashlib.md5(_cache_raw.encode()).hexdigest()
 
             # 버튼 항상 상단 고정
-            if st.button("원클릭 종합 분석 리포트 생성"):
+            _do_generate = st.button("원클릭 종합 분석 리포트 생성")
+            if _do_generate:
                 st.session_state.report_cache.pop(_cache_key, None)
-                st.rerun()
 
             # 결과 표시 (캐시 있으면 바로, 없으면 생성)
             if _cache_key in st.session_state.report_cache:
@@ -1300,7 +1300,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                 st.markdown(f'<div class="ai-result-card">{_c["html"]}</div>', unsafe_allow_html=True)
                 if _c.get("bar_html"):
                     st.markdown(_c["bar_html"].replace('\n', ''), unsafe_allow_html=True)
-            else:
+            elif _do_generate:
                 with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
                     prompt = f"""
                     오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합적으로 분석해주세요.
