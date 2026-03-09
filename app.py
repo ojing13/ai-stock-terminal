@@ -17,8 +17,8 @@ import textwrap
 def md_to_html(text):
     """마크다운 → HTML 변환"""
     import re
-    # ** 완전 제거 (bold 태그 변환 없이 그냥 텍스트만 남김)
-    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    # **텍스트** → <strong> 변환
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     # * 단독 제거
     text = re.sub(r'(?<![\w\d])\*(?![\*])', '', text)
     # 숫자-단위 사이 하이픈 보호 (예: 5-일 → 5일, 13-주 → 13주, 9-월 → 9월)
