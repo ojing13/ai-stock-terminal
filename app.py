@@ -214,7 +214,7 @@ st.markdown("""
     /* ===== 종목명 가격 헤더 ===== */
     .price-header {
         background-color: #ffffff; border: 1px solid #e8ebf0; border-radius: 12px;
-        padding: 18px 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        padding: 18px 24px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     }
     .price-ticker {
@@ -657,7 +657,7 @@ st.markdown("""
     웅이의 AI 주식 분석 터미널
 </div>
 <div style="color: #9ca3af; font-size: 13.5px; font-weight: 400; margin-bottom: 22px; letter-spacing: 0.1px;">
-    대규모 업데이트해서 성능 짱짱임ㅋ
+    
 </div>
 """, unsafe_allow_html=True)
 
@@ -998,7 +998,7 @@ if user_input:
                     )
                     
                     fig.update_layout(
-                        title=None,
+
                         template="plotly_dark",
                         dragmode=False,
                         xaxis=dict(**xaxis_config, gridcolor="#dde1e7", tickfont=dict(color="#6b7280", size=12), linecolor="#dde1e7"),
