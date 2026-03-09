@@ -31,19 +31,19 @@ def md_to_html(text):
         line = lines[i].rstrip()
         # 헤딩
         if line.startswith('#### '):
-            html_parts.append(f'<h4 style="font-size:14.5px;font-weight:800;color:#111827;margin:22px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[5:].strip()}</h4>')
+            html_parts.append(f'<h4 style="font-size:18px;font-weight:800;color:#111827;margin:22px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[5:].strip()}</h4>')
         elif line.startswith('### '):
-            html_parts.append(f'<h3 style="font-size:15px;font-weight:800;color:#111827;margin:24px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[4:].strip()}</h3>')
+            html_parts.append(f'<h3 style="font-size:17px;font-weight:800;color:#111827;margin:24px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[4:].strip()}</h3>')
         elif line.startswith('## '):
-            html_parts.append(f'<h2 style="font-size:15.5px;font-weight:800;color:#111827;margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[3:].strip()}</h2>')
+            html_parts.append(f'<h2 style="font-size:17.5px;font-weight:800;color:#111827;margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[3:].strip()}</h2>')
         elif line.startswith('# '):
-            html_parts.append(f'<h2 style="font-size:16px;font-weight:800;color:#111827;margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[2:].strip()}</h2>')
+            html_parts.append(f'<h2 style="font-size:18px;font-weight:800;color:#111827;margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid #d1d5db;">{line[2:].strip()}</h2>')
         # 빈 줄 → 단락 간격
         elif line.strip() == '':
             html_parts.append('<div style="height:10px;"></div>')
         # 일반 텍스트
         else:
-            html_parts.append(f'<p style="margin:0 0 10px 0;line-height:1.85;color:#374151;font-size:14.5px;">{line}</p>')
+            html_parts.append(f'<p style="margin:0 0 10px 0;line-height:1.85;color:#374151;font-size:16px;">{line}</p>')
         i += 1
     return '\n'.join(html_parts)
 
