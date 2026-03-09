@@ -1396,8 +1396,14 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     현재 주가가 52주 저점 부근이면 기술적 반등 포텐셜도 반영.
                     0(상승 기대 없음) ~ 100(수배 이상 폭발적 상승 잠재력).
 
-                    중요: 세 점수가 서로 논리적으로 일관되어야 합니다.
-                    (RISK=80이면 SCORE≤50 / RETURN=20이면 SCORE 높기 어려움)
+                    점수를 내기 전에 반드시 아래 순서로 근거를 먼저 서술하세요:
+                    RISK 근거: 재무 리스크 / 밸류에이션 리스크 / 사업구조 리스크 / 거시 리스크 각각 한 줄씩
+                    RETURN 근거: 잘 됐을 경우 상승 시나리오와 그 실현 가능성 한 줄
+                    SCORE 근거: 위 RISK와 RETURN을 바탕으로 지금 이 가격이 투자할 만한가 손익비 판단 한 줄
+
+                    근거 서술 후, 맨 마지막에 아래 형식으로만 출력하세요.
+                    세 점수는 위에 서술한 근거와 반드시 일치해야 합니다.
+                    (RISK 근거가 위험하다고 했으면 RISK 높게 / RETURN 근거가 약하다고 했으면 RETURN 낮게)
                     1단위로 정밀하게 평가하세요.
 
                     [SCORE: 숫자]
@@ -1431,7 +1437,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             
                         import re as _re
                         _cleaned = report_text.strip()
-                        # SCORE/RISK/RETURN 태그 제거
+                        # 점수 근거 서술 + 태그 전체 제거 (RISK 근거: 이후부터 끝까지)
+                        _cleaned = _re.sub(r'RISK 근거:.*', '', _cleaned, flags=_re.DOTALL).strip()
+                        # 혹시 남은 태그 제거
                         _cleaned = _re.sub(r'\[SCORE:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r'\[RISK:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r'\[RETURN:\s*\d+\]', '', _cleaned)
