@@ -345,10 +345,25 @@ def get_ticker_symbol(search_term):
     if not krx_df.empty:
         df_temp = krx_df.copy()
         df_temp['Name_clean'] = df_temp['Name'].astype(str).str.replace(" ", "").str.upper()
+        # 완전일치
         match = df_temp[df_temp['Name_clean'] == search_clean]
         if not match.empty:
             code = match.iloc[0]['Code']
             market = match.iloc[0]['Market']
+            if market == 'KOSPI': return f"{code}.KS"
+            else: return f"{code}.KQ"
+        # 부분일치 (검색어가 종목명에 포함)
+        partial = df_temp[df_temp['Name_clean'].str.contains(search_clean, na=False)]
+        if not partial.empty:
+            code = partial.iloc[0]['Code']
+            market = partial.iloc[0]['Market']
+            if market == 'KOSPI': return f"{code}.KS"
+            else: return f"{code}.KQ"
+        # 역방향 부분일치 (종목명이 검색어에 포함)
+        partial2 = df_temp[df_temp['Name_clean'].apply(lambda n: n in search_clean and len(n) >= 3)]
+        if not partial2.empty:
+            code = partial2.iloc[0]['Code']
+            market = partial2.iloc[0]['Market']
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
             
@@ -1386,4 +1401,4 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
     else:
-        st.error(f"'{user_input}'에 대한 데이터를 찾을 수 없어요. 정확한 종목명이나 티커를 입력해 주세요!")
+        st.error(f"'{user_input}' 종목을 찾을 수 없습니다. (시도한 티커: {ticker})\n\n정확한 종목명이나 티커 심볼을 입력해 주세요.\n예) 삼성전자, 005930.KS, AAPL, NVDA")
