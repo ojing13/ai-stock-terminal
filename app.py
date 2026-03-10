@@ -1563,43 +1563,37 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 현재가: {current_price:{price_fmt}} / 52주 고: {high_52:{price_fmt}} / 52주 저: {low_52:{price_fmt}} ({currency})
                     - 시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}
 
-                    리포트 본문 작성을 모두 마친 후, 맨 마지막에 아래 평가표를 반드시 정확히 작성하세요.
-                    아래 블록은 파싱에 사용됩니다. 각 항목의 선택지 중 하나만 정확히 그대로 써야 합니다.
+                    리포트 본문 작성을 모두 마친 후, 맨 마지막에 아래 형식을 반드시 정확히 작성하세요.
 
                     **판단근거:**
-                    - RISK 근거: [재무/밸류에이션/사업구조/거시 리스크 종합 한 줄. 업종 특성 반영(금융주 고부채=정상, 바이오 적자=감안 등)]
-                    - RETURN 근거: [산업 성장 잠재력 + 현재 가격 기준 추가 상승 여력 한 줄. 손실·하락 리스크는 절대 포함 금지. "얼마나 더 오를 수 있는가"만 서술]
-                    - SCORE 근거: [RISK와 RETURN을 바탕으로 손익비 종합 판단 한 줄]
+                    - RISK 근거: [재무안전성·사업경쟁력·밸류에이션 관점에서 핵심 리스크 한 줄. 업종 특성 반영(금융주 고부채=정상, 바이오 적자=감안)]
+                    - RETURN 근거: [산업 성장 잠재력 + 현재 가격 기준 추가 상승 여력 한 줄. 손실·하락 위험 언급 절대 금지]
+                    - SCORE 근거: [RISK와 RETURN 수치 기반 손익비 종합 판단 한 줄]
 
-                    **RISK 평가표:** (각 항목에서 선택지 중 하나만 정확히 그대로 입력)
-                    재무건전성: 매우양호 또는 양호 또는 취약 또는 매우취약
+                    **RISK 평가표:**
+                    재무안전성: 매우안전 또는 안전 또는 위험 또는 매우위험
+                    사업경쟁력: 매우강함 또는 강함 또는 약함 또는 매우약함
                     밸류에이션부담: 매우낮음 또는 낮음 또는 높음 또는 매우높음
-                    사업구조리스크: 매우낮음 또는 낮음 또는 높음 또는 매우높음
-                    거시환경리스크: 매우낮음 또는 낮음 또는 높음 또는 매우높음
 
-                    출력 형식 예시:
-                    재무건전성: 취약
-                    밸류에이션부담: 높음
-                    사업구조리스크: 높음
-                    거시환경리스크: 낮음
-
-                    **RETURN 평가표:** (각 항목에서 선택지 중 하나만 정확히 그대로 입력)
+                    **RETURN 평가표:**
                     산업성장성: 매우높음 또는 높음 또는 낮음 또는 매우낮음
                     사업확장성: 매우높음 또는 높음 또는 낮음 또는 매우낮음
-                    경쟁우위: 매우강함 또는 강함 또는 약함 또는 매우약함
-                    밸류에이션여유: 매우충분 또는 충분 또는 부족 또는 매우부족
+                    현재가격여유: 매우충분 또는 충분 또는 부족 또는 매우부족
 
-                    출력 형식 예시:
-                    산업성장성: 매우높음
-                    사업확장성: 높음
-                    경쟁우위: 강함
-                    밸류에이션여유: 부족
+                    위 레이블들을 종합하여, 각 점수를 직접 산출하세요.
+                    레이블이 전반적으로 위험/약함/높음이면 RISK는 자연히 높아야 하고,
+                    레이블이 전반적으로 매우높음/매우충분이면 RETURN은 자연히 높아야 합니다.
+                    단순 평균이 아니라, 가장 심각한 항목이 전체를 끌어올리도록 판단하세요.
+                    예: 재무는 안전해도 사업경쟁력이 매우약함이면 RISK는 높게.
 
-                    **SCORE 평가표:**
-                    종합투자의견: 강력매수 또는 매수 또는 중립 또는 매도 또는 강력매도
+                    **최종 점수:**
+                    [RISK: 숫자]
+                    [RETURN: 숫자]
+                    [SCORE: 숫자]
 
-                    출력 형식 예시:
-                    종합투자의견: 중립
+                    SCORE는 위에서 산출한 RISK와 RETURN을 직접 참조하세요.
+                    0(강력매도) ~ 50(중립) ~ 100(강력매수).
+                    20, 40, 50, 60, 80 같은 경계값은 피하고 구체적인 숫자로 표현하세요.
                     """
                     try:
                         response = client.models.generate_content(
@@ -1608,42 +1602,39 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         report_text = response.text
 
-                        # 레이블 → 점수 변환 매핑
+                        # 숫자 직접 파싱 (AI가 레이블 기반으로 직접 산출한 값)
                         import re as _re
 
-                        # 4단계 비균등 매핑 (중간 없음 → 분산 강제, 균등 평균)
-                        _RISK_MAP = {
-                            '재무건전성':    {'매우양호': 5,  '양호': 25, '취약': 68, '매우취약': 92},
-                            '밸류에이션부담': {'매우낮음': 5,  '낮음': 25, '높음': 68, '매우높음': 92},
-                            '사업구조리스크': {'매우낮음': 5,  '낮음': 25, '높음': 68, '매우높음': 92},
-                            '거시환경리스크': {'매우낮음': 5,  '낮음': 25, '높음': 68, '매우높음': 92},
-                        }
-                        _RETURN_MAP = {
-                            '산업성장성':    {'매우높음': 92, '높음': 68, '낮음': 28, '매우낮음': 8},
-                            '사업확장성':    {'매우높음': 92, '높음': 68, '낮음': 28, '매우낮음': 8},
-                            '경쟁우위':      {'매우강함': 92, '강함': 68, '약함': 28, '매우약함': 8},
-                            '밸류에이션여유': {'매우충분': 92, '충분': 68, '부족': 28, '매우부족': 8},
-                        }
-                        _SCORE_MAP = {'강력매수': 88, '매수': 68, '중립': 48, '매도': 28, '강력매도': 10}
+                        risk_match   = re.search(r'\[RISK:\s*(\d+)\s*\]',   report_text)
+                        return_match = re.search(r'\[RETURN:\s*(\d+)\s*\]', report_text)
+                        score_match  = re.search(r'\[SCORE:\s*(\d+)\s*\]',  report_text)
 
-                        def _parse_labels(text, label_map):
+                        risk_score   = int(risk_match.group(1))   if risk_match   else None
+                        return_score = int(return_match.group(1)) if return_match else None
+                        final_score  = int(score_match.group(1))  if score_match  else None
+
+                        # fallback: 숫자 파싱 실패 시 레이블로 추정
+                        _RISK_FB = {
+                            '재무안전성':    {'매우안전': 5, '안전': 25, '위험': 68, '매우위험': 92},
+                            '사업경쟁력':    {'매우강함': 5, '강함': 25, '약함': 68, '매우약함': 92},
+                            '밸류에이션부담': {'매우낮음': 5, '낮음': 25, '높음': 68, '매우높음': 92},
+                        }
+                        _RETURN_FB = {
+                            '산업성장성':   {'매우높음': 92, '높음': 68, '낮음': 28, '매우낮음': 8},
+                            '사업확장성':   {'매우높음': 92, '높음': 68, '낮음': 28, '매우낮음': 8},
+                            '현재가격여유': {'매우충분': 92, '충분': 68, '부족': 28, '매우부족': 8},
+                        }
+                        def _fb_labels(text, lmap):
                             vals = []
-                            for field, choices in label_map.items():
-                                pat = rf'{re.escape(field)}\s*:\s*(\S+)'
-                                m = re.search(pat, text)
-                                if m:
-                                    val_str = m.group(1).strip()
-                                    if val_str in choices:
-                                        vals.append(choices[val_str])
-                            return round(sum(vals) / len(vals)) if vals else None
-
-                        risk_score   = _parse_labels(report_text, _RISK_MAP)
-                        return_score = _parse_labels(report_text, _RETURN_MAP)
-
-                        # SCORE: 레이블 파싱
-                        _sc_m = re.search(r'종합투자의견\s*:\s*(\S+)', report_text)
-                        _sc_label = _sc_m.group(1).strip() if _sc_m else None
-                        final_score = _SCORE_MAP.get(_sc_label) if _sc_label else None
+                            for field, choices in lmap.items():
+                                m2 = re.search(rf'{re.escape(field)}\s*:\s*(\S+)', text)
+                                if m2 and m2.group(1) in choices:
+                                    vals.append(choices[m2.group(1)])
+                            if not vals: return None
+                            worst = max(vals); avg = sum(vals)/len(vals)
+                            return round(0.5*worst + 0.5*avg)
+                        if risk_score   is None: risk_score   = _fb_labels(report_text, _RISK_FB)
+                        if return_score is None: return_score = _fb_labels(report_text, _RETURN_FB)
 
                         # 리포트 본문 정리 + 판단 근거 따로 파싱
                         _cleaned = report_text.strip()
