@@ -1633,20 +1633,27 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         report_text = response.text
 
-                        # 메인 리포트에서 직접 파싱
+                       # 메인 리포트에서 직접 파싱
                         import re as _re
-                        score_match = re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
-                        risk_match  = re.search(r'\[RISK:\s*(\d+)\s*\]',  report_text)
-                        return_match = re.search(r'\[RETURN:\s*(\d+)\s*\]', report_text)
+                        score_match = _re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
+                        risk_match  = _re.search(r'\[RISK:\s*(\d+)\s*\]',  report_text)
+                        return_match = _re.search(r'\[RETURN:\s*(\d+)\s*\]', report_text)
 
                         final_score  = int(score_match.group(1))  if score_match  else None
                         risk_score   = int(risk_match.group(1))   if risk_match   else None
                         return_score = int(return_match.group(1)) if return_match else None
 
-                        # 리포트 본문 정리 (근거 서술 + 점수 태그 제거)
+                        # 리포트 본문 정리 및 판단 근거 추출
                         _cleaned = report_text.strip()
-                        # 점수 산출 근거 블록 제거 (RISK 근거 or 1) RISK 점수 형식 둘 다 처리)
-                        _cleaned = _re.sub(r'(RISK 근거:|1\s*\)\s*RISK\s*점수).*', '', _cleaned, flags=_re.DOTALL).strip()
+                        reasoning_text = ""
+                        
+                        # 점수 산출 근거 블록 추출 (본문과 분리)
+                        match_reasoning = _re.search(r'(1\s*\)\s*RISK.*|RISK\s*근거:.*|재무\s*리스크:.*)', _cleaned, flags=_re.DOTALL | _re.IGNORECASE)
+                        if match_reasoning:
+                            reasoning_text = match_reasoning.group(0)
+                            _cleaned = _cleaned[:match_reasoning.start()].strip()
+
+                        # 본문에서 태그 제거
                         _cleaned = _re.sub(r'\[SCORE:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r'\[RISK:\s*\d+\]',  '', _cleaned)
                         _cleaned = _re.sub(r'\[RETURN:\s*\d+\]', '', _cleaned)
@@ -1654,6 +1661,29 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         _html = md_to_html(_cleaned)
                         st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
                         
+                        # 판단 근거 텍스트 포맷팅 (불필요한 태그/기호 제거 및 가독성 개선)
+                        reasoning_html = ""
+                        if reasoning_text:
+                            _r_text = _re.sub(r'\[SCORE:\s*\d+\]', '', reasoning_text)
+                            _r_text = _re.sub(r'\[RISK:\s*\d+\]',  '', _r_text)
+                            _r_text = _re.sub(r'\[RETURN:\s*\d+\]', '', _r_text)
+                            _r_text = _re.sub(r'\[[A-Za-z]\]\s*', '', _r_text) # [A], [B] 제거
+                            _r_text = _re.sub(r'\d\s*\)\s*[a-zA-Z]+\s*점수를.*?확정하세요\.*', '', _r_text)
+                            _r_text = _re.sub(r'SCORE는.*?결정하세요\.*', '', _r_text)
+                            _r_text = _re.sub(r'(?:^|\n)\s*근거:\s*', '\n', _r_text) # '근거: ' 텍스트 정리
+                            
+                            # 빈 줄 제거 및 줄바꿈 처리
+                            lines = [line.strip() for line in _r_text.split('\n') if line.strip()]
+                            reasoning_html = '<br><br>'.join(lines)
+
+                            if reasoning_html:
+                                reasoning_html = (
+                                    '<div style="margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 10px; border: 1px solid #e9ecef;">'
+                                    '<div style="font-size: 14px; font-weight: 800; color: #111827; margin-bottom: 12px; letter-spacing: -0.3px;">판단 근거</div>'
+                                    f'<div style="font-size: 13px; color: #4b5563; line-height: 1.7; letter-spacing: -0.2px; word-break: keep-all;">{reasoning_html}</div>'
+                                    '</div>'
+                                )
+
                         # 매트릭스: RISK/RETURN 독립 처리 (SCORE 파싱 실패해도 표시)
                         matrix_html = ""
                         if risk_score is not None and return_score is not None:
@@ -1670,9 +1700,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 '<div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div>' +
                                 '<div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div>' +
                                 f'<div style="position: absolute; top: calc({100 - ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div>' +
-                                '</div></div>'
+                                '</div>' + reasoning_html + '</div>'
                             )
-
                         # 투자의견 바: SCORE 있을 때만 표시, 없으면 매트릭스만 단독 표시
                         bar_html = ""
                         if final_score is not None:
@@ -1723,3 +1752,4 @@ else:
         • 아무튼 100배쯤 똑똑해짐
     </div>
     """, unsafe_allow_html=True)
+
