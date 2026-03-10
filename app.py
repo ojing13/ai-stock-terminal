@@ -422,9 +422,12 @@ def _get_ticker_symbol_cached(search_term):
             code = item[0]
             market_str = item[2] if len(item) > 2 else ""
             
+            # ===== [버그 수정] market_str이 코스피/코스닥 명확히 확인된 경우만 반환 =====
+            # 기존 else: return f"{code}.KS" 는 미국주식(리게티 등) 검색 시
+            # 네이버 AC가 엉뚱한 한국 종목을 반환해도 무조건 .KS를 붙여버리는 문제가 있었음
             if '코스피' in market_str: return f"{code}.KS"
             elif '코스닥' in market_str: return f"{code}.KQ"
-            else: return f"{code}.KS"
+            # market_str이 불명확하면 이 결과를 무시하고 다음 단계로 진행
     except:
         pass
             
