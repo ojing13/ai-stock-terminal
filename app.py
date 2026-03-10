@@ -1633,7 +1633,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         report_text = response.text
 
-                       # 메인 리포트에서 직접 파싱
+                      # 메인 리포트에서 직접 파싱
                         import re as _re
                         score_match = _re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
                         risk_match  = _re.search(r'\[RISK:\s*(\d+)\s*\]',  report_text)
@@ -1647,40 +1647,48 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         _cleaned = report_text.strip()
                         reasoning_text = ""
                         
-                        # 점수 산출 근거 블록 추출 (본문과 분리)
-                        match_reasoning = _re.search(r'(1\s*\)\s*RISK.*|RISK\s*근거:.*|재무\s*리스크:.*)', _cleaned, flags=_re.DOTALL | _re.IGNORECASE)
-                        if match_reasoning:
-                            reasoning_text = match_reasoning.group(0)
-                            _cleaned = _cleaned[:match_reasoning.start()].strip()
+                        # 손절가 블록을 기준으로 메인 본문과 판단 근거를 완벽히 분리 (회색 박스에서 제거)
+                        split_match = _re.search(r'(#{2,4}\s*손절가:?.*?\n[^\n]+)\n+(.*)', _cleaned, flags=_re.DOTALL)
+                        if split_match:
+                            _cleaned = split_match.group(1).strip()
+                            reasoning_text = split_match.group(2).strip()
+                        else:
+                            # 만약 손절가 포맷이 다를 경우를 대비한 백업 분리 로직
+                            match_reasoning = _re.search(r'(1\s*\)\s*RISK.*|RISK\s*근거:.*|재무\s*리스크:.*|RISK=\d+.*)', _cleaned, flags=_re.DOTALL | _re.IGNORECASE)
+                            if match_reasoning:
+                                reasoning_text = match_reasoning.group(0)
+                                _cleaned = _cleaned[:match_reasoning.start()].strip()
 
-                        # 본문에서 태그 제거
+                        # 본문에서 태그 잔해 확실히 제거
                         _cleaned = _re.sub(r'\[SCORE:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r'\[RISK:\s*\d+\]',  '', _cleaned)
                         _cleaned = _re.sub(r'\[RETURN:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
-                        _html = md_to_html(_cleaned)
-                        st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
                         
-                        # 판단 근거 텍스트 포맷팅 (불필요한 태그/기호 제거 및 가독성 개선)
+                        _html = md_to_html(_cleaned)
+                        
+                        # 판단 근거 텍스트 포맷팅 (아주 작은 글씨 + [A] 등 불필요 요소 제거)
                         reasoning_html = ""
                         if reasoning_text:
-                            _r_text = _re.sub(r'\[SCORE:\s*\d+\]', '', reasoning_text)
+                            _r_text = reasoning_text
+                            _r_text = _re.sub(r'\[SCORE:\s*\d+\]', '', _r_text)
                             _r_text = _re.sub(r'\[RISK:\s*\d+\]',  '', _r_text)
                             _r_text = _re.sub(r'\[RETURN:\s*\d+\]', '', _r_text)
-                            _r_text = _re.sub(r'\[[A-Za-z]\]\s*', '', _r_text) # [A], [B] 제거
-                            _r_text = _re.sub(r'\d\s*\)\s*[a-zA-Z]+\s*점수를.*?확정하세요\.*', '', _r_text)
-                            _r_text = _re.sub(r'SCORE는.*?결정하세요\.*', '', _r_text)
-                            _r_text = _re.sub(r'(?:^|\n)\s*근거:\s*', '\n', _r_text) # '근거: ' 텍스트 정리
+                            _r_text = _re.sub(r'\[[A-Za-z]\]\s*', '', _r_text) # [A], [B] 기호 제거
+                            _r_text = _re.sub(r'^[A-Za-z]\.\s*', '', _r_text, flags=_re.MULTILINE) # A., B. 제거
+                            _r_text = _re.sub(r'\d\s*\)\s*.*?(?:확정|결정)하세요\.*', '', _r_text) # AI 지시문 반복 제거
+                            _r_text = _re.sub(r'(?:^|\n)\s*근거:\s*', '\n', _r_text) 
+                            _r_text = _re.sub(r'RISK=\d+, RETURN=\d+.*?바탕으로\s*(판단할 때|판단하여)?,?\s*', '', _r_text) # 불필요한 반복 서두 제거
                             
                             # 빈 줄 제거 및 줄바꿈 처리
-                            lines = [line.strip() for line in _r_text.split('\n') if line.strip()]
-                            reasoning_html = '<br><br>'.join(lines)
+                            lines = [line.strip() for line in _r_text.split('\n') if line.strip() and len(line.strip()) > 2]
+                            reasoning_content = '<br>'.join(lines)
 
-                            if reasoning_html:
+                            if reasoning_content:
                                 reasoning_html = (
-                                    '<div style="margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 10px; border: 1px solid #e9ecef;">'
-                                    '<div style="font-size: 14px; font-weight: 800; color: #111827; margin-bottom: 12px; letter-spacing: -0.3px;">판단 근거</div>'
-                                    f'<div style="font-size: 13px; color: #4b5563; line-height: 1.7; letter-spacing: -0.2px; word-break: keep-all;">{reasoning_html}</div>'
+                                    '<div style="margin-top: 20px; padding: 0 10px; text-align: left;">'
+                                    '<div style="font-size: 11px; font-weight: 800; color: #333; margin-bottom: 4px;">판단 근거</div>'
+                                    f'<div style="font-size: 10px; color: #888; line-height: 1.5; word-break: keep-all;">{reasoning_content}</div>'
                                     '</div>'
                                 )
 
@@ -1752,4 +1760,5 @@ else:
         • 아무튼 100배쯤 똑똑해짐
     </div>
     """, unsafe_allow_html=True)
+
 
