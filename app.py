@@ -1571,20 +1571,35 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - RETURN 근거: [산업 성장 잠재력 + 현재 가격 기준 추가 상승 여력 한 줄. 손실·하락 리스크는 절대 포함 금지. "얼마나 더 오를 수 있는가"만 서술]
                     - SCORE 근거: [RISK와 RETURN을 바탕으로 손익비 종합 판단 한 줄]
 
-                    **RISK 평가표:** (각 항목에서 반드시 하나만 선택)
-                    재무건전성: [매우양호 / 양호 / 취약 / 매우취약]
-                    밸류에이션부담: [매우낮음 / 낮음 / 높음 / 매우높음]
-                    사업구조리스크: [매우낮음 / 낮음 / 높음 / 매우높음]
-                    거시환경리스크: [매우낮음 / 낮음 / 높음 / 매우높음]
+                    **RISK 평가표:** (각 항목에서 선택지 중 하나만 정확히 그대로 입력)
+                    재무건전성: 매우양호 또는 양호 또는 취약 또는 매우취약
+                    밸류에이션부담: 매우낮음 또는 낮음 또는 높음 또는 매우높음
+                    사업구조리스크: 매우낮음 또는 낮음 또는 높음 또는 매우높음
+                    거시환경리스크: 매우낮음 또는 낮음 또는 높음 또는 매우높음
 
-                    **RETURN 평가표:** (각 항목에서 반드시 하나만 선택)
-                    산업성장성: [매우높음 / 높음 / 낮음 / 매우낮음]
-                    사업확장성: [매우높음 / 높음 / 낮음 / 매우낮음]
-                    경쟁우위: [매우강함 / 강함 / 약함 / 매우약함]
-                    밸류에이션여유: [매우충분 / 충분 / 부족 / 매우부족]
+                    출력 형식 예시:
+                    재무건전성: 취약
+                    밸류에이션부담: 높음
+                    사업구조리스크: 높음
+                    거시환경리스크: 낮음
+
+                    **RETURN 평가표:** (각 항목에서 선택지 중 하나만 정확히 그대로 입력)
+                    산업성장성: 매우높음 또는 높음 또는 낮음 또는 매우낮음
+                    사업확장성: 매우높음 또는 높음 또는 낮음 또는 매우낮음
+                    경쟁우위: 매우강함 또는 강함 또는 약함 또는 매우약함
+                    밸류에이션여유: 매우충분 또는 충분 또는 부족 또는 매우부족
+
+                    출력 형식 예시:
+                    산업성장성: 매우높음
+                    사업확장성: 높음
+                    경쟁우위: 강함
+                    밸류에이션여유: 부족
 
                     **SCORE 평가표:**
-                    종합투자의견: [강력매수 / 매수 / 중립 / 매도 / 강력매도]
+                    종합투자의견: 강력매수 또는 매수 또는 중립 또는 매도 또는 강력매도
+
+                    출력 형식 예시:
+                    종합투자의견: 중립
                     """
                     try:
                         response = client.models.generate_content(
@@ -1596,39 +1611,34 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         # 레이블 → 점수 변환 매핑
                         import re as _re
 
-                        # 4단계 비균등 매핑 (중간 없음 → 분산 강제)
+                        # 4단계 비균등 매핑 (중간 없음 → 분산 강제, 균등 평균)
                         _RISK_MAP = {
-                            '재무건전성':      {'매우양호': 5,  '양호': 25, '취약': 68, '매우취약': 92},
-                            '밸류에이션부담':   {'매우낮음': 5,  '낮음': 25, '높음': 68, '매우높음': 92},
-                            '사업구조리스크':   {'매우낮음': 5,  '낮음': 25, '높음': 68, '매우높음': 92},
-                            '거시환경리스크':   {'매우낮음': 5,  '낮음': 25, '높음': 68, '매우높음': 92},
+                            '재무건전성':    {'매우양호': 5,  '양호': 25, '취약': 68, '매우취약': 92},
+                            '밸류에이션부담': {'매우낮음': 5,  '낮음': 25, '높음': 68, '매우높음': 92},
+                            '사업구조리스크': {'매우낮음': 5,  '낮음': 25, '높음': 68, '매우높음': 92},
+                            '거시환경리스크': {'매우낮음': 5,  '낮음': 25, '높음': 68, '매우높음': 92},
                         }
-                        _RISK_WEIGHT = {'재무건전성': 0.35, '밸류에이션부담': 0.25, '사업구조리스크': 0.25, '거시환경리스크': 0.15}
-
                         _RETURN_MAP = {
                             '산업성장성':    {'매우높음': 92, '높음': 68, '낮음': 28, '매우낮음': 8},
                             '사업확장성':    {'매우높음': 92, '높음': 68, '낮음': 28, '매우낮음': 8},
                             '경쟁우위':      {'매우강함': 92, '강함': 68, '약함': 28, '매우약함': 8},
                             '밸류에이션여유': {'매우충분': 92, '충분': 68, '부족': 28, '매우부족': 8},
                         }
-                        _RETURN_WEIGHT = {'산업성장성': 0.35, '사업확장성': 0.25, '경쟁우위': 0.25, '밸류에이션여유': 0.15}
-
                         _SCORE_MAP = {'강력매수': 88, '매수': 68, '중립': 48, '매도': 28, '강력매도': 10}
 
-                        def _parse_labels(text, label_map, weight_map):
-                            total, wsum = 0.0, 0.0
+                        def _parse_labels(text, label_map):
+                            vals = []
                             for field, choices in label_map.items():
                                 pat = rf'{re.escape(field)}\s*:\s*(\S+)'
                                 m = re.search(pat, text)
                                 if m:
                                     val_str = m.group(1).strip()
                                     if val_str in choices:
-                                        total += choices[val_str] * weight_map[field]
-                                        wsum  += weight_map[field]
-                            return round(total / wsum) if wsum > 0 else None
+                                        vals.append(choices[val_str])
+                            return round(sum(vals) / len(vals)) if vals else None
 
-                        risk_score   = _parse_labels(report_text, _RISK_MAP,   _RISK_WEIGHT)
-                        return_score = _parse_labels(report_text, _RETURN_MAP,  _RETURN_WEIGHT)
+                        risk_score   = _parse_labels(report_text, _RISK_MAP)
+                        return_score = _parse_labels(report_text, _RETURN_MAP)
 
                         # SCORE: 레이블 파싱
                         _sc_m = re.search(r'종합투자의견\s*:\s*(\S+)', report_text)
@@ -1638,21 +1648,18 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         # 리포트 본문 정리 + 판단 근거 따로 파싱
                         _cleaned = report_text.strip()
 
-                        # 판단 근거 블록 추출 — 고정 키워드 "**판단근거:**" 기준으로 파싱
+                        # 판단근거 파싱: **판단근거:** ~ **RISK 평가표:** 사이 텍스트 추출
                         _rationale = ""
-                        _판단근거_start = _re.search(r'\*\*판단근거:\*\*', _cleaned)
-                        _판단근거_end   = _re.search(r'\[RISK:\s*\d+\]', _cleaned)
-                        if _판단근거_start and _판단근거_end and _판단근거_start.start() < _판단근거_end.start():
-                            _rationale = _cleaned[_판단근거_start.end():_판단근거_end.start()].strip()
-                            _rationale = _re.sub(r'\*\*(.+?)\*\*', r'\1', _rationale)  # ** 제거
-                            _rationale = _re.sub(r'#+\s*', '', _rationale)              # 헤딩 제거
-                            _rationale = _re.sub(r'\n{2,}', '\n', _rationale).strip()  # 연속 빈줄만 정리, 줄바꿈 유지
+                        _rat_s = _re.search(r'\*\*판단근거:\*\*', _cleaned)
+                        _rat_e = _re.search(r'\*\*RISK\s*평가표:\*\*', _cleaned)
+                        if _rat_s and _rat_e and _rat_s.start() < _rat_e.start():
+                            _rationale = _cleaned[_rat_s.end():_rat_e.start()].strip()
+                            _rationale = _re.sub(r'\*\*(.+?)\*\*', r'\1', _rationale)
+                            _rationale = _re.sub(r'#+\s*', '', _rationale)
+                            _rationale = _re.sub(r'\n{2,}', '\n', _rationale).strip()
 
-                        # 본문에서 "**판단근거:**" 이후 전체 제거 (점수 태그 포함)
+                        # 본문에서 **판단근거:** 이후 전체 제거
                         _cleaned = _re.sub(r'\*\*판단근거:\*\*.*', '', _cleaned, flags=_re.DOTALL).strip()
-                        _cleaned = _re.sub(r'\[SCORE:\s*\d+\]', '', _cleaned)
-                        _cleaned = _re.sub(r'\[RISK:\s*\d+\]',  '', _cleaned)
-                        _cleaned = _re.sub(r'\[RETURN:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
                         _html = md_to_html(_cleaned)
                         st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
