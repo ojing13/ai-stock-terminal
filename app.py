@@ -1586,11 +1586,12 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     단순 평균이 아니라, 가장 심각한 항목이 전체를 끌어올리도록 판단하세요.
                     예: 재무는 안전해도 사업경쟁력이 매우약함이면 RISK는 높게.
 
-                    **최종 점수:**
-                    [RISK: 숫자]
-                    [RETURN: 숫자]
-                    [SCORE: 숫자]
+                    **최종 점수:** (0~100 정수, 아래 형식 그대로)
+                    [RISK: 35]
+                    [RETURN: 67]
+                    [SCORE: 58]
 
+                    위는 예시입니다. 실제 분석한 값으로 교체하세요.
                     SCORE는 위에서 산출한 RISK와 RETURN을 직접 참조하세요.
                     0(강력매도) ~ 50(중립) ~ 100(강력매수).
                     20, 40, 50, 60, 80 같은 경계값은 피하고 구체적인 숫자로 표현하세요.
@@ -1602,16 +1603,20 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         report_text = response.text
 
-                        # 숫자 직접 파싱 (AI가 레이블 기반으로 직접 산출한 값)
                         import re as _re
 
-                        risk_match   = re.search(r'\[RISK:\s*(\d+)\s*\]',   report_text)
-                        return_match = re.search(r'\[RETURN:\s*(\d+)\s*\]', report_text)
-                        score_match  = re.search(r'\[SCORE:\s*(\d+)\s*\]',  report_text)
+                        def _parse_num(text, tag):
+                            # 1순위: [TAG: 숫자] 대소문자 무관
+                            m = re.search(rf'\[{tag}:\s*(\d+)\s*\]', text, re.IGNORECASE)
+                            if m: return int(m.group(1))
+                            # 2순위: TAG: 숫자 (대괄호 없음)
+                            m = re.search(rf'\b{tag}\s*:\s*(\d+)', text, re.IGNORECASE)
+                            if m: return int(m.group(1))
+                            return None
 
-                        risk_score   = int(risk_match.group(1))   if risk_match   else None
-                        return_score = int(return_match.group(1)) if return_match else None
-                        final_score  = int(score_match.group(1))  if score_match  else None
+                        risk_score   = _parse_num(report_text, 'RISK')
+                        return_score = _parse_num(report_text, 'RETURN')
+                        final_score  = _parse_num(report_text, 'SCORE')
 
                         # fallback: 숫자 파싱 실패 시 레이블로 추정
                         _RISK_FB = {
@@ -1624,6 +1629,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '사업확장성':   {'매우높음': 92, '높음': 68, '낮음': 28, '매우낮음': 8},
                             '현재가격여유': {'매우충분': 92, '충분': 68, '부족': 28, '매우부족': 8},
                         }
+                        _SCORE_LABEL_MAP = {'강력매수': 88, '매수': 68, '중립': 48, '매도': 28, '강력매도': 10}
+
                         def _fb_labels(text, lmap):
                             vals = []
                             for field, choices in lmap.items():
@@ -1633,8 +1640,12 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             if not vals: return None
                             worst = max(vals); avg = sum(vals)/len(vals)
                             return round(0.5*worst + 0.5*avg)
+
                         if risk_score   is None: risk_score   = _fb_labels(report_text, _RISK_FB)
                         if return_score is None: return_score = _fb_labels(report_text, _RETURN_FB)
+                        if final_score  is None:
+                            m3 = re.search(r'종합투자의견\s*:\s*(\S+)', report_text)
+                            if m3: final_score = _SCORE_LABEL_MAP.get(m3.group(1))
 
                         # 리포트 본문 정리 + 판단 근거 따로 파싱
                         _cleaned = report_text.strip()
