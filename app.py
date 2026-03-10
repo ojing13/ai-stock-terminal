@@ -1563,16 +1563,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 현재가: {current_price:{price_fmt}} / 52주 고: {high_52:{price_fmt}} / 52주 저: {low_52:{price_fmt}} ({currency})
                     - 시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}
 
-                    1. [SCORE: 0~100] — 종합 투자의견
-                    아래 투자자 전제 하에 RISK와 RETURN을 종합한 최종 판단:
-                    [전제] 레버리지 상품이 아닌 이상 평생 팔지 않음.
-                    손실 허용 한도 -25%. 합리적이고 냉정한 투자자. 과도한 낙관도 비관도 없음.
-                    (a) 현재 주가가 저평가인가 고평가인가: PER, PBR, Forward PER, 역사적 밸류에이션 범위 등을 업종 맥락에 맞게 해석.
-                    (b) 손익비: 지금 이 가격에 들어갔을 때 하락 여지(-25% 손실 가능성) 대비 장기 상승 여력이 유리한가.
-                    "이 리스크를 감수할 만큼 지금 이 자리가 장기적으로 매력적인가"가 핵심.
-                    0(절대 안 한다) ~ 50(중립) ~ 100(강하게 확신하고 넣는다).
-
-                    2. [RISK: 0~100] — 이 투자의 종합적인 손실 위험도
+                    1. [RISK: 0~100] — 이 투자의 종합적인 손실 위험도
                     아래 모든 관점을 종합하여 평가:
                     - 재무 리스크: 부채 수준, 유동성, 이익 감소 추세, 현금흐름 악화
                     - 밸류에이션 리스크: 현재 주가 고평가 여부(PER·PBR 업종 맥락 반영)
@@ -1581,34 +1572,47 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     업종 특성 필수 반영(금융주 고부채=정상, 바이오 적자=감안 등).
                     0(거의 무위험) ~ 100(매우 높은 손실 가능성).
 
-                    3. [RETURN: 0~100] — 지금 이 가격에서 앞으로의 추가 상승 포텐셜
+                    2. [RETURN: 0~100] — 지금 이 가격에서 앞으로의 추가 상승 포텐셜
                     이미 오른 것은 과거의 일입니다. 현재 주가와 시가총액 수준을 출발점으로 하여,
                     앞으로 이 종목이 얼마나 더 오를 수 있는가를 냉정하게 평가하세요.
+                    RETURN은 순수하게 상승 포텐셜만 평가합니다. 리스크는 RISK에서 별도로 평가했으므로 여기서는 반영하지 마세요.
                     
                     반드시 아래 요소들을 종합적으로 고려하여 평가하세요:
                     - 현재 밸류에이션 부담: 이미 고평가 상태라면 추가 상승 여력이 제한됨. 시가총액이 클수록 대형주 프리미엄 한계를 고려.
                     - 성장 여력: 매출 성장률, 신사업 확장 가능성, 시장 점유율 확대 여지 등 실제 미래 성장 근거.
                     - 업사이드 시나리오의 현실성: 낙관 시나리오가 실현될 확률을 냉정하게 판단. 막연한 기대감이 아닌 구체적 근거 기반.
-                    - 현재가의 52주 위치: {round((current_price - low_52) / (high_52 - low_52) * 100) if high_52 != low_52 else 50}% (52주 고점 근처라면 기술적 추가 상승 여력은 제한적)
+                    - 현재가의 52주 위치: {round((current_price - low_52) / (high_52 - low_52) * 100) if high_52 != low_52 else 50}% (52주 저점 근처일수록 기술적 반등 여력이 있고, 고점 근처일수록 단기 추가 상승 여력이 제한적. 단, 장기 성장성이 확실하다면 52주 위치의 영향은 제한적으로만 반영하세요.)
                     
                     시총 3조 달러급 대형주가 단기에 2배가 되기는 구조적으로 어렵습니다.
                     반면 소형주·신사업 진입 기업은 성공 시 폭발적 상승이 가능합니다.
                     이러한 현실적 맥락을 점수에 반드시 반영하세요.
                     0(추가 상승 기대 거의 없음) ~ 100(지금 가격 기준 수배 이상 상승 가능).
 
-                    점수를 내기 전에 반드시 아래 순서로 근거를 먼저 서술하세요:
-                    RISK 근거: 재무 리스크 / 밸류에이션 리스크 / 사업구조 리스크 / 거시 리스크 각각 한 줄씩
-                    RETURN 근거: 현재 밸류에이션 부담과 실제 미래 성장 가능성을 냉정하게 평가한 한 줄 (이미 많이 오른 대형주는 그 점을 반드시 반영)
-                    SCORE 근거: 위 RISK와 RETURN을 바탕으로 지금 이 가격이 투자할 만한가 손익비 판단 한 줄
+                    3. [SCORE: 0~100] — 종합 투자의견
+                    위에서 확정한 RISK와 RETURN을 직접 참조하여 결정하세요.
+                    손실 허용 한도 -25%. 합리적이고 냉정한 투자자. 과도한 낙관도 비관도 없음.
+                    (a) 현재 주가가 저평가인가 고평가인가: PER, PBR, Forward PER, 역사적 밸류에이션 범위 등을 업종 맥락에 맞게 해석.
+                    (b) 손익비: 지금 이 가격에 들어갔을 때 하락 여지(-25% 손실 가능성) 대비 장기 상승 여력이 유리한가.
+                    "이 리스크를 감수할 만큼 지금 이 자리가 장기적으로 매력적인가"가 핵심.
+                    RISK가 높고 RETURN이 낮으면 SCORE는 낮아야 하고, RISK가 낮고 RETURN이 높으면 SCORE는 높아야 합니다.
+                    0(절대 안 한다) ~ 50(중립) ~ 100(강하게 확신하고 넣는다).
+
+                    점수 산출 순서 — 반드시 아래 순서를 지키세요:
+                    1) RISK 점수를 먼저 확정하세요.
+                       근거: 재무 리스크 / 밸류에이션 리스크 / 사업구조 리스크 / 거시 리스크 각각 한 줄씩
+                    2) RETURN 점수를 확정하세요.
+                       근거: 현재 밸류에이션 부담과 실제 미래 성장 가능성을 냉정하게 평가한 한 줄 (이미 많이 오른 대형주는 반드시 반영)
+                    3) SCORE는 위에서 확정한 RISK와 RETURN 수치를 직접 보고 결정하세요.
+                       근거: RISK=[확정값], RETURN=[확정값]을 바탕으로 손익비 판단 한 줄
+                       (RISK 높고 RETURN 낮으면 → SCORE 낮음 / RISK 낮고 RETURN 높으면 → SCORE 높음)
 
                     근거 서술 후, 맨 마지막에 아래 형식으로만 출력하세요.
                     세 점수는 위에 서술한 근거와 반드시 일치해야 합니다.
-                    (RISK 근거가 위험하다고 했으면 RISK 높게 / RETURN 근거가 약하다고 했으면 RETURN 낮게)
                     1단위로 정밀하게 평가하세요.
 
-                    [SCORE: 숫자]
                     [RISK: 숫자]
                     [RETURN: 숫자]
+                    [SCORE: 숫자]
                     """
                     try:
                         response = client.models.generate_content(
@@ -1629,7 +1633,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 
                         # 리포트 본문 정리 (근거 서술 + 점수 태그 제거)
                         _cleaned = report_text.strip()
-                        _cleaned = _re.sub(r'RISK 근거:.*', '', _cleaned, flags=_re.DOTALL).strip()
+                        # 점수 산출 근거 블록 제거 (RISK 근거 or 1) RISK 점수 형식 둘 다 처리)
+                        _cleaned = _re.sub(r'(RISK 근거:|1\s*\)\s*RISK\s*점수).*', '', _cleaned, flags=_re.DOTALL).strip()
                         _cleaned = _re.sub(r'\[SCORE:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r'\[RISK:\s*\d+\]',  '', _cleaned)
                         _cleaned = _re.sub(r'\[RETURN:\s*\d+\]', '', _cleaned)
@@ -1637,28 +1642,59 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         _html = md_to_html(_cleaned)
                         st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
                         
+                        # 매트릭스: RISK/RETURN 독립 처리 (SCORE 파싱 실패해도 표시)
+                        matrix_html = ""
+                        if risk_score is not None and return_score is not None:
+                            r_s = max(0, min(100, risk_score))
+                            ret_s = max(0, min(100, return_score))
+                            matrix_html = (
+                                '<div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;">' +
+                                '<h4 style="text-align: center; margin-bottom: 25px; color: #333; font-weight: 700;">리스크 대비 기대수익 매트릭스</h4>' +
+                                '<div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 1px solid #dcdcdc; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">' +
+                                '<div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #d0d0d0;"></div>' +
+                                '<div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #d0d0d0;"></div>' +
+                                '<div style="position: absolute; top: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #ff6b6b;">저위험 고수익</div>' +
+                                '<div style="position: absolute; top: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #ff2d55;">고위험 고수익</div>' +
+                                '<div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div>' +
+                                '<div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div>' +
+                                f'<div style="position: absolute; top: calc({100 - ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div>' +
+                                '</div></div>'
+                            )
+
+                        # 투자의견 바: SCORE 있을 때만 표시, 없으면 매트릭스만 단독 표시
+                        bar_html = ""
                         if final_score is not None:
-                            final_score = max(0, min(100, final_score)) 
-                            
+                            final_score = max(0, min(100, final_score))
                             if final_score <= 20: opinion_text, text_color = "강력 매도", "#007aff"
                             elif final_score <= 40: opinion_text, text_color = "매도", "#66b2ff"
                             elif final_score <= 60: opinion_text, text_color = "중립", "#555555"
                             elif final_score <= 80: opinion_text, text_color = "매수", "#ff6b6b"
                             else: opinion_text, text_color = "강력 매수", "#ff2d55"
-                            
-                            matrix_html = ""
-                            if risk_score is not None and return_score is not None:
-                                r_s = max(0, min(100, risk_score))
-                                ret_s = max(0, min(100, return_score))
-                                
-                                matrix_html = f"""<div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;"><h4 style="text-align: center; margin-bottom: 25px; color: #333; font-weight: 700;">리스크 대비 기대수익 매트릭스</h4><div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 1px solid #dcdcdc; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);"><div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #d0d0d0;"></div><div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #d0d0d0;"></div><div style="position: absolute; top: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #ff6b6b;">저위험 고수익</div><div style="position: absolute; top: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #ff2d55;">고위험 고수익</div><div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div><div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div><div style="position: absolute; top: calc({100 - ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div></div></div>"""
-                            
-                            bar_html = f"""<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;"><h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h4><div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);"><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div><div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div><div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div><div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">▼</div></div>{matrix_html}</div>"""
-                            
-                            st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": bar_html}
+                            arrow = "&#x25BC;"
+                            bar_html = (
+                                '<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;">' +
+                                f'<h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h4>' +
+                                '<div style="position: relative; width: 100%; height: 32px; background: linear-gradient(to right, #007aff 0%, #007aff 20%, #66b2ff 20%, #66b2ff 40%, #e0e0e0 40%, #e0e0e0 60%, #ff8080 60%, #ff8080 80%, #ff2d55 80%, #ff2d55 100%); border-radius: 16px; display: flex; box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);">' +
+                                '<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매도</div>' +
+                                '<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매도</div>' +
+                                '<div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div>' +
+                                '<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div>' +
+                                '<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div>' +
+                                f'<div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">{arrow}</div>' +
+                                '</div>' + matrix_html + '</div>'
+                            )
+
+                        combined_html = bar_html if bar_html else (
+                            ('<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;">' + matrix_html + '</div>') if matrix_html else ""
+                        )
+                        if combined_html:
+                            st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": combined_html}
                             st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
-                            st.markdown(bar_html.replace('\n', ''), unsafe_allow_html=True)
-                            
+                            st.markdown(combined_html.replace('\n', ''), unsafe_allow_html=True)
+                        else:
+                            st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
+                            st.markdown(f'<div class="ai-result-card">{_html}</div>', unsafe_allow_html=True)
+                        
                     except Exception as e:
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
 
