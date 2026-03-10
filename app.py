@@ -1615,13 +1615,17 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - RETURN 근거: [산업·사업 성장 잠재력 + 현재 가격 대비 업사이드 판단 한 줄]
                     - SCORE 근거: [RISK와 RETURN을 바탕으로 손익비 판단 한 줄]
 
+                    점수는 0~100 사이 정수로, 1점 단위로 정밀하게 평가하세요.
+                    20, 40, 50, 60, 80 같은 경계값은 최대한 피하세요. 근거가 명확하면 경계에서 벗어난 숫자를 써야 합니다.
+                    예: 중립이라면 50이 아니라 47이나 53처럼, 매수라면 61이나 67처럼 구체적으로 표현하세요.
+
                     [RISK: 숫자]
                     [RETURN: 숫자]
                     [SCORE: 숫자]
                     """
                     try:
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
+                            model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.3}
                         )
                         
                         report_text = response.text
@@ -1647,7 +1651,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             _rationale = _cleaned[_판단근거_start.end():_판단근거_end.start()].strip()
                             _rationale = _re.sub(r'\*\*(.+?)\*\*', r'\1', _rationale)  # ** 제거
                             _rationale = _re.sub(r'#+\s*', '', _rationale)              # 헤딩 제거
-                            _rationale = _re.sub(r'\n+', ' · ', _rationale).strip()
+                            _rationale = _re.sub(r'\n{2,}', '\n', _rationale).strip()  # 연속 빈줄만 정리, 줄바꿈 유지
 
                         # 본문에서 "**판단근거:**" 이후 전체 제거 (점수 태그 포함)
                         _cleaned = _re.sub(r'\*\*판단근거:\*\*.*', '', _cleaned, flags=_re.DOTALL).strip()
@@ -1677,8 +1681,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 '</div>' +
                                 # 판단 근거 섹션 (매트릭스 바로 아래)
                                 (f'<div style="margin-top: 16px; padding: 10px 14px; border-top: 1px solid #e8e8e8;">'
-                                 f'<span style="font-size: 10px; font-weight: 700; color: #555; letter-spacing: 0.3px;">판단근거</span>'
-                                 f'<p style="margin: 4px 0 0 0; font-size: 10px; color: #777; line-height: 1.6;">{_rationale}</p>'
+                                 f'<span style="font-size: 13px; font-weight: 700; color: #444; letter-spacing: 0.3px;">판단근거</span>'
+                                 f'<p style="margin: 6px 0 0 0; font-size: 13px; color: #666; line-height: 1.8;">{_rationale.replace(chr(10), "<br>").replace(" · ", "<br>")}</p>'
                                  f'</div>' if _rationale else '') +
                                 '</div>'
                             )
