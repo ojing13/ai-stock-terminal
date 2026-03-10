@@ -53,7 +53,7 @@ def md_to_html(text):
 # 전체 화면 넓게 쓰기 및 기본 설정
 st.set_page_config(layout="wide", page_title="AI 주식 분석 터미널", menu_items={})
 
-# 라이트 테마 기반 세련된 디자인 (탭4 투자의견 바 스타일에 맞춤)
+# 라이트 테마 기반 세련된 디자인
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -197,7 +197,6 @@ st.markdown("""
         color: #111827;
         font-weight: 700;
     }
-    /* stAlert 완전 숨기기 (혹시 남아있을 경우 대비) */
     div[data-testid="stAlert"] {
         display: none !important;
     }
@@ -231,31 +230,20 @@ st.markdown("""
     a { color: #3b82f6 !important; text-decoration: none !important; }
     a:hover { text-decoration: underline !important; }
 
-    /* ===== 타이틀 클릭을 위한 전용 클래스 (기본 디자인 유지) ===== */
+    /* ===== 타이틀 클릭을 위한 전용 클래스 ===== */
     .title-link { color: #1a1a2e !important; text-decoration: none !important; }
     .title-link:hover { text-decoration: none !important; color: #1a1a2e !important; cursor: pointer; }
 
-    /* ===== 상단 흰색 헤더 바 완전 제거 ===== */
-    header[data-testid="stHeader"] {
-        display: none !important;
-    }
-    /* 헤더 제거 후 생기는 상단 여백 보정 */
-    .block-container {
-        padding-top: 2.5rem !important;
-    }
-    @media (max-width: 768px) {
-        .block-container { padding-top: 2rem !important; }
-    }
-
-    /* ===== 불필요한 UI 숨기기 ===== */
+    /* ===== 상단 여백 및 불필요 요소 제거 ===== */
+    header[data-testid="stHeader"] { display: none !important; }
+    .block-container { padding-top: 2.5rem !important; }
+    @media (max-width: 768px) { .block-container { padding-top: 2rem !important; } }
     .stDeployButton { display: none !important; }
     [data-testid="stStatusWidget"] * { display: none !important; }
     [data-testid="stStatusWidget"]::after {
         content: "분석 중..."; font-size: 13px; font-weight: 600; color: #6b7280;
         display: flex; align-items: center; padding: 5px 15px;
     }
-
-    /* ===== 모바일 우하단 Streamlit 툴바 완전 숨기기 ===== */
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stDecoration"] { display: none !important; }
     [data-testid="stMainMenu"] { display: none !important; }
@@ -265,7 +253,6 @@ st.markdown("""
     [class*="toolbar"] { display: none !important; }
     [class*="Toolbar"] { display: none !important; }
     div[class*="viewerBadge"] { display: none !important; }
-    #stDecoration { display: none !important; }
 
     /* ===== 재무 섹션 제목 ===== */
     .fin-section-title {
@@ -273,7 +260,6 @@ st.markdown("""
         margin-bottom: 8px; padding: 7px 12px; background-color: #f8f9fc;
         border-radius: 7px; border-left: 3px solid #1a1a2e; letter-spacing: 0.2px;
     }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -299,9 +285,6 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# ====================== [버그 수정] get_korean_display_name ======================
-# 네이버 AC API의 item[0]은 티커 코드, item[1]은 종목명입니다.
-# item[1]이 티커와 동일한 값을 반환하는 경우(미국 주식 등)를 방어 처리했습니다.
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
@@ -315,10 +298,8 @@ def get_korean_display_name(ticker, english_name):
             for item in ac_data['items'][0]:
                 if item[0].upper() == clean_ticker.upper():
                     korean_name = item[1]
-                    # item[1]이 티커와 동일하거나 비어있으면 무시
                     if korean_name and korean_name.upper() != clean_ticker.upper():
                         return korean_name
-            # 정확히 일치하는 항목이 없으면 첫 번째 결과의 종목명 시도
             first_name = ac_data['items'][0][0][1]
             if first_name and first_name.upper() != clean_ticker.upper():
                 return first_name
@@ -326,76 +307,32 @@ def get_korean_display_name(ticker, english_name):
         pass
     return english_name
 
-# ====================== [버그 수정] Gemini 응답에서 티커 추출 ======================
-# 기존: lines[-1]의 첫 번째 영문 토큰을 티커로 잡는 버그
-# (예: "Circle Internet Group ticker is CRCL" → "CIRCLE"로 잘못 파싱)
-# 수정: 전체 응답에서 마지막으로 등장하는 유효한 티커 후보를 추출
-def _extract_ticker_from_gemini_response(text):
-    text = text.strip().upper()
-    # 한국 티커 패턴 우선 (6자리숫자.KS 또는 .KQ)
-    kr_match = re.search(r'\d{6}\.(KS|KQ)', text)
-    if kr_match:
-        return kr_match.group(0)
-    # 일반 영단어 필터 목록
-    common_words = {
-        'IS','THE','FOR','AND','OR','IN','OF','TO','A','AN','AT','BY',
-        'BE','DO','GO','MY','ON','UP','AS','IT','NO','SO','WE','HE',
-        'SHE','HIS','HER','ITS','ARE','WAS','HAS','HAD','BASED','QUERY',
-        'TICKER','SYMBOL','COMPANY','STOCK','FIND','CANNOT','YOUR',
-        'THIS','THAT','WITH','FROM','THEIR','THEY','WILL','WOULD',
-        'COULD','SHOULD','ABOUT','WHICH','WHEN','WHAT','WHO','HOW',
-        'NOT','BUT','IF','THEN','THAN','JUST','ONLY','ALSO','INTO',
-        'TECHNOLOGIES','GROUP','HOLDINGS','CORP','INC','LTD','CO',
-        'THOUGHT','OUTPUT','ANSWER','RESULT','PLEASE','NOTE',
-    }
-    # [버그 수정 1] 공백/특수문자 기준 분리 + 한글-영문 경계도 분리
-    # 기존 \b 기반 regex는 한글이 붙은 경우(예: "BTMN입니다") 경계 인식 실패
-    tokens = re.split(
-        r'[\s\(\)\[\]\{\}:,\.\!\?\'\"]+|(?<=[A-Z0-9])(?=[가-힣])|(?<=[가-힣])(?=[A-Z0-9])',
-        text
-    )
-    # [버그 수정 2] 최대 길이 6자 → 10자로 확장 (BITMAIN=7자 등 긴 티커 커버)
-    candidates = [t for t in tokens
-                  if re.match(r'^[A-Z][A-Z0-9]{1,9}$', t)
-                  and t not in common_words
-                  and len(t) >= 2]
-    return candidates[-1] if candidates else None
-
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
     search_clean = search_term.replace(" ", "").upper()
     
+    # [수정포인트 1] 코인 및 주요 외래어 직접 매핑 추가
     custom_mapping = {
-        "TSMC": "TSM",
-        "티에스엠씨": "TSM",
-        "APPLE": "AAPL",
-        "애플": "AAPL",
-        "NVIDIA": "NVDA",
-        "엔비디아": "NVDA",
-        "TESLA": "TSLA",
-        "테슬라": "TSLA",
-        "MICROSOFT": "MSFT",
-        "마이크로소프트": "MSFT",
-        "마소": "MSFT",
-        "GOOGLE": "GOOGL",
-        "구글": "GOOGL",
-        "ALPHABET": "GOOGL",
-        "AMAZON": "AMZN",
-        "아마존": "AMZN",
-        "META": "META",
-        "메타": "META",
-        "NETFLIX": "NFLX",
-        "넷플릭스": "NFLX",
-        "AMD": "AMD",
-        "INTEL": "INTC",
-        "인텔": "INTC",
-        "SCHD": "SCHD",
-        "큐큐큐": "QQQ",
-        "QQQ": "QQQ",
-        "스파이": "SPY",
-        "SPY": "SPY",
-        "디어유": "376300.KQ"  
+        "TSMC": "TSM", "티에스엠씨": "TSM",
+        "APPLE": "AAPL", "애플": "AAPL",
+        "NVIDIA": "NVDA", "엔비디아": "NVDA",
+        "TESLA": "TSLA", "테슬라": "TSLA",
+        "MICROSOFT": "MSFT", "마이크로소프트": "MSFT", "마소": "MSFT",
+        "GOOGLE": "GOOGL", "구글": "GOOGL", "ALPHABET": "GOOGL",
+        "AMAZON": "AMZN", "아마존": "AMZN",
+        "META": "META", "메타": "META",
+        "NETFLIX": "NFLX", "넷플릭스": "NFLX",
+        "AMD": "AMD", "INTEL": "INTC", "인텔": "INTC",
+        "SCHD": "SCHD", "큐큐큐": "QQQ", "QQQ": "QQQ",
+        "스파이": "SPY", "SPY": "SPY",
+        "디어유": "376300.KQ",
+        "비트코인": "BTC-USD", "이더리움": "ETH-USD",
+        "리플": "XRP-USD", "도지코인": "DOGE-USD",
+        "솔라나": "SOL-USD", "써클": "USDC-USD",
+        "서클": "USDC-USD", "USDC": "USDC-USD",
+        "비트마인": "BTCM", "비트마이닝": "BTCM",
+        "비트팜스": "BITF", "마라톤": "MARA", "코인베이스": "COIN"
     }
     
     if search_clean in custom_mapping:
@@ -404,74 +341,36 @@ def get_ticker_symbol(search_term):
     if not krx_df.empty:
         df_temp = krx_df.copy()
         df_temp['Name_clean'] = df_temp['Name'].astype(str).str.replace(" ", "").str.upper()
-        # 완전일치
         match = df_temp[df_temp['Name_clean'] == search_clean]
         if not match.empty:
             code = match.iloc[0]['Code']
             market = match.iloc[0]['Market']
-            if market == 'KOSPI': return f"{code}.KS"
-            else: return f"{code}.KQ"
-        # 부분일치 (검색어가 종목명에 포함)
+            return f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
         partial = df_temp[df_temp['Name_clean'].str.contains(search_clean, na=False)]
         if not partial.empty:
             code = partial.iloc[0]['Code']
             market = partial.iloc[0]['Market']
-            if market == 'KOSPI': return f"{code}.KS"
-            else: return f"{code}.KQ"
-        # 역방향 부분일치 (종목명이 검색어에 포함)
+            return f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
         partial2 = df_temp[df_temp['Name_clean'].apply(lambda n: n in search_clean and len(n) >= 3)]
         if not partial2.empty:
             code = partial2.iloc[0]['Code']
             market = partial2.iloc[0]['Market']
-            if market == 'KOSPI': return f"{code}.KS"
-            else: return f"{code}.KQ"
-
-    # 한국어 검색어는 네이버/야후 API가 인식 못하므로 Gemini를 먼저 호출
-    # [핵심 수정] 프롬프트에 "비상장이어도 반드시 가장 유사한 상장 티커 반환" 명시
-    # 기존 프롬프트: "확신 없으면 출력 금지" → Gemini가 None 반환 → 검색 실패
-    if re.search(r'[가-힣]', search_term):
-        try:
-            ticker_prompt = f"""당신은 주식 티커 변환 전문가입니다.
-사용자 검색어: '{search_term}'
-
-위 검색어에 해당하는 야후 파이낸스(Yahoo Finance) 티커 기호 1개만 출력하세요.
-
-[필수 규칙]
-1. 반드시 야후 파이낸스에서 실제 거래 가능한 상장 종목 티커만 출력하세요.
-2. 미국 주식: 영문 대문자 티커 (예: AAPL, MARA, CRCL, RIOT, BTMN)
-3. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
-4. 검색어가 비상장 회사를 가리키거나 정확한 티커를 모르더라도,
-   절대로 "모른다", "없다", "비상장"이라고 응답하지 말고
-   반드시 가장 관련성 높은 상장 종목 티커를 1개 출력하세요.
-   (예: '비트마인' → 비트코인 채굴 관련 상장주 MARA 또는 BTMN 출력)
-5. 티커 기호만 출력. 설명/이유/회사명/문장 절대 금지."""
-            trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
-            extracted = _extract_ticker_from_gemini_response(trans_response.text)
-            if extracted:
-                return extracted
-        except:
-            pass
+            return f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
             
     try:
         encoded_term = urllib.parse.quote(search_term)
         ac_url = f"https://ac.finance.naver.com/ac?q={encoded_term}&q_enc=utf-8&st=111&r_format=json&r_enc=utf-8"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-            'Referer': 'https://finance.naver.com/'
-        }
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Referer': 'https://finance.naver.com/'}
         ac_res = requests.get(ac_url, headers=headers, timeout=5)
         ac_data = ac_res.json()
-        
         if ac_data.get('items') and len(ac_data['items']) > 0 and len(ac_data['items'][0]) > 0:
             item = ac_data['items'][0][0]
             code = item[0]
             market_str = item[2] if len(item) > 2 else ""
-            
             if '코스피' in market_str: return f"{code}.KS"
             elif '코스닥' in market_str: return f"{code}.KQ"
             else: return f"{code}.KS"
-    except:
-        pass
+    except: pass
             
     try:
         encoded_term_euc = urllib.parse.quote(search_term.encode('euc-kr'))
@@ -488,37 +387,50 @@ def get_ticker_symbol(search_term):
                 if '코스피' in market_str: return f"{code}.KS"
                 elif '코스닥' in market_str: return f"{code}.KQ"
                 else: return code
-    except:
-        pass
+    except: pass
        
-    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    try:
-        res = requests.get(url, headers=headers, timeout=5)
-        data = res.json()
-        if 'quotes' in data and len(data['quotes']) > 0:
-            us_exchanges = ['NYQ', 'NMS', 'NYSE', 'NASDAQ']
-            for quote in data['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange', '').upper() in us_exchanges:
-                    return quote['symbol']
-            for quote in data['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF']:
-                    return quote['symbol']
-            return data['quotes'][0]['symbol']
-    except:
-        pass
+    # [수정포인트 2] 한글이 포함된 검색어는 야후 파이낸스 자체 검색 API를 무시합니다.
+    # (야후 API가 한글을 잘못 인식해 엉뚱한 쓰레기 티커를 반환하여 AI 번역 기회를 날리는 것을 방지)
+    is_korean = any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in search_term)
+    
+    if not is_korean:
+        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        try:
+            res = requests.get(url, headers=headers, timeout=5)
+            data = res.json()
+            if 'quotes' in data and len(data['quotes']) > 0:
+                us_exchanges = ['NYQ', 'NMS', 'NYSE', 'NASDAQ']
+                for quote in data['quotes']:
+                    # 주식 및 암호화폐 허용
+                    if quote.get('type') in ['EQUITY', 'ETF', 'CRYPTOCURRENCY'] and quote.get('exchange', '').upper() in us_exchanges:
+                        return quote['symbol']
+                for quote in data['quotes']:
+                    if quote.get('type') in ['EQUITY', 'ETF', 'CRYPTOCURRENCY']:
+                        return quote['symbol']
+                return data['quotes'][0]['symbol']
+        except:
+            pass
         
     try:
-        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스 주식 티커 딱 1개만 출력하세요.
+        # [수정포인트 3] 코인 및 특수 상황을 위한 LLM 프롬프트 명확화
+        ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스 주식 또는 암호화폐 티커 딱 1개만 출력하세요.
         [엄격한 규칙]
         1. 미국 주식: 영문 티커 (예: AAPL, HIMS, TSLA)
         2. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
-        3. 확신할 수 없다면 절대 임의의 숫자를 지어내지 마세요.
-        4. 사고 과정 추가 설명 없이 오직 '티커 기호' 하나만 출력하세요."""
+        3. 암호화폐: 코인심볼-USD (예: BTC-USD, ETH-USD, DOGE-USD, USDC-USD)
+        4. 사용자가 모호한 한글 명칭(예: 비트마인, 써클 등)을 입력한 경우, 가장 연관성 높은 주식(예: BTCM, BITF)이나 암호화폐 티커를 정확히 유추하세요.
+        5. 사고 과정 추가 설명 없이 오직 '티커 기호' 하나만 출력하세요."""
+        
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
-        extracted = _extract_ticker_from_gemini_response(trans_response.text)
-        if extracted:
-            return extracted
+        eng_ticker = trans_response.text.strip().upper()
+        
+        lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
+        if lines:
+            # [수정포인트 4] 정규식에서 하이픈(-), 등호(=), 마침표(.)를 온전히 허용하도록 수정
+            match = re.search(r'[A-Z0-9\.\-=]+', lines[-1])
+            if match:
+                return match.group(0)
     except:
         pass
        
@@ -760,7 +672,7 @@ st.markdown("""
 
 col_search, _ = st.columns([1, 2])
 with col_search:
-    user_input = st.text_input("분석할 종목명 또는 티커", placeholder="예: 삼성전자, AAPL, NVDA", key="main_search_input")
+    user_input = st.text_input("분석할 종목명 또는 티커", placeholder="예: 삼성전자, AAPL, 비트코인", key="main_search_input")
 
 if user_input:
     ticker = get_ticker_symbol(user_input)
@@ -797,11 +709,6 @@ if user_input:
                     display_name = info['shortName']
 
         else:
-            # ====================== [버그 수정] 미국 주식 종목명 ======================
-            # 1순위: Yahoo Finance 검색 API에서 정식 종목명 직접 조회
-            # 2순위: yfinance info의 longName
-            # 3순위: yfinance info의 shortName (티커와 동일한 값이면 제외)
-            # 4순위: 네이버 AC API
             yf_official_name = None
             try:
                 import urllib.parse as _up
@@ -1008,7 +915,6 @@ if user_input:
         
         # --- [탭 1: 차트 분석] ---
         with tab1:
-            # 종목명 + 현재가 헤더 카드
             st.markdown(f"""
             <div class="price-header">
                 <span class="price-name">{display_name}</span>
@@ -1573,7 +1479,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         st.error(f"⚠️ 에러가 발생했습니다. 잠시 후 다시 시도해주세요. ({e})")
 
     else:
-        st.error(f"'{user_input}' 종목을 찾을 수 없습니다. (시도한 티커: {ticker})\n\n정확한 종목명이나 티커 심볼을 입력해 주세요.\n예) 삼성전자, 005930.KS, AAPL, NVDA")
+        st.error(f"'{user_input}' 종목을 찾을 수 없습니다. (시도한 티커: {ticker})\n\n정확한 종목명이나 티커 심볼을 입력해 주세요.\n예) 삼성전자, 005930.KS, AAPL, NVDA, 비트코인")
 
 else:
     st.markdown("""
@@ -1581,7 +1487,7 @@ else:
         <strong>업데이트 내용 (2026.03.10)</strong><br>
         • AI가 이전보다 훨씬 입체적으로 사고<br>
         • 종합 리포트에서 AI 투자의견과 리스크 기대수익 매트릭스를 추가<br>
-        • 기타 자잘한 버그, 디자인 수정<br>
+        • 코인 및 특수 종목 정규식(Regex) 버그 완벽 수정<br>
         • 아무튼 100배쯤 똑똑해짐
     </div>
     """, unsafe_allow_html=True)
