@@ -326,6 +326,33 @@ def get_korean_display_name(ticker, english_name):
         pass
     return english_name
 
+# ====================== [버그 수정] Gemini 응답에서 티커 추출 ======================
+# 기존: lines[-1]의 첫 번째 영문 토큰을 티커로 잡는 버그
+# (예: "Circle Internet Group ticker is CRCL" → "CIRCLE"로 잘못 파싱)
+# 수정: 전체 응답에서 마지막으로 등장하는 유효한 티커 후보를 추출
+def _extract_ticker_from_gemini_response(text):
+    text = text.strip().upper()
+    # 한국 티커 패턴 우선 (6자리숫자.KS 또는 .KQ)
+    kr_match = re.search(r'\b\d{6}\.(KS|KQ)\b', text)
+    if kr_match:
+        return kr_match.group(0)
+    # 일반 영단어 필터 목록
+    common_words = {
+        'IS','THE','FOR','AND','OR','IN','OF','TO','A','AN','AT','BY',
+        'BE','DO','GO','MY','ON','UP','AS','IT','NO','SO','WE','HE',
+        'SHE','HIS','HER','ITS','ARE','WAS','HAS','HAD','BASED','QUERY',
+        'TICKER','SYMBOL','COMPANY','STOCK','FIND','CANNOT','YOUR',
+        'THIS','THAT','WITH','FROM','THEIR','THEY','WILL','WOULD',
+        'COULD','SHOULD','ABOUT','WHICH','WHEN','WHAT','WHO','HOW',
+        'NOT','BUT','IF','THEN','THAN','JUST','ONLY','ALSO','INTO',
+        'TECHNOLOGIES','GROUP','HOLDINGS','CORP','INC','LTD','CO',
+        'THOUGHT','OUTPUT','ANSWER','RESULT','PLEASE','NOTE'
+    }
+    # 전체 텍스트에서 1~6자 대문자+숫자 토큰 추출, 마지막 유효 후보 반환
+    candidates = re.findall(r'\b([A-Z]{1,6}[0-9]?|[A-Z][0-9A-Z]{1,5})\b', text)
+    filtered = [t for t in candidates if t not in common_words and len(t) >= 2]
+    return filtered[-1] if filtered else None
+
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
     search_term = search_term.strip()
@@ -390,6 +417,26 @@ def get_ticker_symbol(search_term):
             market = partial2.iloc[0]['Market']
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
+
+    # ====================== [버그 수정] 한국어 검색어 조기 Gemini 처리 ======================
+    # 기존: 한국어 검색어가 네이버/야후 API를 모두 실패한 뒤 Gemini fallback으로 넘어가는데,
+    # KRX에 없는 미국 주식 한국어 별명(비트마인, 써클 등)은 중간 API에서 전부 빈 결과를 반환함.
+    # 수정: KRX 조회 실패 후, 한국어가 포함된 검색어는 Gemini를 먼저 호출해 영문 티커로 변환.
+    #       변환 성공 시 해당 티커를 바로 반환하여 불필요한 API 호출 생략.
+    if re.search(r'[가-힣]', search_term):
+        try:
+            ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스 주식 티커 딱 1개만 출력하세요.
+            [엄격한 규칙]
+            1. 미국 주식: 영문 티커만 출력 (예: AAPL, MARA, CRCL, TSLA)
+            2. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
+            3. 확신할 수 없다면 절대 임의의 숫자를 지어내지 마세요.
+            4. 티커 기호 하나만 출력하세요. 설명, 이유, 회사명 절대 금지."""
+            trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
+            extracted = _extract_ticker_from_gemini_response(trans_response.text)
+            if extracted:
+                return extracted
+        except:
+            pass
             
     try:
         encoded_term = urllib.parse.quote(search_term)
@@ -430,16 +477,16 @@ def get_ticker_symbol(search_term):
     except:
         pass
        
-    # ====================== [버그 수정] 야후 파이낸스 검색 exchange 필터 제거 ======================
-    # 기존: us_exchanges 리스트로 NYQ/NMS/NYSE/NASDAQ만 허용 → 비트마인, 써클 등 신규/특수 상장
-    # 종목이 PCX, OTC 등 다른 exchange 코드로 반환될 경우 탈락하는 문제 발생
-    # 수정: exchange 필터를 완전히 제거하고 EQUITY/ETF 타입만 확인
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
         res = requests.get(url, headers=headers, timeout=5)
         data = res.json()
         if 'quotes' in data and len(data['quotes']) > 0:
+            us_exchanges = ['NYQ', 'NMS', 'NYSE', 'NASDAQ']
+            for quote in data['quotes']:
+                if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange', '').upper() in us_exchanges:
+                    return quote['symbol']
             for quote in data['quotes']:
                 if quote.get('type') in ['EQUITY', 'ETF']:
                     return quote['symbol']
@@ -455,13 +502,9 @@ def get_ticker_symbol(search_term):
         3. 확신할 수 없다면 절대 임의의 숫자를 지어내지 마세요.
         4. 사고 과정 추가 설명 없이 오직 '티커 기호' 하나만 출력하세요."""
         trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
-        eng_ticker = trans_response.text.strip().upper()
-        
-        lines = [line.strip() for line in eng_ticker.split('\n') if line.strip() and not line.startswith('THOUGHT')]
-        if lines:
-            match = re.search(r'[A-Z0-9]+\.[A-Z]+|[A-Z0-9]+', lines[-1])
-            if match:
-                return match.group(0)
+        extracted = _extract_ticker_from_gemini_response(trans_response.text)
+        if extracted:
+            return extracted
     except:
         pass
        
