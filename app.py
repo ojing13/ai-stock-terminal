@@ -430,16 +430,16 @@ def get_ticker_symbol(search_term):
     except:
         pass
        
+    # ====================== [버그 수정] 야후 파이낸스 검색 exchange 필터 제거 ======================
+    # 기존: us_exchanges 리스트로 NYQ/NMS/NYSE/NASDAQ만 허용 → 비트마인, 써클 등 신규/특수 상장
+    # 종목이 PCX, OTC 등 다른 exchange 코드로 반환될 경우 탈락하는 문제 발생
+    # 수정: exchange 필터를 완전히 제거하고 EQUITY/ETF 타입만 확인
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
         res = requests.get(url, headers=headers, timeout=5)
         data = res.json()
         if 'quotes' in data and len(data['quotes']) > 0:
-            us_exchanges = ['NYQ', 'NMS', 'NYSE', 'NASDAQ']
-            for quote in data['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange', '').upper() in us_exchanges:
-                    return quote['symbol']
             for quote in data['quotes']:
                 if quote.get('type') in ['EQUITY', 'ETF']:
                     return quote['symbol']
@@ -1528,7 +1528,3 @@ else:
         • 아무튼 100배쯤 똑똑해짐
     </div>
     """, unsafe_allow_html=True)
-
-
-
-
