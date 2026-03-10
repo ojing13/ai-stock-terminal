@@ -1576,6 +1576,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     이미 오른 것은 과거의 일입니다. 현재 주가와 시가총액을 출발점으로 하여,
                     앞으로 이 종목이 얼마나 더 오를 수 있는가를 냉정하게 평가하세요.
                     RETURN은 순수하게 상승 포텐셜만 평가합니다. 손실 가능성·하락 위험·손익비는 RISK와 SCORE에서 별도로 반영하므로 여기서는 절대 고려하지 마세요.
+                    또한 공매도 비중, 수급, 단기 기술적 하락 압력 같은 요소도 RETURN이 아닌 RISK에서 다루세요.
                     질문은 단 하나입니다: "지금 이 가격에서 이 종목은 앞으로 얼마나 더 오를 수 있는가?"
 
                     [A. 사업 성장 잠재력 — 가장 중요한 축]
@@ -1670,7 +1671,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             ret_s = max(0, min(100, return_score))
                             matrix_html = (
                                 '<div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ddd;">' +
-                                '<h4 style="text-align: center; margin-bottom: 25px; color: #333; font-weight: 700;">리스크 대비 기대수익 매트릭스</h4>' +
+                                '<h4 style="text-align: center; margin-bottom: 25px; color: #333; font-weight: 700;">위험-수익 매트릭스</h4>' +
                                 '<div style="position: relative; width: 100%; max-width: 450px; height: 300px; margin: 0 auto; background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 1px solid #dcdcdc; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">' +
                                 '<div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: #d0d0d0;"></div>' +
                                 '<div style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background-color: #d0d0d0;"></div>' +
