@@ -326,9 +326,17 @@ def get_korean_display_name(ticker, english_name):
         pass
     return english_name
 
-@st.cache_data(ttl=3600)
+# ====================== [버그 수정] 캐시 키 정규화 ======================
+# @st.cache_data는 함수 인자 원본을 캐시 키로 사용하므로
+# "리게티" 와 "리게티 " (띄어쓰기)는 서로 다른 캐시 키로 처리됨.
+# 한번 실패한 결과가 ttl=3600 동안 캐싱되면, 띄어쓰기 버전은 새 키라 재실행되어 성공하는 현상 발생.
+# 해결: 외부 진입점에서 strip() 정규화 후 캐시 함수로 위임하여 항상 동일한 키 보장.
 def get_ticker_symbol(search_term):
-    search_term = search_term.strip()
+    """외부 진입점. strip() 정규화 후 캐시된 내부 함수로 위임."""
+    return _get_ticker_symbol_cached(search_term.strip())
+
+@st.cache_data(ttl=3600)
+def _get_ticker_symbol_cached(search_term):
     search_clean = search_term.replace(" ", "").upper()
     
     custom_mapping = {
