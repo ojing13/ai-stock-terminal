@@ -1633,65 +1633,27 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         report_text = response.text
 
-                      # 메인 리포트에서 직접 파싱
+                        # 메인 리포트에서 직접 파싱
                         import re as _re
-                        score_match = _re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
-                        risk_match  = _re.search(r'\[RISK:\s*(\d+)\s*\]',  report_text)
-                        return_match = _re.search(r'\[RETURN:\s*(\d+)\s*\]', report_text)
+                        score_match = re.search(r'\[SCORE:\s*(\d+)\s*\]', report_text)
+                        risk_match  = re.search(r'\[RISK:\s*(\d+)\s*\]',  report_text)
+                        return_match = re.search(r'\[RETURN:\s*(\d+)\s*\]', report_text)
 
                         final_score  = int(score_match.group(1))  if score_match  else None
                         risk_score   = int(risk_match.group(1))   if risk_match   else None
                         return_score = int(return_match.group(1)) if return_match else None
 
-                        # 리포트 본문 정리 및 판단 근거 추출
+                        # 리포트 본문 정리 (근거 서술 + 점수 태그 제거)
                         _cleaned = report_text.strip()
-                        reasoning_text = ""
-                        
-                        # 손절가 블록을 기준으로 메인 본문과 판단 근거를 완벽히 분리 (회색 박스에서 제거)
-                        split_match = _re.search(r'(#{2,4}\s*손절가:?.*?\n[^\n]+)\n+(.*)', _cleaned, flags=_re.DOTALL)
-                        if split_match:
-                            _cleaned = split_match.group(1).strip()
-                            reasoning_text = split_match.group(2).strip()
-                        else:
-                            # 만약 손절가 포맷이 다를 경우를 대비한 백업 분리 로직
-                            match_reasoning = _re.search(r'(1\s*\)\s*RISK.*|RISK\s*근거:.*|재무\s*리스크:.*|RISK=\d+.*)', _cleaned, flags=_re.DOTALL | _re.IGNORECASE)
-                            if match_reasoning:
-                                reasoning_text = match_reasoning.group(0)
-                                _cleaned = _cleaned[:match_reasoning.start()].strip()
-
-                        # 본문에서 태그 잔해 확실히 제거
+                        # 점수 산출 근거 블록 제거 (RISK 근거 or 1) RISK 점수 형식 둘 다 처리)
+                        _cleaned = _re.sub(r'(RISK 근거:|1\s*\)\s*RISK\s*점수).*', '', _cleaned, flags=_re.DOTALL).strip()
                         _cleaned = _re.sub(r'\[SCORE:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r'\[RISK:\s*\d+\]',  '', _cleaned)
                         _cleaned = _re.sub(r'\[RETURN:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
-                        
                         _html = md_to_html(_cleaned)
+                        st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
                         
-                        # 판단 근거 텍스트 포맷팅 (아주 작은 글씨 + [A] 등 불필요 요소 제거)
-                        reasoning_html = ""
-                        if reasoning_text:
-                            _r_text = reasoning_text
-                            _r_text = _re.sub(r'\[SCORE:\s*\d+\]', '', _r_text)
-                            _r_text = _re.sub(r'\[RISK:\s*\d+\]',  '', _r_text)
-                            _r_text = _re.sub(r'\[RETURN:\s*\d+\]', '', _r_text)
-                            _r_text = _re.sub(r'\[[A-Za-z]\]\s*', '', _r_text) # [A], [B] 기호 제거
-                            _r_text = _re.sub(r'^[A-Za-z]\.\s*', '', _r_text, flags=_re.MULTILINE) # A., B. 제거
-                            _r_text = _re.sub(r'\d\s*\)\s*.*?(?:확정|결정)하세요\.*', '', _r_text) # AI 지시문 반복 제거
-                            _r_text = _re.sub(r'(?:^|\n)\s*근거:\s*', '\n', _r_text) 
-                            _r_text = _re.sub(r'RISK=\d+, RETURN=\d+.*?바탕으로\s*(판단할 때|판단하여)?,?\s*', '', _r_text) # 불필요한 반복 서두 제거
-                            
-                            # 빈 줄 제거 및 줄바꿈 처리
-                            lines = [line.strip() for line in _r_text.split('\n') if line.strip() and len(line.strip()) > 2]
-                            reasoning_content = '<br>'.join(lines)
-
-                            if reasoning_content:
-                                reasoning_html = (
-                                    '<div style="margin-top: 20px; padding: 0 10px; text-align: left;">'
-                                    '<div style="font-size: 11px; font-weight: 800; color: #333; margin-bottom: 4px;">판단 근거</div>'
-                                    f'<div style="font-size: 10px; color: #888; line-height: 1.5; word-break: keep-all;">{reasoning_content}</div>'
-                                    '</div>'
-                                )
-
                         # 매트릭스: RISK/RETURN 독립 처리 (SCORE 파싱 실패해도 표시)
                         matrix_html = ""
                         if risk_score is not None and return_score is not None:
@@ -1708,8 +1670,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 '<div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div>' +
                                 '<div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div>' +
                                 f'<div style="position: absolute; top: calc({100 - ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div>' +
-                                '</div>' + reasoning_html + '</div>'
+                                '</div></div>'
                             )
+
                         # 투자의견 바: SCORE 있을 때만 표시, 없으면 매트릭스만 단독 표시
                         bar_html = ""
                         if final_score is not None:
@@ -1760,5 +1723,3 @@ else:
         • 아무튼 100배쯤 똑똑해짐
     </div>
     """, unsafe_allow_html=True)
-
-
