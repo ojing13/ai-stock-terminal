@@ -1376,8 +1376,97 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     st.markdown(_c["bar_html"].replace('\n', ''), unsafe_allow_html=True)
             elif _do_generate:
                 with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
+                    # ===== 종목 유형 자동 판별 =====
+                    # yfinance quoteType, 종목명/티커 키워드로 종목 성격 감지
+                    _quote_type = info.get('quoteType', '').upper()
+                    _category = (info.get('category') or info.get('fundFamily') or '').upper()
+                    _name_upper = display_name.upper()
+                    _ticker_upper = ticker.upper()
+
+                    # ===== 채권/금리형 ETF 세분화 감지 =====
+                    # 초단기/금리형: KOFR, SOFR, CD금리, MMF, T-Bill 등 → 사실상 현금, 거의 무위험
+                    _cash_keywords = ['KOFR', 'SOFR', 'LIBOR', 'CD금리', 'T-BILL', 'TBILL',
+                                      'MONEY MARKET', 'MMF', '초단기', 'ULTRA SHORT', 'CASH',
+                                      '통안채', '단기채']
+                    # 장기채권: TLT, 국채 20년/30년 등 → 금리 민감도 높아 변동성 큼
+                    _longbond_keywords = ['TLT', 'EDV', 'ZROZ', '20년', '30년', 'LONG BOND',
+                                          'LONG TERM', '장기채', '장기국채']
+                    # 일반 채권: BND, AGG, IEF, 국채, 회사채 등 → 중간 수준
+                    _bond_keywords = ['BOND', 'TREASURY', 'FIXED INCOME', 'AGGREGATE',
+                                      'AGG', 'BND', 'IEF', 'SHY', '채권', '국채', '회사채']
+
+                    _is_cash_etf = (
+                        any(kw in _name_upper for kw in _cash_keywords) or
+                        any(kw in _ticker_upper for kw in _cash_keywords)
+                    )
+                    _is_longbond_etf = (
+                        any(kw in _name_upper for kw in _longbond_keywords) or
+                        any(kw in _ticker_upper for kw in _longbond_keywords)
+                    )
+                    _is_bond_etf = (
+                        _is_cash_etf or _is_longbond_etf or
+                        any(kw in _name_upper for kw in _bond_keywords) or
+                        any(kw in _ticker_upper for kw in _bond_keywords) or
+                        any(kw in _category for kw in _bond_keywords)
+                    )
+
+                    # 일반 ETF/인덱스 감지
+                    _index_keywords = ['S&P', 'NASDAQ', 'KOSPI', 'KOSDAQ', 'INDEX', '인덱스',
+                                       'TIGER', 'KODEX', 'ARIRANG', 'KINDEX', 'HANARO',
+                                       'SPY', 'QQQ', 'VTI', 'VOO', 'IVV']
+                    _is_etf = _quote_type == 'ETF' or any(kw in _name_upper for kw in _index_keywords)
+
+                    # 종목 유형 컨텍스트 — 숫자 고정 없이 올바른 평가 기준점만 제시, 판단은 AI에게 위임
+                    if _is_cash_etf:
+                        _asset_context = (
+                            '[종목 유형 컨텍스트 - 반드시 점수 산정에 반영할 것]\n'
+                            '이 종목은 초단기채권/금리형 ETF(현금성 자산)입니다.\n'
+                            '- RISK 평가 기준: 주식이 아닌 현금성 자산 기준으로 평가하세요.\n'
+                            '  주식시장 전체가 폭락해도 이 상품은 거의 영향받지 않습니다.\n'
+                            '  금리 방향성 리스크도 거의 없습니다(단기물이라 듀레이션 극히 짧음).\n'
+                            '  현금성 자산 중 가장 안전한 축에 속합니다.\n'
+                            '- RETURN 평가 기준: 현재 기준금리 수준의 수익(연 3~5%)만 기대 가능합니다.\n'
+                            '  주가 상승 포텐셜은 구조적으로 없으며, 금리 인하 시 수익률이 낮아집니다.\n'
+                            '- SCORE 평가 기준: 성장성은 없지만 자산 보전 및 현금 대체 수단으로서의 가치를 반영하세요.'
+                        )
+                    elif _is_longbond_etf:
+                        _asset_context = (
+                            '[종목 유형 컨텍스트 - 반드시 점수 산정에 반영할 것]\n'
+                            '이 종목은 장기채권 ETF입니다.\n'
+                            '- RISK 평가 기준: 채권이지만 듀레이션이 길어 금리 변동에 매우 민감합니다.\n'
+                            '  금리 1% 상승 시 가격이 15~20% 급락할 수 있어 일부 주식보다 변동성이 큽니다.\n'
+                            '  금리 방향성 리스크를 일반 채권보다 훨씬 높게 반영하세요.\n'
+                            '- RETURN 평가 기준: 금리 하락 사이클에서는 큰 자본이득이 가능하나,\n'
+                            '  금리 상승 사이클에서는 반대로 큰 손실이 납니다. 현재 금리 방향성을 반드시 고려하세요.\n'
+                            '- SCORE 평가 기준: 현재 금리 수준과 방향성이 핵심입니다.'
+                        )
+                    elif _is_bond_etf:
+                        _asset_context = (
+                            '[종목 유형 컨텍스트 - 반드시 점수 산정에 반영할 것]\n'
+                            '이 종목은 채권형 ETF입니다.\n'
+                            '- RISK 평가 기준: 주식보다 낮지만, 금리 상승기에는 가격 하락 리스크가 있습니다.\n'
+                            '  듀레이션(잔존만기)에 따라 금리 민감도가 다르므로 이를 반영하세요.\n'
+                            '  신용등급에 따라 회사채는 디폴트 리스크도 고려해야 합니다.\n'
+                            '- RETURN 평가 기준: 이자 수익 + 금리 하락 시 자본이득이 전부입니다.\n'
+                            '  주식처럼 폭발적 상승은 없으나, 금리 방향성에 따라 의미 있는 수익도 가능합니다.\n'
+                            '- SCORE 평가 기준: 현재 금리 수준과 경기 사이클을 반드시 고려해 평가하세요.'
+                        )
+                    elif _is_etf:
+                        _asset_context = (
+                            '[종목 유형 컨텍스트 - 반드시 점수 산정에 반영할 것]\n'
+                            '이 종목은 주식형 ETF 또는 인덱스 펀드입니다.\n'
+                            '- RISK 평가 기준: 개별 종목보다 분산투자 효과로 RISK가 낮습니다.\n'
+                            '  다만 추종 지수/섹터의 시장 리스크는 그대로 반영됩니다.\n'
+                            '- RETURN 평가 기준: 추종 지수의 장기 성장성을 반영하세요.\n'
+                            '  개별 종목처럼 폭발적 상승은 어렵지만 꾸준한 수익은 가능합니다.\n'
+                            '- SCORE 평가 기준: 해당 ETF가 추종하는 섹터/지역/전략의 특성에 맞게 평가하세요.'
+                        )
+                    else:
+                        _asset_context = ''  # 일반 주식은 컨텍스트 없음
+
                     prompt = f"""
                     오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합적으로 분석해주세요.
+                    {_asset_context}
                     
                     [1. 현재 가격 및 기술적 지표]
                     - 현재가: {current_price:{price_fmt}} {currency}
