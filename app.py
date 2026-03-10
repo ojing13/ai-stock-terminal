@@ -360,9 +360,7 @@ def get_ticker_symbol(search_term):
         "QQQ": "QQQ",
         "스파이": "SPY",
         "SPY": "SPY",
-        "디어유": "376300.KQ",
-        "비트마인": "BMNR",
-        "써클": "CRCL"
+        "디어유": "376300.KQ"  
     }
     
     if search_clean in custom_mapping:
