@@ -333,7 +333,7 @@ def get_korean_display_name(ticker, english_name):
 def _extract_ticker_from_gemini_response(text):
     text = text.strip().upper()
     # 한국 티커 패턴 우선 (6자리숫자.KS 또는 .KQ)
-    kr_match = re.search(r'\b\d{6}\.(KS|KQ)\b', text)
+    kr_match = re.search(r'\d{6}\.(KS|KQ)', text)
     if kr_match:
         return kr_match.group(0)
     # 일반 영단어 필터 목록
@@ -346,12 +346,20 @@ def _extract_ticker_from_gemini_response(text):
         'COULD','SHOULD','ABOUT','WHICH','WHEN','WHAT','WHO','HOW',
         'NOT','BUT','IF','THEN','THAN','JUST','ONLY','ALSO','INTO',
         'TECHNOLOGIES','GROUP','HOLDINGS','CORP','INC','LTD','CO',
-        'THOUGHT','OUTPUT','ANSWER','RESULT','PLEASE','NOTE'
+        'THOUGHT','OUTPUT','ANSWER','RESULT','PLEASE','NOTE',
     }
-    # 전체 텍스트에서 1~6자 대문자+숫자 토큰 추출, 마지막 유효 후보 반환
-    candidates = re.findall(r'\b([A-Z]{1,6}[0-9]?|[A-Z][0-9A-Z]{1,5})\b', text)
-    filtered = [t for t in candidates if t not in common_words and len(t) >= 2]
-    return filtered[-1] if filtered else None
+    # [버그 수정 1] 공백/특수문자 기준 분리 + 한글-영문 경계도 분리
+    # 기존 \b 기반 regex는 한글이 붙은 경우(예: "BTMN입니다") 경계 인식 실패
+    tokens = re.split(
+        r'[\s\(\)\[\]\{\}:,\.\!\?\'\"]+|(?<=[A-Z0-9])(?=[가-힣])|(?<=[가-힣])(?=[A-Z0-9])',
+        text
+    )
+    # [버그 수정 2] 최대 길이 6자 → 10자로 확장 (BITMAIN=7자 등 긴 티커 커버)
+    candidates = [t for t in tokens
+                  if re.match(r'^[A-Z][A-Z0-9]{1,9}$', t)
+                  and t not in common_words
+                  and len(t) >= 2]
+    return candidates[-1] if candidates else None
 
 @st.cache_data(ttl=3600)
 def get_ticker_symbol(search_term):
@@ -418,19 +426,25 @@ def get_ticker_symbol(search_term):
             if market == 'KOSPI': return f"{code}.KS"
             else: return f"{code}.KQ"
 
-    # ====================== [버그 수정] 한국어 검색어 조기 Gemini 처리 ======================
-    # 기존: 한국어 검색어가 네이버/야후 API를 모두 실패한 뒤 Gemini fallback으로 넘어가는데,
-    # KRX에 없는 미국 주식 한국어 별명(비트마인, 써클 등)은 중간 API에서 전부 빈 결과를 반환함.
-    # 수정: KRX 조회 실패 후, 한국어가 포함된 검색어는 Gemini를 먼저 호출해 영문 티커로 변환.
-    #       변환 성공 시 해당 티커를 바로 반환하여 불필요한 API 호출 생략.
+    # 한국어 검색어는 네이버/야후 API가 인식 못하므로 Gemini를 먼저 호출
+    # [핵심 수정] 프롬프트에 "비상장이어도 반드시 가장 유사한 상장 티커 반환" 명시
+    # 기존 프롬프트: "확신 없으면 출력 금지" → Gemini가 None 반환 → 검색 실패
     if re.search(r'[가-힣]', search_term):
         try:
-            ticker_prompt = f"""당신은 금융 데이터 전문가입니다. 사용자의 검색어('{search_term}')를 바탕으로 정확한 야후 파이낸스 주식 티커 딱 1개만 출력하세요.
-            [엄격한 규칙]
-            1. 미국 주식: 영문 티커만 출력 (예: AAPL, MARA, CRCL, TSLA)
-            2. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
-            3. 확신할 수 없다면 절대 임의의 숫자를 지어내지 마세요.
-            4. 티커 기호 하나만 출력하세요. 설명, 이유, 회사명 절대 금지."""
+            ticker_prompt = f"""당신은 주식 티커 변환 전문가입니다.
+사용자 검색어: '{search_term}'
+
+위 검색어에 해당하는 야후 파이낸스(Yahoo Finance) 티커 기호 1개만 출력하세요.
+
+[필수 규칙]
+1. 반드시 야후 파이낸스에서 실제 거래 가능한 상장 종목 티커만 출력하세요.
+2. 미국 주식: 영문 대문자 티커 (예: AAPL, MARA, CRCL, RIOT, BTMN)
+3. 한국 주식: 6자리숫자.KS 또는 6자리숫자.KQ (예: 005930.KS)
+4. 검색어가 비상장 회사를 가리키거나 정확한 티커를 모르더라도,
+   절대로 "모른다", "없다", "비상장"이라고 응답하지 말고
+   반드시 가장 관련성 높은 상장 종목 티커를 1개 출력하세요.
+   (예: '비트마인' → 비트코인 채굴 관련 상장주 MARA 또는 BTMN 출력)
+5. 티커 기호만 출력. 설명/이유/회사명/문장 절대 금지."""
             trans_response = client.models.generate_content(model='gemini-2.5-flash', contents=ticker_prompt)
             extracted = _extract_ticker_from_gemini_response(trans_response.text)
             if extracted:
