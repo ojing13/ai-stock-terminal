@@ -1590,13 +1590,11 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 시가총액 한계: 시총이 이미 매우 크다면 수배 상승은 구조적으로 어렵습니다. 단, 성장 잠재력이 그만큼 크다면 상향 반영하세요.
                     - 52주 위치({round((current_price - low_52) / (high_52 - low_52) * 100) if high_52 != low_52 else 50}%): 단기 기술적 참고만 하세요. 장기 성장성이 확실하다면 52주 위치의 영향은 최소화하세요.
 
-                    [점수 기준 — 종목 유형별 현실적 기준점]
-                    - 100점대: 초기 성장 산업의 소형주, 성공 시 수배~수십배 가능, 사업 잠재력 매우 큼
-                    - 70~90점대: 빠르게 성장 중인 중형주, 명확한 성장 드라이버 존재, 밸류에이션 부담 크지 않음
-                    - 50~70점대: 안정적 대형 성장주(빅테크 등), 꾸준한 성장 가능하나 수배 상승은 어려움
-                    - 30~50점대: 성숙 대형주·인덱스 ETF, 시장 평균 수준의 완만한 성장 기대
-                    - 10~30점대: 성장 정체 산업, 배당주, 일반 채권 ETF
-                    - 0~10점대: 현금성 자산·초단기채권 ETF, 구조적으로 주가 상승 없음
+                    [점수 산정 원칙]
+                    점수를 미리 정해진 카테고리에 끼워 맞추지 마세요.
+                    위의 [A] 사업 성장 잠재력과 [B] 현재 가격 대비 업사이드를 종합하여,
+                    이 종목 고유의 상황을 입체적으로 판단한 결과를 점수로 표현하세요.
+                    동일 업종이라도 기업의 경쟁 우위, 성장 단계, 시장 내 위치에 따라 점수가 크게 달라질 수 있습니다.
 
                     0(추가 상승 기대 거의 없음) ~ 100(지금 가격 기준 수배 이상 상승 가능).
 
@@ -1643,9 +1641,23 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         risk_score   = int(risk_match.group(1))   if risk_match   else None
                         return_score = int(return_match.group(1)) if return_match else None
 
-                        # 리포트 본문 정리 (근거 서술 + 점수 태그 제거)
+                        # 리포트 본문 정리 + 판단 근거 따로 파싱
                         _cleaned = report_text.strip()
-                        # 점수 산출 근거 블록 제거 (RISK 근거 or 1) RISK 점수 형식 둘 다 처리)
+
+                        # 판단 근거 블록 추출 (점수 태그 앞 근거 텍스트)
+                        _rationale = ""
+                        _rat_match = _re.search(
+                            r'((?:RISK\s*근거|1\s*\)\s*RISK\s*점수).+?)(?:\[RISK:\s*\d+\])',
+                            _cleaned, flags=_re.DOTALL
+                        )
+                        if _rat_match:
+                            _rationale = _rat_match.group(1).strip()
+                            # 마크다운 줄바꿈 → <br> 변환, 태그 제거
+                            _rationale = _re.sub(r'\*\*(.+?)\*\*', r'<b>\\1</b>', _rationale)
+                            _rationale = _re.sub(r'\n+', ' &nbsp;\u00b7&nbsp; ', _rationale).strip()
+
+
+                        # 본문에서 근거 블록 + 점수 태그 제거
                         _cleaned = _re.sub(r'(RISK 근거:|1\s*\)\s*RISK\s*점수).*', '', _cleaned, flags=_re.DOTALL).strip()
                         _cleaned = _re.sub(r'\[SCORE:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r'\[RISK:\s*\d+\]',  '', _cleaned)
@@ -1670,7 +1682,13 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 '<div style="position: absolute; bottom: 10px; left: 10px; font-size: 13px; font-weight: 800; color: #555555;">저위험 저수익</div>' +
                                 '<div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div>' +
                                 f'<div style="position: absolute; top: calc({100 - ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div>' +
-                                '</div></div>'
+                                '</div>' +
+                                # 판단 근거 섹션 (매트릭스 바로 아래)
+                                (f'<div style="margin-top: 16px; padding: 10px 14px; border-top: 1px solid #e8e8e8;">'
+                                 f'<span style="font-size: 10px; font-weight: 700; color: #555; letter-spacing: 0.3px;">판단근거</span>'
+                                 f'<p style="margin: 4px 0 0 0; font-size: 10px; color: #777; line-height: 1.6;">{_rationale}</p>'
+                                 f'</div>' if _rationale else '') +
+                                '</div>'
                             )
 
                         # 투자의견 바: SCORE 있을 때만 표시, 없으면 매트릭스만 단독 표시
