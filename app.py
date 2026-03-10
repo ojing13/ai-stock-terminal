@@ -1607,18 +1607,13 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     RISK가 높고 RETURN이 낮으면 SCORE는 낮아야 하고, RISK가 낮고 RETURN이 높으면 SCORE는 높아야 합니다.
                     0(절대 안 한다) ~ 50(중립) ~ 100(강하게 확신하고 넣는다).
 
-                    점수 산출 순서 — 반드시 아래 순서를 지키세요:
-                    1) RISK 점수를 먼저 확정하세요.
-                       근거: 재무 리스크 / 밸류에이션 리스크 / 사업구조 리스크 / 거시 리스크 각각 한 줄씩
-                    2) RETURN 점수를 확정하세요.
-                       근거: [A] 이 종목의 산업·사업 성장 잠재력 판단 한 줄 + [B] 현재 가격 대비 업사이드 판단 한 줄
-                    3) SCORE는 위에서 확정한 RISK와 RETURN 수치를 직접 보고 결정하세요.
-                       근거: RISK=[확정값], RETURN=[확정값]을 바탕으로 손익비 판단 한 줄
-                       (RISK 높고 RETURN 낮으면 → SCORE 낮음 / RISK 낮고 RETURN 높으면 → SCORE 높음)
+                    리포트 본문 작성을 모두 마친 후, 맨 마지막에 아래 형식을 반드시 그대로 따르세요.
+                    아래 블록은 점수와 근거를 파싱하는 데 사용됩니다. 형식을 절대 바꾸지 마세요.
 
-                    근거 서술 후, 맨 마지막에 아래 형식으로만 출력하세요.
-                    세 점수는 위에 서술한 근거와 반드시 일치해야 합니다.
-                    1단위로 정밀하게 평가하세요.
+                    **판단근거:**
+                    - RISK 근거: [재무/밸류에이션/사업구조/거시 리스크 각각 한 줄]
+                    - RETURN 근거: [산업·사업 성장 잠재력 + 현재 가격 대비 업사이드 판단 한 줄]
+                    - SCORE 근거: [RISK와 RETURN을 바탕으로 손익비 판단 한 줄]
 
                     [RISK: 숫자]
                     [RETURN: 숫자]
@@ -1644,21 +1639,18 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         # 리포트 본문 정리 + 판단 근거 따로 파싱
                         _cleaned = report_text.strip()
 
-                        # 판단 근거 블록 추출 (점수 태그 앞 근거 텍스트)
+                        # 판단 근거 블록 추출 — 고정 키워드 "**판단근거:**" 기준으로 파싱
                         _rationale = ""
-                        _rat_match = _re.search(
-                            r'((?:RISK\s*근거|1\s*\)\s*RISK\s*점수).+?)(?:\[RISK:\s*\d+\])',
-                            _cleaned, flags=_re.DOTALL
-                        )
-                        if _rat_match:
-                            _rationale = _rat_match.group(1).strip()
-                            # 마크다운 줄바꿈 → <br> 변환, 태그 제거
-                            _rationale = _re.sub(r'\*\*(.+?)\*\*', r'<b>\\1</b>', _rationale)
-                            _rationale = _re.sub(r'\n+', ' &nbsp;\u00b7&nbsp; ', _rationale).strip()
+                        _판단근거_start = _re.search(r'\*\*판단근거:\*\*', _cleaned)
+                        _판단근거_end   = _re.search(r'\[RISK:\s*\d+\]', _cleaned)
+                        if _판단근거_start and _판단근거_end and _판단근거_start.start() < _판단근거_end.start():
+                            _rationale = _cleaned[_판단근거_start.end():_판단근거_end.start()].strip()
+                            _rationale = _re.sub(r'\*\*(.+?)\*\*', r'\1', _rationale)  # ** 제거
+                            _rationale = _re.sub(r'#+\s*', '', _rationale)              # 헤딩 제거
+                            _rationale = _re.sub(r'\n+', ' · ', _rationale).strip()
 
-
-                        # 본문에서 근거 블록 + 점수 태그 제거
-                        _cleaned = _re.sub(r'(RISK 근거:|1\s*\)\s*RISK\s*점수).*', '', _cleaned, flags=_re.DOTALL).strip()
+                        # 본문에서 "**판단근거:**" 이후 전체 제거 (점수 태그 포함)
+                        _cleaned = _re.sub(r'\*\*판단근거:\*\*.*', '', _cleaned, flags=_re.DOTALL).strip()
                         _cleaned = _re.sub(r'\[SCORE:\s*\d+\]', '', _cleaned)
                         _cleaned = _re.sub(r'\[RISK:\s*\d+\]',  '', _cleaned)
                         _cleaned = _re.sub(r'\[RETURN:\s*\d+\]', '', _cleaned)
