@@ -1410,6 +1410,18 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         any(kw in _category for kw in _bond_keywords)
                     )
 
+                    # 레버리지 ETF 감지 (반드시 일반 ETF보다 먼저 체크)
+                    _lev_keywords = ['TQQQ', 'SQQQ', 'UPRO', 'SPXU', 'UDOW', 'SDOW',
+                                     'TECL', 'TECS', 'LABU', 'LABD', 'SOXL', 'SOXS',
+                                     'TMF', 'TMV', 'TNA', 'TZA', 'FAS', 'FAZ',
+                                     '레버리지', '인버스', '2X', '3X', '곱버스',
+                                     'LEVERAGE', 'INVERSE', 'ULTRA', 'BEAR', 'BULL',
+                                     'DIREXION', 'PROSHARES']
+                    _is_lev_etf = (
+                        any(kw in _name_upper for kw in _lev_keywords) or
+                        any(kw in _ticker_upper for kw in _lev_keywords)
+                    )
+
                     # 일반 ETF/인덱스 감지
                     _index_keywords = ['S&P', 'NASDAQ', 'KOSPI', 'KOSDAQ', 'INDEX', '인덱스',
                                        'TIGER', 'KODEX', 'ARIRANG', 'KINDEX', 'HANARO',
@@ -1417,7 +1429,22 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     _is_etf = _quote_type == 'ETF' or any(kw in _name_upper for kw in _index_keywords)
 
                     # 종목 유형 컨텍스트 — 숫자 고정 없이 올바른 평가 기준점만 제시, 판단은 AI에게 위임
-                    if _is_cash_etf:
+                    if _is_lev_etf:
+                        _asset_context = (
+                            '[종목 유형 컨텍스트 - 반드시 점수 산정에 반영할 것]\n'
+                            '이 종목은 레버리지/인버스 ETF입니다.\n'
+                            '- RISK 평가 기준: 기초지수 변동의 2~3배 손익이 발생하는 고위험 상품입니다.\n'
+                            '  하락장에서는 일반 ETF 대비 2~3배의 손실이 납니다.\n'
+                            '  장기 보유 시 변동성 손실(volatility decay) 효과로 수익이 예상보다 낮아질 수 있습니다.\n'
+                            '  RISK는 기초지수 ETF보다 구조적으로 높게 평가하세요.\n'
+                            '- RETURN 평가 기준: 기초지수 상승 시 2~3배의 수익이 구조적으로 발생합니다.\n'
+                            '  이미 많이 올랐다는 논리는 레버리지 ETF에 동일하게 적용할 수 없습니다.\n'
+                            '  기초지수(예: QQQ는 나스닥100)가 앞으로 상승할 여력이 있다면,\n'
+                            '  레버리지 ETF의 RETURN은 기초지수 ETF보다 반드시 높아야 합니다.\n'
+                            '  단, 변동성 손실과 횡보장 리스크도 함께 반영하세요.\n'
+                            '- SCORE 평가 기준: 고위험 고수익 상품임을 전제로, 기초지수의 방향성 전망이 핵심입니다.'
+                        )
+                    elif _is_cash_etf:
                         _asset_context = (
                             '[종목 유형 컨텍스트 - 반드시 점수 산정에 반영할 것]\n'
                             '이 종목은 초단기채권/금리형 ETF(현금성 자산)입니다.\n'
