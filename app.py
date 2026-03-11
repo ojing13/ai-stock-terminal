@@ -1556,45 +1556,31 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 출처 표기 절대 금지: 문장 끝에 (1, 5, 20) 같은 기사 번호를 괄호로 적는 행위를 완벽하게 금지합니다.
                     - 뉴스 헤드라인 직접 인용 절대 금지: 기사 제목이나 헤드라인을 따옴표로 그대로 쓰지 마세요.
                     
-                    리포트 본문 작성 후, 맨 마지막 줄에 반드시 아래 세 점수를 출력하세요.
+                    리포트 본문 작성을 모두 마친 후, 맨 마지막에 아래 형식을 반드시 정확히 작성하세요.
+                    아래 블록은 파싱에 사용됩니다. 형식을 절대 바꾸지 마세요.
 
-                    참고 수치 (점수 산출 시 직접 활용):
+                    참고 수치:
                     - 현재가의 52주 범위 위치: {round((current_price - low_52) / (high_52 - low_52) * 100) if high_52 != low_52 else 50}% (0%=52주최저, 100%=52주최고)
-                    - 현재가: {current_price:{price_fmt}} / 52주 고: {high_52:{price_fmt}} / 52주 저: {low_52:{price_fmt}} ({currency})
                     - 시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}
 
-                    리포트 본문 작성을 모두 마친 후, 맨 마지막에 아래 형식을 반드시 정확히 작성하세요.
-
                     **판단근거:**
-                    - RISK 근거: [재무안전성·사업경쟁력·밸류에이션 관점에서 핵심 리스크 한 줄. 업종 특성 반영(금융주 고부채=정상, 바이오 적자=감안)]
-                    - RETURN 근거: [산업 성장 잠재력 + 현재 가격 기준 추가 상승 여력 한 줄. 손실·하락 위험 언급 절대 금지]
-                    - SCORE 근거: [RISK와 RETURN 수치 기반 손익비 종합 판단 한 줄]
+                    - RISK 근거: [아래 두 가지를 각각 한 줄로 판단한 뒤 종합. 업종 특성 반영(금융주 고부채=정상, 바이오 적자=감안)]
+                      · 생존가능성: 현금·부채·유동성 기준으로 단기 파산·유동성 위기 가능성
+                      · 하락여지: 현재 주가가 고평가되어 있어 추가 하락할 여지
+                    - RETURN 근거: [아래 두 가지를 각각 한 줄로 판단한 뒤 종합. 손실·하락 위험 절대 언급 금지]
+                      · 성장천장: 이 사업이 구조적으로 얼마나 더 커질 수 있는가
+                      · 현재반영도: 그 성장이 지금 주가에 얼마나 반영되지 않았는가 (덜 반영될수록 RETURN 높음)
+                    - SCORE 근거: [위의 RISK와 RETURN 수치를 직접 명시하며 손익비 판단. 예: "RISK 72, RETURN 68이므로..."]
 
-                    **RISK 평가표:**
-                    재무안전성: 매우안전 또는 안전 또는 위험 또는 매우위험
-                    사업경쟁력: 매우강함 또는 강함 또는 약함 또는 매우약함
-                    밸류에이션부담: 매우낮음 또는 낮음 또는 높음 또는 매우높음
+                    위 판단을 마친 뒤, 아래 점수를 산출하세요.
+                    RISK와 RETURN은 판단근거와 반드시 일치해야 합니다.
+                    생존가능성이 낮거나 하락여지가 크면 RISK는 높아야 합니다.
+                    성장천장이 높고 현재 주가에 덜 반영됐을수록 RETURN은 높아야 합니다.
+                    20, 40, 50, 60, 80 같은 경계값을 피하고 구체적인 숫자로 표현하세요.
 
-                    **RETURN 평가표:**
-                    산업성장성: 매우높음 또는 높음 또는 낮음 또는 매우낮음
-                    사업확장성: 매우높음 또는 높음 또는 낮음 또는 매우낮음
-                    현재가격여유: 매우충분 또는 충분 또는 부족 또는 매우부족
-
-                    위 레이블들을 종합하여, 각 점수를 직접 산출하세요.
-                    레이블이 전반적으로 위험/약함/높음이면 RISK는 자연히 높아야 하고,
-                    레이블이 전반적으로 매우높음/매우충분이면 RETURN은 자연히 높아야 합니다.
-                    단순 평균이 아니라, 가장 심각한 항목이 전체를 끌어올리도록 판단하세요.
-                    예: 재무는 안전해도 사업경쟁력이 매우약함이면 RISK는 높게.
-
-                    **최종 점수:** (0~100 정수, 아래 형식 그대로)
-                    [RISK: 35]
-                    [RETURN: 67]
-                    [SCORE: 58]
-
-                    위는 예시입니다. 실제 분석한 값으로 교체하세요.
-                    SCORE는 위에서 산출한 RISK와 RETURN을 직접 참조하세요.
-                    0(강력매도) ~ 50(중립) ~ 100(강력매수).
-                    20, 40, 50, 60, 80 같은 경계값은 피하고 구체적인 숫자로 표현하세요.
+                    [RISK: 숫자] ← 0(무위험)~100(극단적 위험). 판단근거 RISK와 반드시 일치
+                    [RETURN: 숫자] ← 0(상승여력 없음)~100(폭발적 상승 가능). 판단근거 RETURN과 반드시 일치
+                    [SCORE: 숫자] ← 0(강력매도)~100(강력매수). RISK와 RETURN 수치 직접 참조
                     """
                     try:
                         response = client.models.generate_content(
@@ -1618,42 +1604,13 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         return_score = _parse_num(report_text, 'RETURN')
                         final_score  = _parse_num(report_text, 'SCORE')
 
-                        # fallback: 숫자 파싱 실패 시 레이블로 추정
-                        _RISK_FB = {
-                            '재무안전성':    {'매우안전': 5, '안전': 25, '위험': 68, '매우위험': 92},
-                            '사업경쟁력':    {'매우강함': 5, '강함': 25, '약함': 68, '매우약함': 92},
-                            '밸류에이션부담': {'매우낮음': 5, '낮음': 25, '높음': 68, '매우높음': 92},
-                        }
-                        _RETURN_FB = {
-                            '산업성장성':   {'매우높음': 92, '높음': 68, '낮음': 28, '매우낮음': 8},
-                            '사업확장성':   {'매우높음': 92, '높음': 68, '낮음': 28, '매우낮음': 8},
-                            '현재가격여유': {'매우충분': 92, '충분': 68, '부족': 28, '매우부족': 8},
-                        }
-                        _SCORE_LABEL_MAP = {'강력매수': 88, '매수': 68, '중립': 48, '매도': 28, '강력매도': 10}
-
-                        def _fb_labels(text, lmap):
-                            vals = []
-                            for field, choices in lmap.items():
-                                m2 = re.search(rf'{re.escape(field)}\s*:\s*(\S+)', text)
-                                if m2 and m2.group(1) in choices:
-                                    vals.append(choices[m2.group(1)])
-                            if not vals: return None
-                            worst = max(vals); avg = sum(vals)/len(vals)
-                            return round(0.5*worst + 0.5*avg)
-
-                        if risk_score   is None: risk_score   = _fb_labels(report_text, _RISK_FB)
-                        if return_score is None: return_score = _fb_labels(report_text, _RETURN_FB)
-                        if final_score  is None:
-                            m3 = re.search(r'종합투자의견\s*:\s*(\S+)', report_text)
-                            if m3: final_score = _SCORE_LABEL_MAP.get(m3.group(1))
-
                         # 리포트 본문 정리 + 판단 근거 따로 파싱
                         _cleaned = report_text.strip()
 
-                        # 판단근거 파싱: **판단근거:** ~ **RISK 평가표:** 사이 텍스트 추출
+                        # 판단근거 파싱: **판단근거:** ~ [RISK: 숫자] 사이 텍스트 추출
                         _rationale = ""
                         _rat_s = _re.search(r'\*\*판단근거:\*\*', _cleaned)
-                        _rat_e = _re.search(r'\*\*RISK\s*평가표:\*\*', _cleaned)
+                        _rat_e = _re.search(r'\[RISK:\s*\d+\]', _cleaned)
                         if _rat_s and _rat_e and _rat_s.start() < _rat_e.start():
                             _rationale = _cleaned[_rat_s.end():_rat_e.start()].strip()
                             _rationale = _re.sub(r'\*\*(.+?)\*\*', r'\1', _rationale)
