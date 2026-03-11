@@ -93,12 +93,20 @@ st.markdown("""
     /* 종합 리포트 탭 (4번째) 강조 */
     .stTabs [data-baseweb="tab-list"] button:nth-child(4) {
         color: #e8490f !important;
+        background-color: #fff4f0 !important;
+        border-radius: 8px 8px 0 0 !important;
+        border: 1.5px solid #f5c4b2 !important;
+        border-bottom: 3px solid transparent !important;
     }
     .stTabs [data-baseweb="tab-list"] button:nth-child(4)[aria-selected="true"] {
-        color: #e8490f !important; border-bottom: 3px solid #e8490f !important;
+        color: #e8490f !important;
+        background-color: #fff4f0 !important;
+        border: 1.5px solid #f5c4b2 !important;
+        border-bottom: 3px solid #e8490f !important;
     }
     .stTabs [data-baseweb="tab-list"] button:nth-child(4):hover {
         color: #c73d0a !important;
+        background-color: #ffe8df !important;
     }
 
     /* ===== 버튼 ===== */
@@ -981,7 +989,7 @@ if user_input:
         v_cf_end = safe_get_fin(cf_df, ['End Cash Position'])
         v_dividend = safe_get_fin(cf_df, ['Cash Dividends Paid', 'Dividends Paid'])
 
-        tab1, tab2, tab3, tab4 = st.tabs(["차트 분석", "상세 재무", "최신 동향", "⭐ 종합 리포트"])
+        tab1, tab2, tab3, tab4 = st.tabs(["차트 분석", "상세 재무", "최신 동향", "종합 리포트"])
         
         # --- [탭 1: 차트 분석] ---
         with tab1:
