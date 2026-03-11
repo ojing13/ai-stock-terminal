@@ -1604,7 +1604,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     → 위 두 답을 종합하여 RISK를 판단하세요.
 
                     [RETURN 내부 판단 - 출력 금지]
-                    Q1. 52주 위치와 PEG(없으면 매출 성장률) 기준으로 현재 주가가 저평가인가? PER·PBR은 성장주에게 불리하므로 참고만 하세요.
+                    Q1. 52주 위치와 PEG(없으면 매출 성장률) 기준으로 현재 주가가 저평가인가? PER·PBR은 성장주에게 불리하므로 참고만 하세요. 단, 매출액이 0이거나 재무 지표를 확인할 수 없는 종목(SPAC, 임상 단계 바이오 등)은 이 질문을 생략하고 Q2만으로 판단하세요.
                     Q2. 현재 시가총액 규모 대비 이 사업의 구조적 성장천장은 어느 정도인가? 시총이 이미 거대하다면 추가 성장 배율이 자연히 제한되고, 시총이 작은 초기 성장주라면 성장천장이 높을 수 있음을 반드시 고려하세요.
                     → 위 두 답을 종합하여 RETURN을 판단하세요.
 
@@ -1660,6 +1660,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 if not m: return ""
                                 raw = m.group(1).strip()
                                 raw = _re.sub(r'\*\*(.+?)\*\*', r'\1', raw)
+                                raw = _re.sub(r'\*+', '', raw)  # 닫히지 않은 ** 잔여 제거
                                 raw = _re.sub(r'#+\s*', '', raw)
                                 raw = _re.sub(r'\s*\n\s*', ' ', raw)
                                 raw = _re.sub(r'\s{2,}', ' ', raw).strip()
