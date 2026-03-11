@@ -1632,6 +1632,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 
                         # 본문에서 '참고 수치:' 블록 및 '**판단근거:**' 이후 전체 제거
                         _cleaned = _re.sub(r'참고 수치:.*?(?=\*\*판단근거:\*\*)', '', _cleaned, flags=_re.DOTALL).strip()
+                        _cleaned = _re.sub(r'\*\*판단근거:\*\*.*', '', _cleaned, flags=_re.DOTALL).strip()
                         _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
                         _html = md_to_html(_cleaned)
                         st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
