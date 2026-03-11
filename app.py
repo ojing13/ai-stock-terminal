@@ -1475,7 +1475,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  기초지수(예: QQQ는 나스닥100)가 앞으로 상승할 여력이 있다면,\n'
                             '  레버리지 ETF의 RETURN은 기초지수 ETF보다 반드시 높아야 합니다.\n'
                             '  단, 변동성 손실과 횡보장 리스크도 함께 반영하세요.\n'
-                            '- SCORE 평가 기준: 고위험 고수익 상품임을 전제로, 기초지수의 방향성 전망이 핵심입니다.'
+                            ''
                         )
                     elif _is_cash_etf:
                         _asset_context = (
@@ -1487,7 +1487,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  현금성 자산 중 가장 안전한 축에 속합니다.\n'
                             '- RETURN 평가 기준: 현재 기준금리 수준의 수익(연 3~5%)만 기대 가능합니다.\n'
                             '  주가 상승 포텐셜은 구조적으로 없으며, 금리 인하 시 수익률이 낮아집니다.\n'
-                            '- SCORE 평가 기준: 성장성은 없지만 자산 보전 및 현금 대체 수단으로서의 가치를 반영하세요.'
+                            ''
                         )
                     elif _is_longbond_etf:
                         _asset_context = (
@@ -1498,7 +1498,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  금리 방향성 리스크를 일반 채권보다 훨씬 높게 반영하세요.\n'
                             '- RETURN 평가 기준: 금리 하락 사이클에서는 큰 자본이득이 가능하나,\n'
                             '  금리 상승 사이클에서는 반대로 큰 손실이 납니다. 현재 금리 방향성을 반드시 고려하세요.\n'
-                            '- SCORE 평가 기준: 현재 금리 수준과 방향성이 핵심입니다.'
+                            ''
                         )
                     elif _is_bond_etf:
                         _asset_context = (
@@ -1509,7 +1509,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  신용등급에 따라 회사채는 디폴트 리스크도 고려해야 합니다.\n'
                             '- RETURN 평가 기준: 이자 수익 + 금리 하락 시 자본이득이 전부입니다.\n'
                             '  주식처럼 폭발적 상승은 없으나, 금리 방향성에 따라 의미 있는 수익도 가능합니다.\n'
-                            '- SCORE 평가 기준: 현재 금리 수준과 경기 사이클을 반드시 고려해 평가하세요.'
+                            ''
                         )
                     elif _is_etf:
                         _asset_context = (
@@ -1519,7 +1519,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  다만 추종 지수/섹터의 시장 리스크는 그대로 반영됩니다.\n'
                             '- RETURN 평가 기준: 추종 지수의 장기 성장성을 반영하세요.\n'
                             '  개별 종목처럼 폭발적 상승은 어렵지만 꾸준한 수익은 가능합니다.\n'
-                            '- SCORE 평가 기준: 해당 ETF가 추종하는 섹터/지역/전략의 특성에 맞게 평가하세요.'
+                            ''
                         )
                     else:
                         _asset_context = ''  # 일반 주식은 컨텍스트 없음
@@ -1607,8 +1607,10 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 
                     감정이나 보수성을 개입시키지 말고 판단근거에만 근거하여 정직하게 산출하세요.
 
-                    [RISK: 숫자] ← 0(무위험)~100(극단적 위험). 판단근거 RISK와 반드시 일치
-                    [RETURN: 숫자] ← 0(상승여력 없음)~100(폭발적 상승 가능). 판단근거 RETURN과 반드시 일치
+                    아래 형식으로 정수만 출력하세요. 대괄호와 콜론을 반드시 포함하세요.
+                    [RISK: X]
+                    [RETURN: X]
+                    (X 자리에 실제 분석값 정수를 넣으세요)
                     """
                     try:
                         response = client.models.generate_content(
