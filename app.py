@@ -1607,10 +1607,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 
                     감정이나 보수성을 개입시키지 말고 판단근거에만 근거하여 정직하게 산출하세요.
 
-                    아래 형식으로 정수만 출력하세요. 대괄호와 콜론을 반드시 포함하세요.
-                    [RISK: X]
-                    [RETURN: X]
-                    (X 자리에 실제 분석값 정수를 넣으세요)
+                    아래 두 줄을 반드시 출력하세요. 대괄호·콜론·공백 형식을 그대로 지키고, 숫자 자리에 0~100 사이 실제 분석값을 넣으세요.
+                    [RISK: (여기에 숫자)]
+                    [RETURN: (여기에 숫자)]
                     """
                     try:
                         response = client.models.generate_content(
