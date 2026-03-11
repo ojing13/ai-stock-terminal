@@ -1599,7 +1599,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     **판단근거:**
                     - RISK 근거: [재무안전성·하락여지를 종합하여 한 문장으로. 업종 특성 반영(금융주 고부채=정상, 바이오 적자=감안). 30자 이상 80자 이내]
                     - RETURN 근거: [성장천장·현재반영도를 종합하여 한 문장으로. 손실·하락 위험 절대 언급 금지. 30자 이상 80자 이내]
-                    - SCORE 근거: [RISK 숫자와 RETURN 숫자를 직접 명시하며 손익비 판단 한 문장으로. 예: "RISK 72, RETURN 68이므로...". 30자 이상 80자 이내]
 
                     위 판단을 마친 뒤, 아래 점수를 산출하세요.
                     RISK와 RETURN은 판단근거와 반드시 일치해야 합니다.
@@ -1621,11 +1620,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         import re as _re
 
                         def _parse_num(text, tag):
-                            # 1순위: [TAG: 숫자] 대소문자 무관
+                            # [TAG: 숫자] 형식만 허용 — 본문 텍스트의 "RISK 72" 같은 표현 오염 방지
                             m = re.search(rf'\[{tag}:\s*(\d+)\s*\]', text, re.IGNORECASE)
-                            if m: return int(m.group(1))
-                            # 2순위: TAG: 숫자 (대괄호 없음)
-                            m = re.search(rf'\b{tag}\s*:\s*(\d+)', text, re.IGNORECASE)
                             if m: return int(m.group(1))
                             return None
 
@@ -1663,12 +1659,16 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             parts = []
                             if _r_reason:   parts.append(f'RISK\t{_r_reason}')
                             if _ret_reason: parts.append(f'RETURN\t{_ret_reason}')
-                            # SCORE 근거: AI 서술이 있으면 사용, 없으면 코드가 자동 생성
-                            if _sc_reason:
-                                parts.append(f'SCORE\t{_sc_reason}')
-                            elif risk_score is not None and return_score is not None:
+                            # SCORE 근거: 코드가 자동 생성
+                            if risk_score is not None and return_score is not None:
                                 _auto_sc = round((return_score - risk_score + 100) / 2)
-                                parts.append(f'SCORE\tRISK {risk_score}, RETURN {return_score} 기준으로 산출된 점수는 {_auto_sc}점입니다.')
+                                _auto_sc = max(0, min(100, _auto_sc))
+                                if   _auto_sc >= 81: _sc_label = "강력 매수"
+                                elif _auto_sc >= 61: _sc_label = "매수"
+                                elif _auto_sc >= 41: _sc_label = "중립"
+                                elif _auto_sc >= 21: _sc_label = "매도"
+                                else:                _sc_label = "강력 매도"
+                                parts.append(f'SCORE\tRISK {risk_score} · RETURN {return_score} 기준 {_auto_sc}점 → {_sc_label}')
                             _rationale = '\n'.join(parts)
 
                         # 본문에서 '참고 수치:' 블록 및 '**판단근거:**' 이후 전체 제거
@@ -1754,7 +1754,7 @@ else:
     <div style="margin-top: 50px; font-size: 13px; color: #9ca3af; line-height: 1.8;">
         <strong>업데이트 내용 (2026.03.10)</strong><br>
         • AI가 이전보다 훨씬 입체적으로 사고<br>
-        • 종합 리포트에서 AI 투자의견과 리스크 기대수익 매트릭스를 추가<br>
+        • 종합 리포트에서 AI 투자의견과 위험-수익 매트릭스를 추가<br>
         • 기타 자잘한 버그, 디자인 수정<br>
         • 아무튼 100배쯤 똑똑해짐
     </div>
