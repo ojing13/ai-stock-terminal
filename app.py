@@ -377,6 +377,9 @@ def _get_ticker_symbol_cached(search_term):
         "서클": "CRCL",
         "CIRCLE": "CRCL",
         "CRCL": "CRCL",
+        "리게티": "RGTI",
+        "RIGETTI": "RGTI",
+        "RGTI": "RGTI",
     }
     
     if search_clean in custom_mapping:
@@ -1564,13 +1567,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     - 시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}
 
                     **판단근거:**
-                    - RISK 근거: [아래 두 가지를 각각 한 줄로 판단한 뒤 종합. 업종 특성 반영(금융주 고부채=정상, 바이오 적자=감안)]
-                      · 생존가능성: 현금·부채·유동성 기준으로 단기 파산·유동성 위기 가능성
-                      · 하락여지: 현재 주가가 고평가되어 있어 추가 하락할 여지
-                    - RETURN 근거: [아래 두 가지를 각각 한 줄로 판단한 뒤 종합. 손실·하락 위험 절대 언급 금지]
-                      · 성장천장: 이 사업이 구조적으로 얼마나 더 커질 수 있는가
-                      · 현재반영도: 그 성장이 지금 주가에 얼마나 반영되지 않았는가 (덜 반영될수록 RETURN 높음)
-                    - SCORE 근거: [위의 RISK와 RETURN 수치를 직접 명시하며 손익비 판단. 예: "RISK 72, RETURN 68이므로..."]
+                    - RISK 근거: [재무안전성·하락여지를 종합하여 한 문장으로. 업종 특성 반영(금융주 고부채=정상, 바이오 적자=감안). 30자 이상 80자 이내]
+                    - RETURN 근거: [성장천장·현재반영도를 종합하여 한 문장으로. 손실·하락 위험 절대 언급 금지. 30자 이상 80자 이내]
+                    - SCORE 근거: [RISK 숫자와 RETURN 숫자를 직접 명시하며 손익비 판단 한 문장으로. 예: "RISK 72, RETURN 68이므로...". 30자 이상 80자 이내]
 
                     위 판단을 마친 뒤, 아래 점수를 산출하세요.
                     RISK와 RETURN은 판단근거와 반드시 일치해야 합니다.
@@ -1607,18 +1606,32 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         # 리포트 본문 정리 + 판단 근거 따로 파싱
                         _cleaned = report_text.strip()
 
-                        # 판단근거 파싱: **판단근거:** ~ [RISK: 숫자] 사이 텍스트 추출
+                        # 판단근거 파싱: RISK/RETURN/SCORE 각각 한 줄로 추출
                         _rationale = ""
                         _rat_s = _re.search(r'\*\*판단근거:\*\*', _cleaned)
                         _rat_e = _re.search(r'\[RISK:\s*\d+\]', _cleaned)
                         if _rat_s and _rat_e and _rat_s.start() < _rat_e.start():
-                            _rationale = _cleaned[_rat_s.end():_rat_e.start()].strip()
-                            _rationale = _re.sub(r'\*\*(.+?)\*\*', r'\1', _rationale)
-                            _rationale = _re.sub(r'#+\s*', '', _rationale)
-                            _rationale = _re.sub(r'\n{2,}', '\n', _rationale).strip()
+                            _rat_block = _cleaned[_rat_s.end():_rat_e.start()]
+                            def _extract_reason(block, label):
+                                m = _re.search(rf'-\s*{label}\s*근거\s*:(.*?)(?=-\s*(?:RISK|RETURN|SCORE)\s*근거|$)', block, _re.DOTALL)
+                                if not m: return ""
+                                raw = m.group(1).strip()
+                                raw = _re.sub(r'\*\*(.+?)\*\*', r'\1', raw)
+                                raw = _re.sub(r'#+\s*', '', raw)
+                                raw = _re.sub(r'\s*\n\s*', ' ', raw)
+                                raw = _re.sub(r'\s{2,}', ' ', raw).strip()
+                                return raw
+                            _r_reason   = _extract_reason(_rat_block, 'RISK')
+                            _ret_reason = _extract_reason(_rat_block, 'RETURN')
+                            _sc_reason  = _extract_reason(_rat_block, 'SCORE')
+                            parts = []
+                            if _r_reason:   parts.append(f'RISK\t{_r_reason}')
+                            if _ret_reason: parts.append(f'RETURN\t{_ret_reason}')
+                            if _sc_reason:  parts.append(f'SCORE\t{_sc_reason}')
+                            _rationale = '\n'.join(parts)
 
-                        # 본문에서 **판단근거:** 이후 전체 제거
-                        _cleaned = _re.sub(r'\*\*판단근거:\*\*.*', '', _cleaned, flags=_re.DOTALL).strip()
+                        # 본문에서 '참고 수치:' 블록 및 '**판단근거:**' 이후 전체 제거
+                        _cleaned = _re.sub(r'참고 수치:.*?(?=\*\*판단근거:\*\*)', '', _cleaned, flags=_re.DOTALL).strip()
                         _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
                         _html = md_to_html(_cleaned)
                         st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
@@ -1641,10 +1654,16 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 f'<div style="position: absolute; top: calc({100 - ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div>' +
                                 '</div>' +
                                 # 판단 근거 섹션 (매트릭스 바로 아래)
-                                (f'<div style="margin-top: 16px; padding: 10px 14px; border-top: 1px solid #e8e8e8;">'
-                                 f'<span style="font-size: 13px; font-weight: 700; color: #444; letter-spacing: 0.3px;">판단근거</span>'
-                                 f'<p style="margin: 6px 0 0 0; font-size: 13px; color: #666; line-height: 1.8;">{_rationale.replace(chr(10), "<br>").replace(" · ", "<br>")}</p>'
-                                 f'</div>' if _rationale else '') +
+                                (('<div style="margin-top: 16px; padding: 12px 16px; border-top: 1px solid #e8e8e8;">'
+                                  '<span style="font-size: 12px; font-weight: 700; color: #444; letter-spacing: 0.3px;">판단근거</span>' +
+                                  ''.join(
+                                      f'<div style="margin-top: 9px; display: flex; align-items: baseline; gap: 10px;">'
+                                      f'<span style="font-size: 10px; font-weight: 800; color: #aaa; letter-spacing: 1px; min-width: 46px; flex-shrink: 0;">{line.split(chr(9))[0]}</span>'
+                                      f'<span style="font-size: 12.5px; color: #555; line-height: 1.55;">{line.split(chr(9))[1] if chr(9) in line else ""}</span>'
+                                      f'</div>'
+                                      for line in _rationale.split(chr(10)) if line.strip()
+                                  ) +
+                                  '</div>') if _rationale else '') +
                                 '</div>'
                             )
 
