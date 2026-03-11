@@ -398,6 +398,17 @@ def _get_ticker_symbol_cached(search_term):
         "리게티": "RGTI",
         "RIGETTI": "RGTI",
         "RGTI": "RGTI",
+        "버크셔": "BRK-B",
+        "버크셔해서웨이": "BRK-B",
+        "BERKSHIRE": "BRK-B",
+        "BERKSHIREHATHAWAY": "BRK-B",
+        "BRK-B": "BRK-B",
+        "BRKB": "BRK-B",
+        "BRK-A": "BRK-A",
+        "BRKA": "BRK-A",
+        "팔란티어": "PLTR",
+        "PALANTIR": "PLTR",
+        "PLTR": "PLTR",
     }
     
     if search_clean in custom_mapping:
@@ -1594,11 +1605,11 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     RISK와 RETURN은 판단근거와 반드시 일치해야 합니다.
                     생존가능성이 낮거나 하락여지가 크면 RISK는 높아야 합니다.
                     성장천장이 높고 현재 주가에 덜 반영됐을수록 RETURN은 높아야 합니다.
-                    20, 40, 50, 60, 80 같은 경계값을 피하고 구체적인 숫자로 표현하세요.
+
+                    감정이나 보수성을 개입시키지 말고 판단근거에만 근거하여 정직하게 산출하세요.
 
                     [RISK: 숫자] ← 0(무위험)~100(극단적 위험). 판단근거 RISK와 반드시 일치
                     [RETURN: 숫자] ← 0(상승여력 없음)~100(폭발적 상승 가능). 판단근거 RETURN과 반드시 일치
-                    [SCORE: 숫자] ← 0(강력매도)~100(강력매수). RISK와 RETURN 수치 직접 참조
                     """
                     try:
                         response = client.models.generate_content(
@@ -1620,7 +1631,13 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 
                         risk_score   = _parse_num(report_text, 'RISK')
                         return_score = _parse_num(report_text, 'RETURN')
-                        final_score  = _parse_num(report_text, 'SCORE')
+                        # SCORE는 AI가 아닌 코드가 직접 계산 (감정 개입 원천 차단)
+                        # 공식: (RETURN - RISK + 100) / 2 → 항상 0~100, RISK↓RETURN↑일수록 높음
+                        if risk_score is not None and return_score is not None:
+                            final_score = round((return_score - risk_score + 100) / 2)
+                            final_score = max(0, min(100, final_score))
+                        else:
+                            final_score = None
 
                         # 리포트 본문 정리 + 판단 근거 따로 파싱
                         _cleaned = report_text.strip()
@@ -1646,7 +1663,12 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             parts = []
                             if _r_reason:   parts.append(f'RISK\t{_r_reason}')
                             if _ret_reason: parts.append(f'RETURN\t{_ret_reason}')
-                            if _sc_reason:  parts.append(f'SCORE\t{_sc_reason}')
+                            # SCORE 근거: AI 서술이 있으면 사용, 없으면 코드가 자동 생성
+                            if _sc_reason:
+                                parts.append(f'SCORE\t{_sc_reason}')
+                            elif risk_score is not None and return_score is not None:
+                                _auto_sc = round((return_score - risk_score + 100) / 2)
+                                parts.append(f'SCORE\tRISK {risk_score}, RETURN {return_score} 기준으로 산출된 점수는 {_auto_sc}점입니다.')
                             _rationale = '\n'.join(parts)
 
                         # 본문에서 '참고 수치:' 블록 및 '**판단근거:**' 이후 전체 제거
