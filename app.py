@@ -317,9 +317,6 @@ def load_krx_data():
 
 krx_df = load_krx_data()
 
-# ====================== [버그 수정] get_korean_display_name ======================
-# 네이버 AC API의 item[0]은 티커 코드, item[1]은 종목명입니다.
-# item[1]이 티커와 동일한 값을 반환하는 경우(미국 주식 등)를 방어 처리했습니다.
 @st.cache_data(ttl=3600*24)
 def get_korean_display_name(ticker, english_name):
     try:
@@ -333,10 +330,8 @@ def get_korean_display_name(ticker, english_name):
             for item in ac_data['items'][0]:
                 if item[0].upper() == clean_ticker.upper():
                     korean_name = item[1]
-                    # item[1]이 티커와 동일하거나 비어있으면 무시
                     if korean_name and korean_name.upper() != clean_ticker.upper():
                         return korean_name
-            # 정확히 일치하는 항목이 없으면 첫 번째 결과의 종목명 시도
             first_name = ac_data['items'][0][0][1]
             if first_name and first_name.upper() != clean_ticker.upper():
                 return first_name
@@ -344,11 +339,6 @@ def get_korean_display_name(ticker, english_name):
         pass
     return english_name
 
-# ====================== [버그 수정] 캐시 키 정규화 ======================
-# @st.cache_data는 함수 인자 원본을 캐시 키로 사용하므로
-# "리게티" 와 "리게티 " (띄어쓰기)는 서로 다른 캐시 키로 처리됨.
-# 한번 실패한 결과가 ttl=3600 동안 캐싱되면, 띄어쓰기 버전은 새 키라 재실행되어 성공하는 현상 발생.
-# 해결: 외부 진입점에서 strip() 정규화 후 캐시 함수로 위임하여 항상 동일한 키 보장.
 def get_ticker_symbol(search_term):
     """외부 진입점. strip() 정규화 후 캐시된 내부 함수로 위임."""
     return _get_ticker_symbol_cached(search_term.strip())
@@ -387,7 +377,6 @@ def _get_ticker_symbol_cached(search_term):
         "스파이": "SPY",
         "SPY": "SPY",
         "디어유": "376300.KQ",
-        # ===== [버그 수정] 한글 검색 안 되는 종목 직접 매핑 추가 =====
         "비트마인": "BMNR",
         "BITMAIN": "BMNR",
         "BMNR": "BMNR",
@@ -453,9 +442,6 @@ def _get_ticker_symbol_cached(search_term):
             item = ac_data['items'][0][0]
             code = item[0]
             market_str = item[2] if len(item) > 2 else ""
-            # 코스피/코스닥: 한국 주식 티커 반환
-            # 나스닥/NYSE 계열: 미국 주식이므로 코드(티커) 그대로 반환 (예: IONQ, RGTI)
-            # 그 외 불명확: 무시하고 다음 단계로 진행 (엉뚱한 .KS 방지)
             if '코스피' in market_str:
                 return f"{code}.KS"
             elif '코스닥' in market_str:
@@ -482,20 +468,68 @@ def _get_ticker_symbol_cached(search_term):
                 else: return code
     except:
         pass
-       
+
+    # ====================== [버그 수정] Yahoo Finance Search API ======================
+    # 수정 1: quote.get('type') → quote.get('quoteType')
+    #         Yahoo Finance API 실제 응답 키 이름은 'quoteType'이지 'type'이 아님.
+    #         기존 코드는 항상 None을 반환해 1st/2nd 루프가 동작하지 않았음.
+    # 수정 2: exchange 코드 확장
+    #         NGM(Nasdaq Global Market), NCM(Nasdaq Capital Market), PCX(NYSE Arca) 등 누락된 코드 추가.
+    # 수정 3: exchDisp 보조 판별 추가
+    #         exchange 값이 예상 밖이어도 exchDisp='NASDAQ'/'NYSE' 등으로 미국 거래소 판별 가능.
+    # 수정 4: isYahooFinance 우선 선택
+    #         정식 Yahoo Finance 등록 종목을 커뮤니티 데이터보다 우선 반환.
     url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_term)}"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
         res = requests.get(url, headers=headers, timeout=5)
         data = res.json()
         if 'quotes' in data and len(data['quotes']) > 0:
-            us_exchanges = ['NYQ', 'NMS', 'NYSE', 'NASDAQ']
+            # 미국 거래소 exchange 코드 (확장)
+            us_exchanges = {
+                'NYQ',   # NYSE
+                'NMS',   # Nasdaq Global Select Market
+                'NGM',   # Nasdaq Global Market (기존 누락)
+                'NCM',   # Nasdaq Capital Market (기존 누락)
+                'PCX',   # NYSE Arca (ETF 주요 상장, 기존 누락)
+                'ASE',   # NYSE American (구 AMEX, 기존 누락)
+                'NYSE',
+                'NASDAQ',
+                'NAS',
+                'BATS',  # CBOE/BATS Exchange
+                'BTS',
+            }
+            # exchDisp 기반 보조 판별 (exchange 코드가 예상 밖일 때 대비)
+            us_disps = {'NASDAQ', 'NYSE', 'NYSE ARCA', 'NYSE MKT', 'NYSE AMERICAN', 'BATS'}
+            # 유효한 quoteType
+            equity_types = {'EQUITY', 'ETF', 'MUTUALFUND'}
+
+            def _is_us_quote(q):
+                """미국 거래소 상장 주식/ETF 여부 판별"""
+                qt = q.get('quoteType', '').upper()
+                ex = q.get('exchange', '').upper()
+                exd = q.get('exchDisp', '').upper()
+                return qt in equity_types and (ex in us_exchanges or exd in us_disps)
+
+            # 1순위: quoteType 정확 + 미국 거래소 + isYahooFinance
             for quote in data['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF'] and quote.get('exchange', '').upper() in us_exchanges:
+                if _is_us_quote(quote) and quote.get('isYahooFinance'):
                     return quote['symbol']
+            # 2순위: quoteType 정확 + 미국 거래소
             for quote in data['quotes']:
-                if quote.get('type') in ['EQUITY', 'ETF']:
+                if _is_us_quote(quote):
                     return quote['symbol']
+            # 3순위: quoteType만 (비미국 거래소 포함) + isYahooFinance
+            for quote in data['quotes']:
+                qt = quote.get('quoteType', '').upper()
+                if qt in equity_types and quote.get('isYahooFinance'):
+                    return quote['symbol']
+            # 4순위: quoteType만
+            for quote in data['quotes']:
+                qt = quote.get('quoteType', '').upper()
+                if qt in equity_types:
+                    return quote['symbol']
+            # 최후 fallback
             return data['quotes'][0]['symbol']
     except:
         pass
@@ -793,11 +827,6 @@ if user_input:
                     display_name = info['shortName']
 
         else:
-            # ====================== [버그 수정] 미국 주식 종목명 ======================
-            # 1순위: Yahoo Finance 검색 API에서 정식 종목명 직접 조회
-            # 2순위: yfinance info의 longName
-            # 3순위: yfinance info의 shortName (티커와 동일한 값이면 제외)
-            # 4순위: 네이버 AC API
             yf_official_name = None
             try:
                 import urllib.parse as _up
@@ -1004,7 +1033,6 @@ if user_input:
         
         # --- [탭 1: 차트 분석] ---
         with tab1:
-            # 종목명 + 현재가 헤더 카드
             st.markdown(f"""
             <div class="price-header">
                 <span class="price-name">{display_name}</span>
@@ -1122,7 +1150,6 @@ if user_input:
                     )
                     
                     fig.update_layout(
-
                         template="plotly_dark",
                         dragmode=False,
                         xaxis=dict(**xaxis_config, gridcolor="#dde1e7", tickfont=dict(color="#6b7280", size=12), linecolor="#dde1e7"),
@@ -1396,12 +1423,10 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             _cache_raw = f"{ticker}|{current_price}|{trailing_pe}|{forward_pe}|{pb}|{debt_str}|{op_margin}|{high_52}|{low_52}"
             _cache_key = hashlib.md5(_cache_raw.encode()).hexdigest()
 
-            # 버튼 항상 상단 고정
             _do_generate = st.button("원클릭 종합 분석 리포트 생성")
             if _do_generate:
                 st.session_state.report_cache.pop(_cache_key, None)
 
-            # 결과 표시 (캐시 있으면 바로, 없으면 생성)
             if _cache_key in st.session_state.report_cache:
                 _c = st.session_state.report_cache[_cache_key]
                 st.markdown(f'<div class="ai-result-card">{_c["html"]}</div>', unsafe_allow_html=True)
@@ -1409,22 +1434,16 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     st.markdown(_c["bar_html"].replace('\n', ''), unsafe_allow_html=True)
             elif _do_generate:
                 with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
-                    # ===== 종목 유형 자동 판별 =====
-                    # yfinance quoteType, 종목명/티커 키워드로 종목 성격 감지
                     _quote_type = info.get('quoteType', '').upper()
                     _category = (info.get('category') or info.get('fundFamily') or '').upper()
                     _name_upper = display_name.upper()
                     _ticker_upper = ticker.upper()
 
-                    # ===== 채권/금리형 ETF 세분화 감지 =====
-                    # 초단기/금리형: KOFR, SOFR, CD금리, MMF, T-Bill 등 → 사실상 현금, 거의 무위험
                     _cash_keywords = ['KOFR', 'SOFR', 'LIBOR', 'CD금리', 'T-BILL', 'TBILL',
                                       'MONEY MARKET', 'MMF', '초단기', 'ULTRA SHORT', 'CASH',
                                       '통안채', '단기채']
-                    # 장기채권: TLT, 국채 20년/30년 등 → 금리 민감도 높아 변동성 큼
                     _longbond_keywords = ['TLT', 'EDV', 'ZROZ', '20년', '30년', 'LONG BOND',
                                           'LONG TERM', '장기채', '장기국채']
-                    # 일반 채권: BND, AGG, IEF, 국채, 회사채 등 → 중간 수준
                     _bond_keywords = ['BOND', 'TREASURY', 'FIXED INCOME', 'AGGREGATE',
                                       'AGG', 'BND', 'IEF', 'SHY', '채권', '국채', '회사채']
 
@@ -1443,7 +1462,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         any(kw in _category for kw in _bond_keywords)
                     )
 
-                    # 레버리지 ETF 감지 (반드시 일반 ETF보다 먼저 체크)
                     _lev_keywords = ['TQQQ', 'SQQQ', 'UPRO', 'SPXU', 'UDOW', 'SDOW',
                                      'TECL', 'TECS', 'LABU', 'LABD', 'SOXL', 'SOXS',
                                      'TMF', 'TMV', 'TNA', 'TZA', 'FAS', 'FAZ',
@@ -1455,13 +1473,11 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         any(kw in _ticker_upper for kw in _lev_keywords)
                     )
 
-                    # 일반 ETF/인덱스 감지
                     _index_keywords = ['S&P', 'NASDAQ', 'KOSPI', 'KOSDAQ', 'INDEX', '인덱스',
                                        'TIGER', 'KODEX', 'ARIRANG', 'KINDEX', 'HANARO',
                                        'SPY', 'QQQ', 'VTI', 'VOO', 'IVV']
                     _is_etf = _quote_type == 'ETF' or any(kw in _name_upper for kw in _index_keywords)
 
-                    # 종목 유형 컨텍스트 — 숫자 고정 없이 올바른 평가 기준점만 제시, 판단은 AI에게 위임
                     if _is_lev_etf:
                         _asset_context = (
                             '[종목 유형 컨텍스트 - 반드시 점수 산정에 반영할 것]\n'
@@ -1475,7 +1491,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  기초지수(예: QQQ는 나스닥100)가 앞으로 상승할 여력이 있다면,\n'
                             '  레버리지 ETF의 RETURN은 기초지수 ETF보다 반드시 높아야 합니다.\n'
                             '  단, 변동성 손실과 횡보장 리스크도 함께 반영하세요.\n'
-                            ''
                         )
                     elif _is_cash_etf:
                         _asset_context = (
@@ -1487,7 +1502,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  현금성 자산 중 가장 안전한 축에 속합니다.\n'
                             '- RETURN 평가 기준: 현재 기준금리 수준의 수익(연 3~5%)만 기대 가능합니다.\n'
                             '  주가 상승 포텐셜은 구조적으로 없으며, 금리 인하 시 수익률이 낮아집니다.\n'
-                            ''
                         )
                     elif _is_longbond_etf:
                         _asset_context = (
@@ -1498,7 +1512,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  금리 방향성 리스크를 일반 채권보다 훨씬 높게 반영하세요.\n'
                             '- RETURN 평가 기준: 금리 하락 사이클에서는 큰 자본이득이 가능하나,\n'
                             '  금리 상승 사이클에서는 반대로 큰 손실이 납니다. 현재 금리 방향성을 반드시 고려하세요.\n'
-                            ''
                         )
                     elif _is_bond_etf:
                         _asset_context = (
@@ -1509,7 +1522,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  신용등급에 따라 회사채는 디폴트 리스크도 고려해야 합니다.\n'
                             '- RETURN 평가 기준: 이자 수익 + 금리 하락 시 자본이득이 전부입니다.\n'
                             '  주식처럼 폭발적 상승은 없으나, 금리 방향성에 따라 의미 있는 수익도 가능합니다.\n'
-                            ''
                         )
                     elif _is_etf:
                         _asset_context = (
@@ -1519,10 +1531,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  다만 추종 지수/섹터의 시장 리스크는 그대로 반영됩니다.\n'
                             '- RETURN 평가 기준: 추종 지수의 장기 성장성을 반영하세요.\n'
                             '  개별 종목처럼 폭발적 상승은 어렵지만 꾸준한 수익은 가능합니다.\n'
-                            ''
                         )
                     else:
-                        _asset_context = ''  # 일반 주식은 컨텍스트 없음
+                        _asset_context = ''
 
                     prompt = f"""
                     오늘은 {today_date}입니다. {display_name}({ticker}) 종목을 종합적으로 분석해주세요.
@@ -1623,25 +1634,20 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         import re as _re
 
                         def _parse_num(text, tag):
-                            # [TAG: 숫자] 형식만 허용 — 본문 텍스트의 "RISK 72" 같은 표현 오염 방지
                             m = re.search(rf'\[{tag}:\s*(\d+)\s*\]', text, re.IGNORECASE)
                             if m: return int(m.group(1))
                             return None
 
                         risk_score   = _parse_num(report_text, 'RISK')
                         return_score = _parse_num(report_text, 'RETURN')
-                        # SCORE는 AI가 아닌 코드가 직접 계산 (감정 개입 원천 차단)
-                        # 공식: (RETURN - RISK + 100) / 2 → 항상 0~100, RISK↓RETURN↑일수록 높음
                         if risk_score is not None and return_score is not None:
                             final_score = round((return_score - risk_score + 100) / 2)
                             final_score = max(0, min(100, final_score))
                         else:
                             final_score = None
 
-                        # 리포트 본문 정리 + 판단 근거 따로 파싱
                         _cleaned = report_text.strip()
 
-                        # 판단근거 파싱: RISK/RETURN/SCORE 각각 한 줄로 추출
                         _rationale = ""
                         _rat_s = _re.search(r'\*\*판단근거:\*\*', _cleaned)
                         _rat_e = _re.search(r'\[RISK:\s*\d+\]', _cleaned)
@@ -1652,18 +1658,16 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 if not m: return ""
                                 raw = m.group(1).strip()
                                 raw = _re.sub(r'\*\*(.+?)\*\*', r'\1', raw)
-                                raw = _re.sub(r'\*+', '', raw)  # 닫히지 않은 ** 잔여 제거
+                                raw = _re.sub(r'\*+', '', raw)
                                 raw = _re.sub(r'#+\s*', '', raw)
                                 raw = _re.sub(r'\s*\n\s*', ' ', raw)
                                 raw = _re.sub(r'\s{2,}', ' ', raw).strip()
                                 return raw
                             _r_reason   = _extract_reason(_rat_block, 'RISK')
                             _ret_reason = _extract_reason(_rat_block, 'RETURN')
-                            _sc_reason  = _extract_reason(_rat_block, 'SCORE')
                             parts = []
                             if _r_reason:   parts.append(f'RISK\t{_r_reason}')
                             if _ret_reason: parts.append(f'RETURN\t{_ret_reason}')
-                            # SCORE 근거: 코드가 자동 생성
                             if risk_score is not None and return_score is not None:
                                 _auto_sc = round((return_score - risk_score + 100) / 2)
                                 _auto_sc = max(0, min(100, _auto_sc))
@@ -1675,14 +1679,12 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 parts.append(f'SCORE\tRISK {risk_score} · RETURN {return_score} 기준 {_auto_sc}점 → {_sc_label}')
                             _rationale = '\n'.join(parts)
 
-                        # 본문에서 '참고 수치:' 블록 및 '**판단근거:**' 이후 전체 제거
                         _cleaned = _re.sub(r'참고 수치:.*?(?=\*\*판단근거:\*\*)', '', _cleaned, flags=_re.DOTALL).strip()
                         _cleaned = _re.sub(r'\*\*판단근거:\*\*.*', '', _cleaned, flags=_re.DOTALL).strip()
                         _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
                         _html = md_to_html(_cleaned)
                         st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
                         
-                        # 매트릭스: RISK/RETURN 독립 처리 (SCORE 파싱 실패해도 표시)
                         matrix_html = ""
                         if risk_score is not None and return_score is not None:
                             r_s = max(0, min(100, risk_score))
@@ -1699,7 +1701,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 '<div style="position: absolute; bottom: 10px; right: 10px; font-size: 13px; font-weight: 800; color: #007aff;">고위험 저수익</div>' +
                                 f'<div style="position: absolute; top: calc({100 - ret_s}% - 12px); left: calc({r_s}% - 12px); width: 24px; height: 24px; background-color: #333; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 6px rgba(0,0,0,0.3); z-index: 10;"></div>' +
                                 '</div>' +
-                                # 판단 근거 섹션 (매트릭스 바로 아래)
                                 (('<div style="margin-top: 16px; padding: 12px 16px; border-top: 1px solid #e8e8e8;">'
                                   '<span style="font-size: 12px; font-weight: 700; color: #444; letter-spacing: 0.3px;">판단근거</span>' +
                                   ''.join(
@@ -1713,7 +1714,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 '</div>'
                             )
 
-                        # 투자의견 바: SCORE 있을 때만 표시, 없으면 매트릭스만 단독 표시
                         bar_html = ""
                         if final_score is not None:
                             final_score = max(0, min(100, final_score))
@@ -1756,9 +1756,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 else:
     st.markdown("""
     <div style="margin-top: 50px; font-size: 13px; color: #9ca3af; line-height: 1.8;">
-        <strong>업데이트 내용 (2026.03.10)</strong><br>
-        • AI가 이전보다 훨씬 입체적으로 사고<br>
-        • 종합 리포트에서 AI 투자의견과 위험-수익 매트릭스를 추가<br>
+        <strong>업데이트 내용 (2026.03.21)</strong><br>
+        • 미국 주식 검색 정확도 대폭 개선<br>
+        • Yahoo Finance API quoteType 키 버그 수정 (NGM/NCM/PCX 거래소 누락 보완)<br>
         • 기타 자잘한 버그, 디자인 수정<br>
         • 아무튼 100배쯤 똑똑해짐
     </div>
