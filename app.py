@@ -18,6 +18,8 @@ import hashlib
 
 def md_to_html(text):
     """마크다운 → HTML 변환"""
+    # XSS 방어: script 태그 제거
+    text = re.sub(r'<script[\s\S]*?</script>', '', text, flags=re.IGNORECASE)
     # **텍스트** → <strong> 변환
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     # * 단독 제거
@@ -762,9 +764,10 @@ def fetch_news_data(ticker, official_name, search_korean_news):
             stock = yf.Ticker(ticker)
             raw_news = stock.news
             for n in raw_news[:100]:
-                if isinstance(n, dict) and 'title' in n and 'link' in n:
-                    content = n.get('summary', '') or get_article_text(n['link'])
-                    news_list.append({"title": n['title'], "link": n['link'], "content": content[:800].replace('\n', ' ')})
+                if isinstance(n, dict) and 'title' in n:
+                    _link = n.get('link') or n.get('url', '#')
+                    content = n.get('summary', '') or get_article_text(_link)
+                    news_list.append({"title": n['title'], "link": _link, "content": content[:800].replace('\n', ' ')})
         except: pass
     return news_list
 
@@ -858,6 +861,9 @@ if user_input:
         
         is_korean_stock = ticker.endswith('.KS') or ticker.endswith('.KQ')
         is_japanese_stock = ticker.endswith('.T')
+
+        # _quote_type: 탭2 프롬프트와 탭4 종목 유형 판별에서 공통 사용 → 탭 생성 전에 미리 정의
+        _quote_type = info.get('quoteType', '').upper()
         
         if is_korean_stock: currency, price_fmt = "원", ",.0f"
         elif is_japanese_stock: currency, price_fmt = "엔", ",.0f"
@@ -1201,7 +1207,7 @@ if user_input:
                             temp_mask = (temp_hist.index.date >= selected_start) & (temp_hist.index.date <= selected_end)
                             temp_filtered = temp_hist.loc[temp_mask].copy()
                             
-                            cols_to_export = ['Open', 'High', 'Low', 'Close'] + [f'MA_{w}' for w, _, _ in ma_config]
+                            cols_to_export = ['Open', 'High', 'Low', 'Close', 'Volume'] + [f'MA_{w}' for w, _, _ in ma_config]
                             df_export = temp_filtered[cols_to_export].copy()
                             df_export.index = df_export.index.strftime('%Y-%m-%d')
                             return df_export.tail(150).round(2).to_csv(header=True)
@@ -1211,10 +1217,9 @@ if user_input:
                     weekly_csv = get_formatted_history("1wk", [(13, "", ""), (26, "", ""), (52, "", "")])
                     monthly_csv = get_formatted_history("1mo", [(9, "", ""), (24, "", ""), (60, "", "")])
 
-                    prompt = f"""당신은 SMC(Smart Money Concept) 기반의 실전 트레이더입니다.
-                    {display_name}({ticker})의 일봉·주봉·월봉 OHLC 데이터와 이동평균선(MA)을 분석하여 심층 기술적 분석 리포트를 작성해주세요.
+                    prompt = f"""당신은 기술적 분석 전문가입니다. SMC(스마트 머니 컨셉), 프라이스 액션, 이동평균, 거래량 분석 등 다양한 기법을 통합적으로 활용하여 {display_name}({ticker})의 심층 기술적 분석 리포트를 작성해주세요.
 
-                    [일봉 데이터 (Open, High, Low, Close + MAs)]
+                    [일봉 데이터 (Open, High, Low, Close, Volume + MAs)]
                     {daily_csv}
 
                     [주봉 데이터]
@@ -1254,11 +1259,12 @@ if user_input:
                     컵앤핸들 / 다이아몬드 / 아담앤이브(이중바닥 변형) / 헤드앤숄더·역헤드앤숄더 / 이중천장(M자)·이중바닥(W자) / 거짓 돌파(Fake out) / 함정(Bull·Bear Trap) / 변동성 수축 후 확장(VCP)
                     → 뚜렷한 패턴이 없다면: "현재 뚜렷한 차트 패턴은 형성 중이지 않습니다."라고 한 줄로 쓰고 이 항목을 마무리하세요.
 
-                    ### 4. 모멘텀
+                    ### 4. 모멘텀 & 거래량
                     - 이동평균선 배열(정배열/역배열) 및 골든크로스·데드크로스 발생 여부를 서술하세요.
                     - 가격의 고점/저점 시퀀스를 분석하여 추세 강도 변화(고점이 낮아지거나 저점이 높아지는 등)를 파악하세요.
-                    - 가격 고저점 시퀀스 기반의 강세 또는 약세 다이버전스 징후가 있다면 언급하세요(오실레이터 없이 가격 흐름만으로 판단).
-                    - 캔들 크기 변화로 변동성 수축·확장 국면을 언급하세요.
+                    - 거래량 흐름을 반드시 분석하세요: 돌파 시 거래량 수반 여부, 상승(하락) 시 거래량 증감 패턴, 거래량 이상 급증/급감 구간. 거래량은 절댓값보다 전일/전주 대비 상대적 변화로 해석하세요.
+                    - 가격 고저점 시퀀스 기반의 강세 또는 약세 다이버전스 징후가 있다면 언급하세요(오실레이터 없이 가격·거래량 흐름만으로 판단).
+                    - 캔들 크기와 거래량의 수축·확장 국면을 함께 언급하세요.
 
                     ### 5. 종합 시나리오
                     단기(일봉 기준)와 중장기(주봉·월봉 기준)로 나누어 유력한 시나리오를 서술하세요.
@@ -1381,8 +1387,10 @@ if user_input:
             if st.button("AI 재무 건전성 평가 실행"):
                 with st.spinner("재무 데이터를 분석하는 중입니다..."):
                     prompt = f"""종목 {display_name}({ticker})의 상세 재무 데이터를 분석하여 재무 건전성을 평가해주세요.
+{'[종목 유형 참고] 이 종목은 ETF/펀드입니다. PER·PBR 등 기업가치 지표가 N/A인 경우, 운용보수·NAV 괴리율·추적 지수의 장기 성과 관점으로 평가하세요.' if _quote_type == 'ETF' else ''}
 
 [가치 및 수익성 지표]
+※ 아래 모든 재무 수치는 {currency} 단위(절댓값)입니다.
 시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}, Trailing PER: {fmt_flt(trailing_pe, is_per=True)}, Forward PER: {fmt_flt(forward_pe, is_per=True)}, PBR: {fmt_flt(pb)}, PSR: {fmt_flt(psr)}, PEG: {fmt_flt(peg)}, EV/EBITDA: {fmt_flt(ev_ebitda)}
 ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장률: {fmt_pct(rev_growth)}, 배당 수익률: {fmt_pct(div_yield)}
 매출총이익률: {fmt_pct(gross_margin)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}
@@ -1431,7 +1439,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news1:
                 if st.button("AI 최신 동향 브리핑"):
                     with st.spinner("최신 뉴스를 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용을 읽고, 현재 이 기업을 둘러싼 중요한 핵심 이슈 3가지를 도출해주세요. 각 이슈가 기업의 향후 실적에 미칠 파급력까지 전문가의 시선으로 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 3가지 핵심 이슈는 마크다운 헤딩(###)과 숫자로 제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호(예: 1, 3, 50)를 작성하거나 인용구를 쓰는 것을 완벽 금지합니다.\n- 뉴스 헤드라인 직접 인용 절대 금지: 기사 제목이나 헤드라인을 따옴표로 그대로 쓰지 마세요."
+                        prompt = f"오늘은 {today_date}입니다. 방금 시스템이 실시간으로 수집한 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n위 데이터의 본문 내용을 읽고, 현재 이 기업을 둘러싼 핵심 이슈를 2~3가지 도출해주세요. 뉴스 수가 적거나 이슈가 2개뿐이라면 억지로 3개를 만들지 마세요. 각 이슈가 기업의 향후 실적에 미칠 파급력까지 전문가의 시선으로 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 핵심 이슈는 마크다운 헤딩(###)과 숫자로 제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호(예: 1, 3, 50)를 작성하거나 인용구를 쓰는 것을 완벽 금지합니다.\n- 뉴스 헤드라인 직접 인용 절대 금지: 기사 제목이나 헤드라인을 따옴표로 그대로 쓰지 마세요."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
@@ -1452,7 +1460,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
             with col_news2:
                 if st.button("AI 시장 투심 분석 실행"):
                     with st.spinner("시장 참여자들의 투심을 분석하는 중입니다..."):
-                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터를 바탕으로 현재 시장 참여자들의 숨은 투자 심리(Fear & Greed)를 파악하고, 단기 및 중장기 주가 흐름에 미칠 영향을 분석해주세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호(예: 1, 3, 50)를 작성하거나 인용구를 쓰는 것을 완벽 금지합니다.\n- 뉴스 헤드라인 직접 인용 절대 금지: 기사 제목이나 헤드라인을 따옴표로 그대로 쓰지 마세요."
+                        prompt = f"오늘은 {today_date}입니다. 방금 수집된 {display_name}({ticker})의 최신 기사 데이터입니다.\n\n[실시간 시장 동향 데이터]\n{news_context}\n\n이 데이터를 바탕으로 현재 시장 분위기와 투자 심리를 정성적으로 파악하고, 단기 및 중장기 주가 흐름에 미칠 영향을 분석해주세요. 뉴스 25개로 시장 전체를 단정짓지 말고, 현재 보이는 분위기를 균형 있게 서술하세요.\n\n[지시사항]\n- 정중체 사용. 깔끔한 전문가 톤 유지.\n- 단기 및 중장기 분석 시 마크다운 헤딩(###)으로 소제목 작성.\n- 핵심 문장은 **굵은 글씨(**)**로 강조.\n- 달러 기호 금지.\n- 출처 표기 절대 금지: 괄호 안에 기사 번호(예: 1, 3, 50)를 작성하거나 인용구를 쓰는 것을 완벽 금지합니다.\n- 뉴스 헤드라인 직접 인용 절대 금지: 기사 제목이나 헤드라인을 따옴표로 그대로 쓰지 마세요."
                         try:
                             response = client.models.generate_content(
                                 model='gemini-2.5-flash', contents=prompt, config={"temperature": 0.0}
@@ -1483,7 +1491,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     st.markdown(_c["bar_html"].replace('\n', ''), unsafe_allow_html=True)
             elif _do_generate:
                 with st.spinner('모든 데이터를 종합하여 분석하는 중입니다...'):
-                    _quote_type = info.get('quoteType', '').upper()
                     _category = (info.get('category') or info.get('fundFamily') or '').upper()
                     _name_upper = display_name.upper()
                     _ticker_upper = ticker.upper()
@@ -1515,11 +1522,16 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                      'TECL', 'TECS', 'LABU', 'LABD', 'SOXL', 'SOXS',
                                      'TMF', 'TMV', 'TNA', 'TZA', 'FAS', 'FAZ',
                                      '레버리지', '인버스', '2X', '3X', '곱버스',
-                                     'LEVERAGE', 'INVERSE', 'ULTRA', 'BEAR', 'BULL',
-                                     'DIREXION', 'PROSHARES']
+                                     'LEVERAGE', 'INVERSE', 'DIREXION', 'PROSHARES']
+                    # ULTRA/BULL/BEAR는 일반 주식 종목명에도 포함될 수 있어 ETF일 때만 적용
+                    _lev_keywords_etf_only = ['ULTRA', 'BEAR', 'BULL']
                     _is_lev_etf = (
                         any(kw in _name_upper for kw in _lev_keywords) or
-                        any(kw in _ticker_upper for kw in _lev_keywords)
+                        any(kw in _ticker_upper for kw in _lev_keywords) or
+                        (_quote_type == 'ETF' and (
+                            any(kw in _name_upper for kw in _lev_keywords_etf_only) or
+                            any(kw in _ticker_upper for kw in _lev_keywords_etf_only)
+                        ))
                     )
 
                     _index_keywords = ['S&P', 'NASDAQ', 'KOSPI', 'KOSDAQ', 'INDEX', '인덱스',
@@ -1537,9 +1549,12 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  RISK는 기초지수 ETF보다 구조적으로 높게 평가하세요.\n'
                             '- RETURN 평가 기준: 기초지수 상승 시 2~3배의 수익이 구조적으로 발생합니다.\n'
                             '  이미 많이 올랐다는 논리는 레버리지 ETF에 동일하게 적용할 수 없습니다.\n'
-                            '  기초지수(예: QQQ는 나스닥100)가 앞으로 상승할 여력이 있다면,\n'
+                            '  기초지수(추종 지수)가 앞으로 상승할 여력이 있다면,\n'
                             '  레버리지 ETF의 RETURN은 기초지수 ETF보다 반드시 높아야 합니다.\n'
                             '  단, 변동성 손실과 횡보장 리스크도 함께 반영하세요.\n'
+                            '- 3번 대응 전략 서술 방향: 기술적 타이밍보다 이 ETF가 추종하는 기초지수의 방향성을\n'
+                            '  핵심 판단 기준으로 서술하세요. 레버리지 ETF는 장기 보유 시 변동성 손실이 발생하므로,\n'
+                            '  현재 보유자에게는 단기 목표 도달 시 청산 원칙과 재진입 조건을 강조하세요.\n'
                         )
                     elif _is_cash_etf:
                         _asset_context = (
@@ -1551,6 +1566,10 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  현금성 자산 중 가장 안전한 축에 속합니다.\n'
                             '- RETURN 평가 기준: 현재 기준금리 수준의 수익(연 3~5%)만 기대 가능합니다.\n'
                             '  주가 상승 포텐셜은 구조적으로 없으며, 금리 인하 시 수익률이 낮아집니다.\n'
+                            '- 3번 대응 전략 서술 방향: 차트 기술적 조건보다 금리 수준 대비 보유 적절성을\n'
+                            '  중심으로 서술하세요. 신규 매수 대기자에게는 "언제든 매수 가능하나\n'
+                            '  금리 인하 국면에서는 수익률이 낮아지므로 금리 환경을 확인하라"고 안내하세요.\n'
+                            '  매도 고려자에게는 더 높은 수익을 줄 수 있는 대체 자산 관점에서 서술하세요.\n'
                         )
                     elif _is_longbond_etf:
                         _asset_context = (
@@ -1561,6 +1580,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  금리 방향성 리스크를 일반 채권보다 훨씬 높게 반영하세요.\n'
                             '- RETURN 평가 기준: 금리 하락 사이클에서는 큰 자본이득이 가능하나,\n'
                             '  금리 상승 사이클에서는 반대로 큰 손실이 납니다. 현재 금리 방향성을 반드시 고려하세요.\n'
+                            '- 3번 대응 전략 서술 방향: 차트 기술적 조건과 함께 금리 방향성(기준금리 추이,\n'
+                            '  시장 금리)을 핵심 판단 기준으로 서술하세요. 금리 상승 국면에서는\n'
+                            '  보유 비중 축소, 금리 하락 전환 신호 시 비중 확대 전략을 중심으로 안내하세요.\n'
                         )
                     elif _is_bond_etf:
                         _asset_context = (
@@ -1571,6 +1593,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             '  신용등급에 따라 회사채는 디폴트 리스크도 고려해야 합니다.\n'
                             '- RETURN 평가 기준: 이자 수익 + 금리 하락 시 자본이득이 전부입니다.\n'
                             '  주식처럼 폭발적 상승은 없으나, 금리 방향성에 따라 의미 있는 수익도 가능합니다.\n'
+                            '- 3번 대응 전략 서술 방향: 차트 기술적 조건과 함께 금리 방향성(기준금리 추이)과\n'
+                            '  보유 목적(이자 수익 vs. 금리 하락 차익)을 중심으로 서술하세요.\n'
+                            '  대응 전략에서 금리 상승 국면의 리스크와 방어 방법을 반드시 언급하세요.\n'
                         )
                     elif _is_etf:
                         _asset_context = (
@@ -1647,29 +1672,34 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     4. 구체적인 가격 제시 (진입 추천가, 1차 목표가, 손절가)
                     
                     [출력 형식 가이드 - 반드시 준수]
-                    - 첫 문장은 반드시 다음 형식으로 시작하세요 (내용 변경 금지):
-                      "오늘은 {{today_date}}입니다. {{display_name}}({{ticker}}) 종목에 대한 종합 분석입니다."
+                    - 첫 문장은 반드시 아래 문장을 그대로 사용하세요 (수정 금지):
+                      "오늘은 {today_date}입니다. {display_name}({ticker}) 종목에 대한 종합 분석입니다."
                     - 각 항목의 제목(1, 2, 3, 4번)은 마크다운 헤딩(## 또는 ###)을 사용하여 작성하세요.
                     - 제목 아래에는 일반 문단으로 줄글을 작성하세요.
                     - 3번 항목(상황별 대응 전략)은 반드시 아래 형식을 그대로 따르세요:
+                      ★ 3번에서는 구체적인 가격 수치를 절대 언급하지 마세요. 가격은 4번에서만 제시합니다.
+                      ★ 각 대상자가 '어떤 조건·신호가 나타날 때 어떻게 행동할지'를 전략적 관점으로 서술하세요.
+
                       #### 현재 보유자
-                      [본문 서술]
+                      (추세·지지 유지 여부, 추가 매수 또는 일부 익절 조건, 보유 판단 근거 중심으로 서술)
 
                       #### 신규 매수 대기자
-                      [본문 서술]
+                      (어떤 기술적 조건이 확인될 때 진입할지, 분할 매수 접근 여부 등 진입 타이밍 전략 중심으로 서술)
 
                       #### 매도 고려자
-                      [본문 서술]
+                      (어떤 상황에서 비중 축소가 합리적인지, 리스크 관리 관점 중심으로 서술)
 
                     - 4번 항목(구체적인 가격 제시)은 반드시 아래 형식을 그대로 따르세요. "(설명)" 같은 라벨 절대 금지:
                       #### 진입 추천가: [가격 또는 가격범위]
-                      [가격 근거와 전략을 바로 서술. 별도 라벨 없이 본문만]
+                      [기술적 근거 1~2문장. 별도 라벨 없이 본문만]
 
                       #### 1차 목표가: [가격]
-                      [근거 바로 서술]
+                      [기술적 근거 1~2문장]
 
                       #### 손절가: [가격]
-                      [근거 바로 서술]
+                      (주식·일반 ETF의 경우 손절 기준 가격과 근거 서술)
+                      (채권·금리형 ETF의 경우 '손절가' 대신 '비중 축소 조건'으로 서술: 어떤 금리 방향·시장 조건에서 비중을 줄일지)
+                      (레버리지 ETF의 경우 높은 변동성을 감안하여 현재가 기준 % 손절 기준으로 서술 가능)
 
                     - 가격 제시 시 아래 우선순위로 기술적 근거를 활용하세요:
                       [1순위 - 기술적 구조] 지지 오더블록 추정 구간 / 피보나치 0.382·0.500·0.618 / 유동성 풀 / 미충전 FVG 하단 / 주요 수평 지지선
@@ -1678,6 +1708,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     
                     [분석 지침]
                     - 어조: 정중체 사용. 깔끔한 전문가 톤을 유지하세요. 이모티콘은 절대 사용하지 마세요.
+                    - 분량 균형: 1번(재무)·2번(차트+투심)·3번(전략)·4번(가격) 각 항목이 고르게 서술되어야 합니다. 2번 항목에 과도하게 집중하지 마세요.
                     - 항목 2(시장 투심 및 향후 주가 흐름)에서 차트 분석 시: 주봉→일봉 2개 타임프레임 관점(장기 추세는 이동평균선 최근값 참고)에서 유동성 풀, 오더블록(OB), FVG, 주요 차트 패턴(Fake out·Trap·이중천장·이중바닥 등), 피보나치 구간을 종합하여 분석하세요. 이동평균선 숫자 나열에 그치지 말 것.
                     - 핵심 강조: 핵심 문장은 반드시 **굵은 글씨(**)**로 강조하세요. 단순 수치 나열에는 굵은 글씨 쓰지 말 것.
                     - 달러 기호 금지. 금액은 반드시 '{currency}'으로 표기할 것.
@@ -1694,10 +1725,21 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 
                     **판단근거:**
                     - RISK 근거: [재무안전성·하락여지를 종합하여 한 문장으로. 업종 특성 반영(금융주 고부채=정상, 바이오 적자=감안). 30자 이상 80자 이내]
-                    - RETURN 근거: [단기 뉴스나 시장 분위기가 아닌 사업의 구조적·장기적 성장 잠재력과 현재 주가의 반영 정도를 종합하여 한 문장으로. 손실·하락 위험 절대 언급 금지. 30자 이상 80자 이내]
+                    - RETURN 근거: [사업의 구조적·장기적 성장 잠재력과 현재 주가의 반영 정도를 한 문장으로. 상승 잠재력 중심으로 서술하고, 하락 우려는 RISK 근거에서 다루세요. 30자 이상 80자 이내]
 
                     위 판단을 마친 뒤, 아래 점수를 산출하세요.
                     RISK와 RETURN은 판단근거와 반드시 일치해야 합니다.
+
+                    [점수 기준 앵커 - 먼저 읽고 척도를 잡은 뒤 산출하세요]
+                    RISK 스펙트럼 (투자 위험 수준):
+                      RISK 10~25 = 초단기 금리형·국채 ETF 등 사실상 원금 보전 자산
+                      RISK 40~60 = 글로벌 대형주 인덱스(분산 500종) 또는 대형 우량 개별주 평균 수준
+                      RISK 75~90 = 적자 초기 성장주·소형 바이오·레버리지 ETF·고변동성 테마주
+                    RETURN 스펙트럼 (기대 수익 잠재력):
+                      RETURN 10~25 = 채권·금리형 자산 수준 (연 3~5% 기대)
+                      RETURN 40~60 = 시장 평균 성장 수준 (연 8~15% 기대)
+                      RETURN 75~90 = 고성장 기술주·구조적 성장 초기 기업·강한 모멘텀 수준
+
                     생존가능성이 낮거나 하락여지가 크면 RISK는 높아야 합니다.
                     성장천장이 높고 현재 주가에 덜 반영됐을수록 RETURN은 높아야 합니다.
                     단, 전 세계 투자자에게 이미 널리 알려진 초대형 기업은 성장 기대가 주가에 충분히 반영되어 있을 가능성이 높으므로, 추가 성장 배율이 구조적으로 제한됨을 고려하세요.
@@ -1716,9 +1758,10 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         report_text = response.text
 
                         def _parse_num(text, tag):
-                            m = re.search(rf'\[{tag}:\s*(\d+)\s*\]', text, re.IGNORECASE)
-                            if m: return int(m.group(1))
-                            return None
+                            # re.findall로 모든 매치를 찾고 마지막 값 사용
+                            # (AI가 본문에 [RISK: ...] 패턴을 먼저 쓸 경우 오파싱 방지)
+                            matches = re.findall(rf'\[{tag}:\s*(\d+)\s*\]', text, re.IGNORECASE)
+                            return int(matches[-1]) if matches else None
 
                         risk_score   = _parse_num(report_text, 'RISK')
                         return_score = _parse_num(report_text, 'RETURN')
@@ -1736,7 +1779,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         if _rat_s and _rat_e and _rat_s.start() < _rat_e.start():
                             _rat_block = _cleaned[_rat_s.end():_rat_e.start()]
                             def _extract_reason(block, label):
-                                m = re.search(rf'-\s*{label}\s*근거\s*:(.*?)(?=-\s*(?:RISK|RETURN|SCORE)\s*근거|$)', block, re.DOTALL)
+                                # \Z(문자열 절대 끝)로 교체하여 DOTALL+$ 모호성 제거
+                                m = re.search(rf'-\s*{label}\s*근거\s*:(.*?)(?=-\s*(?:RISK|RETURN|SCORE)\s*근거|\Z)', block, re.DOTALL)
                                 if not m: return ""
                                 raw = m.group(1).strip()
                                 raw = re.sub(r'\*\*(.+?)\*\*', r'\1', raw)
@@ -1761,7 +1805,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 parts.append(f'SCORE\tRISK {risk_score} · RETURN {return_score} 기준 {_auto_sc}점 → {_sc_label}')
                             _rationale = '\n'.join(parts)
 
-                        _cleaned = re.sub(r'참고 수치:.*?(?=\*\*판단근거:\*\*)', '', _cleaned, flags=re.DOTALL).strip()
+                        # '참고 수치:' 이후 전체 제거 (AI가 판단근거 앞에 배치하도록 지시했으므로)
+                        # '**판단근거:**' 이후도 별도 제거 (둘 다 처리해야 어느 순서든 대응 가능)
+                        _cleaned = re.sub(r'참고 수치:.*', '', _cleaned, flags=re.DOTALL).strip()
                         _cleaned = re.sub(r'\*\*판단근거:\*\*.*', '', _cleaned, flags=re.DOTALL).strip()
                         _cleaned = re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
                         _html = md_to_html(_cleaned)
@@ -1805,6 +1851,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                             elif final_score <= 80: opinion_text, text_color = "매수", "#ff6b6b"
                             else: opinion_text, text_color = "강력 매수", "#ff2d55"
                             arrow = "&#x25BC;"
+                            # 화살표 위치: 0% 또는 100%에서 바깥으로 나가지 않도록 2~98% 클램프
+                            _arrow_pos = max(2, min(98, final_score))
                             bar_html = (
                                 '<div style="margin-top: 30px; margin-bottom: 20px; padding: 25px 20px; border-radius: 12px; background-color: #f8f9fa; border: 1px solid #eaeaea;">' +
                                 f'<h4 style="text-align: center; margin-bottom: 30px; color: #333; font-weight: 700;">AI 투자의견: <span style="color: {text_color};">{opinion_text}</span></h4>' +
@@ -1814,7 +1862,7 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 '<div style="width: 20%; line-height: 32px; text-align: center; color: #666; font-weight: 800; font-size: 13px;">중립</div>' +
                                 '<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">매수</div>' +
                                 '<div style="width: 20%; line-height: 32px; text-align: center; color: white; font-weight: 800; font-size: 13px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">강력 매수</div>' +
-                                f'<div style="position: absolute; top: -28px; left: calc({final_score}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">{arrow}</div>' +
+                                f'<div style="position: absolute; top: -28px; left: calc({_arrow_pos}% - 12px); font-size: 26px; filter: drop-shadow(0px 3px 3px rgba(0,0,0,0.5));">{arrow}</div>' +
                                 '</div>' + matrix_html + '</div>'
                             )
 
