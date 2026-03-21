@@ -12,14 +12,12 @@ import math
 import re
 import urllib.parse
 import copy
-import textwrap
 import pytz
 import hashlib
 
 
 def md_to_html(text):
     """마크다운 → HTML 변환"""
-    import re
     # **텍스트** → <strong> 변환
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     # * 단독 제거
@@ -722,7 +720,7 @@ def get_article_text(url):
 @st.cache_data(ttl=600)
 def fetch_yf_data(ticker):
     stock = yf.Ticker(ticker)
-    try: hist_basic = stock.history(period="1d")
+    try: hist_basic = stock.history(period="5d")   # '1d'는 주말·공휴일 후 빈 DataFrame 가능 → '5d'로 안전 확보
     except: hist_basic = pd.DataFrame()
     try: info = stock.info
     except: info = {}
@@ -801,8 +799,8 @@ if user_input:
   
     if not hist_basic.empty:
         current_price = hist_basic['Close'].iloc[-1]
-        display_name = user_input 
-        
+        display_name = user_input
+
         if ticker.endswith('.KS') or ticker.endswith('.KQ'):
             code_only = ticker.split('.')[0]
             name_found = False
@@ -829,8 +827,7 @@ if user_input:
         else:
             yf_official_name = None
             try:
-                import urllib.parse as _up
-                _yf_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={_up.quote(ticker)}&quotesCount=1&newsCount=0"
+                _yf_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(ticker)}&quotesCount=1&newsCount=0"
                 _yf_res = requests.get(_yf_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=4)
                 _yf_data = _yf_res.json()
                 for _q in _yf_data.get('quotes', []):
@@ -872,7 +869,7 @@ if user_input:
         news_list = fetch_news_data(ticker, display_name, search_korean_news)
                 
         news_context_list = []
-        for idx, item in enumerate(news_list):
+        for idx, item in enumerate(news_list[:25]):  # 최대 25개로 제한 (100개 전부 넘기면 토큰 낭비)
             news_context_list.append(f"[{idx+1}] 제목: {item['title']}\n본문: {item.get('content', '본문 없음')}")
         news_context = "\n\n".join(news_context_list) if news_context_list else "수집된 실시간 데이터가 없습니다."
         
@@ -1029,6 +1026,21 @@ if user_input:
         v_cf_end = safe_get_fin(cf_df, ['End Cash Position'])
         v_dividend = safe_get_fin(cf_df, ['Cash Dividends Paid', 'Dividends Paid'])
 
+        # ma_context_str: 슬라이더 선택과 무관하게 일봉 전체 데이터 최근값 기준으로 계산
+        # (탭4 종합 리포트에서 사용 - 슬라이더가 짧은 기간이면 120일MA가 '데이터 부족'이 되는 문제 방지)
+        try:
+            _daily_full = fetch_chart_history(ticker, "1d")
+            _daily_full = _daily_full[_daily_full['Close'] > 0].copy()
+            for _w in [5, 20, 60, 120]:
+                _daily_full[f'MA_{_w}'] = _daily_full['Close'].rolling(window=_w).mean()
+            _last_row = _daily_full.iloc[-1]
+            ma_context_str = " / ".join([
+                f"MA{_w}일: {_last_row[f'MA_{_w}']:{price_fmt}} {currency}" if pd.notna(_last_row[f'MA_{_w}']) else f"MA{_w}일: 데이터 부족"
+                for _w in [5, 20, 60, 120]
+            ])
+        except:
+            ma_context_str = "차트 데이터 부족"
+
         tab1, tab2, tab3, tab4 = st.tabs(["차트 분석", "상세 재무", "최신 동향", "종합 리포트"])
         
         # --- [탭 1: 차트 분석] ---
@@ -1082,7 +1094,6 @@ if user_input:
                     history[f'MA_{w}'] = history['Close'].rolling(window=w).mean()
 
                 filtered_history = history.loc[mask].copy()
-                ma_context_str = "차트 데이터 부족"
 
                 if not filtered_history.empty:
                     xaxis_config = dict(
@@ -1108,7 +1119,7 @@ if user_input:
                         val = filtered_history[f'MA_{w}'].iloc[-1]
                         val_str = f"{val:{price_fmt}} {currency}" if pd.notna(val) else "데이터 부족"
                         ma_last_vals_str.append(f"{name}: {val_str}")
-                    ma_context_str = " / ".join(ma_last_vals_str)
+                    # ma_last_vals_str은 차트 범례/호버 표시용으로만 사용 (ma_context_str 덮어쓰지 않음)
                     
                     padding = (price_max - price_min) * 0.1 if price_max != price_min else price_max * 0.1
                     min_y = price_min - padding
@@ -1173,7 +1184,7 @@ if user_input:
                 else:
                     st.warning("선택하신 기간에는 표시할 데이터가 없어요. 슬라이더 조절해 주세요!")
             else:
-                ma_context_str = "차트 데이터 부족"
+                pass  # ma_context_str은 탭 외부에서 이미 계산됨
             
             st.markdown("<br>", unsafe_allow_html=True)
             
@@ -1704,8 +1715,6 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         
                         report_text = response.text
 
-                        import re as _re
-
                         def _parse_num(text, tag):
                             m = re.search(rf'\[{tag}:\s*(\d+)\s*\]', text, re.IGNORECASE)
                             if m: return int(m.group(1))
@@ -1722,19 +1731,19 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                         _cleaned = report_text.strip()
 
                         _rationale = ""
-                        _rat_s = _re.search(r'\*\*판단근거:\*\*', _cleaned)
-                        _rat_e = _re.search(r'\[RISK:\s*\d+\]', _cleaned)
+                        _rat_s = re.search(r'\*\*판단근거:\*\*', _cleaned)
+                        _rat_e = re.search(r'\[RISK:\s*\d+\]', _cleaned)
                         if _rat_s and _rat_e and _rat_s.start() < _rat_e.start():
                             _rat_block = _cleaned[_rat_s.end():_rat_e.start()]
                             def _extract_reason(block, label):
-                                m = _re.search(rf'-\s*{label}\s*근거\s*:(.*?)(?=-\s*(?:RISK|RETURN|SCORE)\s*근거|$)', block, _re.DOTALL)
+                                m = re.search(rf'-\s*{label}\s*근거\s*:(.*?)(?=-\s*(?:RISK|RETURN|SCORE)\s*근거|$)', block, re.DOTALL)
                                 if not m: return ""
                                 raw = m.group(1).strip()
-                                raw = _re.sub(r'\*\*(.+?)\*\*', r'\1', raw)
-                                raw = _re.sub(r'\*+', '', raw)
-                                raw = _re.sub(r'#+\s*', '', raw)
-                                raw = _re.sub(r'\s*\n\s*', ' ', raw)
-                                raw = _re.sub(r'\s{2,}', ' ', raw).strip()
+                                raw = re.sub(r'\*\*(.+?)\*\*', r'\1', raw)
+                                raw = re.sub(r'\*+', '', raw)
+                                raw = re.sub(r'#+\s*', '', raw)
+                                raw = re.sub(r'\s*\n\s*', ' ', raw)
+                                raw = re.sub(r'\s{2,}', ' ', raw).strip()
                                 return raw
                             _r_reason   = _extract_reason(_rat_block, 'RISK')
                             _ret_reason = _extract_reason(_rat_block, 'RETURN')
@@ -1752,9 +1761,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                                 parts.append(f'SCORE\tRISK {risk_score} · RETURN {return_score} 기준 {_auto_sc}점 → {_sc_label}')
                             _rationale = '\n'.join(parts)
 
-                        _cleaned = _re.sub(r'참고 수치:.*?(?=\*\*판단근거:\*\*)', '', _cleaned, flags=_re.DOTALL).strip()
-                        _cleaned = _re.sub(r'\*\*판단근거:\*\*.*', '', _cleaned, flags=_re.DOTALL).strip()
-                        _cleaned = _re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
+                        _cleaned = re.sub(r'참고 수치:.*?(?=\*\*판단근거:\*\*)', '', _cleaned, flags=re.DOTALL).strip()
+                        _cleaned = re.sub(r'\*\*판단근거:\*\*.*', '', _cleaned, flags=re.DOTALL).strip()
+                        _cleaned = re.sub(r"[,'\.\s]+$", "", _cleaned).strip()
                         _html = md_to_html(_cleaned)
                         st.session_state.report_cache[_cache_key] = {"html": _html, "bar_html": None}
                         
