@@ -588,73 +588,68 @@ def safe_info(info, keys, default='N/A'):
             return v
     return default
 
-def augment_korean_fundamentals(ticker, info):
-    if not (ticker.endswith('.KS') or ticker.endswith('.KQ')):
-        return info
+@st.cache_data(ttl=600)
+def _fetch_korean_augment(ticker):
+    """네이버 크롤링 결과를 ticker 키로 캐시. 업데이트할 키-값 dict 반환."""
+    result = {}
     try:
         code = ticker.split('.')[0]
         url = f"https://finance.naver.com/item/main.naver?code={code}"
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
         soup = BeautifulSoup(res.text, 'html.parser')
-        
+
         def get_val_by_id(eid):
             el = soup.find(id=eid)
             if el:
                 try: return float(el.text.replace(',', '').replace('%', '').strip())
                 except: return None
             return None
-            
+
         per = get_val_by_id('_per')
         pbr = get_val_by_id('_pbr')
         div = get_val_by_id('_dvr')
-        
-        if per is not None: info['trailingPE'] = per
-        if pbr is not None: info['priceToBook'] = pbr
-        if div is not None: 
-            info['dividendYield'] = div / 100.0
-            info['naver_div_yield'] = div / 100.0 
+
+        if per is not None: result['trailingPE'] = per
+        if pbr is not None: result['priceToBook'] = pbr
+        if div is not None:
+            result['dividendYield'] = div / 100.0
+            result['naver_div_yield'] = div / 100.0
 
         table = soup.find('table', {'class': 'tb_type1 tb_num tb_type1_ifrs'})
         if table:
             tbody = table.find('tbody')
             if tbody:
-                rows = tbody.find_all('tr')
-                for row in rows:
+                for row in tbody.find_all('tr'):
                     th = row.find('th')
                     if not th: continue
                     title = th.text.strip()
-                    tds = row.find_all('td')
-                    
                     valid_vals = []
-                    for td in tds:
+                    for td in row.find_all('td'):
                         txt = td.text.strip().replace(',', '')
-                        try:
-                            valid_vals.append(float(txt))
-                        except:
-                            pass
-                    
+                        try: valid_vals.append(float(txt))
+                        except: pass
                     if not valid_vals: continue
-                    recent_val = valid_vals[-1] 
-                    
-                    if 'ROE' in title:
-                        info['returnOnEquity'] = recent_val / 100.0
-                    elif '영업이익률' in title:
-                        info['operatingMargins'] = recent_val / 100.0
-                    elif '순이익률' in title:
-                        info['profitMargins'] = recent_val / 100.0
-                    elif '부채비율' in title:
-                        info['debtToEquity'] = recent_val
-                    elif '당좌비율' in title:
-                        info['quickRatio'] = recent_val / 100.0
-                    elif '유동비율' in title:
-                        info['currentRatio'] = recent_val / 100.0
+                    recent_val = valid_vals[-1]
+                    if 'ROE' in title:           result['returnOnEquity']   = recent_val / 100.0
+                    elif '영업이익률' in title:   result['operatingMargins'] = recent_val / 100.0
+                    elif '순이익률' in title:     result['profitMargins']    = recent_val / 100.0
+                    elif '부채비율' in title:     result['debtToEquity']     = recent_val
+                    elif '당좌비율' in title:     result['quickRatio']       = recent_val / 100.0
+                    elif '유동비율' in title:     result['currentRatio']     = recent_val / 100.0
     except:
-        pass 
+        pass
+    return result
+
+def augment_korean_fundamentals(ticker, info):
+    if not (ticker.endswith('.KS') or ticker.endswith('.KQ')):
+        return info
+    info.update(_fetch_korean_augment(ticker))
     return info
 
-def augment_us_fundamentals(ticker, info):
-    if ticker.endswith('.KS') or ticker.endswith('.KQ'):
-        return info
+@st.cache_data(ttl=600)
+def _fetch_us_augment(ticker):
+    """Finviz 크롤링 결과를 ticker 키로 캐시. 업데이트할 키-값 dict 반환."""
+    result = {}
     try:
         url = f"https://finviz.com/quote.ashx?t={ticker}"
         headers = {
@@ -664,18 +659,15 @@ def augment_us_fundamentals(ticker, info):
         }
         res = requests.get(url, headers=headers, timeout=5)
         soup = BeautifulSoup(res.text, 'html.parser')
-        
+
         table = soup.find('table', class_='snapshot-table2')
         if table:
             data_dict = {}
-            rows = table.find_all('tr')
-            for row in rows:
+            for row in table.find_all('tr'):
                 cols = row.find_all('td')
                 for i in range(0, len(cols), 2):
-                    key = cols[i].text.strip()
-                    val = cols[i+1].text.strip()
-                    data_dict[key] = val
-                    
+                    data_dict[cols[i].text.strip()] = cols[i+1].text.strip()
+
             def parse_finviz_val(val_str, is_pct=False):
                 if val_str == '-' or val_str == '': return None
                 val_str = val_str.replace(',', '').replace('%', '')
@@ -685,25 +677,31 @@ def augment_us_fundamentals(ticker, info):
                 except:
                     return None
 
-            if (v := parse_finviz_val(data_dict.get('P/E', '-'))) is not None: info['trailingPE'] = v
-            if (v := parse_finviz_val(data_dict.get('Forward P/E', '-'))) is not None: info['forwardPE'] = v
-            if (v := parse_finviz_val(data_dict.get('P/B', '-'))) is not None: info['priceToBook'] = v
-            if (v := parse_finviz_val(data_dict.get('P/S', '-'))) is not None: info['priceToSalesTrailing12Months'] = v
-            if (v := parse_finviz_val(data_dict.get('PEG', '-'))) is not None: info['pegRatio'] = v
-            if (v := parse_finviz_val(data_dict.get('ROE', '-'), True)) is not None: info['returnOnEquity'] = v
-            if (v := parse_finviz_val(data_dict.get('ROA', '-'), True)) is not None: info['returnOnAssets'] = v
-            if (v := parse_finviz_val(data_dict.get('ROI', '-'), True)) is not None: info['returnOnCapitalEmployed'] = v
-            if (v := parse_finviz_val(data_dict.get('Gross Margin', '-'), True)) is not None: info['grossMargins'] = v
-            if (v := parse_finviz_val(data_dict.get('Oper. Margin', '-'), True)) is not None: info['operatingMargins'] = v
-            if (v := parse_finviz_val(data_dict.get('Profit Margin', '-'), True)) is not None: info['profitMargins'] = v
-            if (v := parse_finviz_val(data_dict.get('Dividend %', '-'), True)) is not None: 
-                info['dividendYield'] = v
-                info['finviz_div_yield'] = v 
-            if (v_debt := parse_finviz_val(data_dict.get('Debt/Eq', '-'))) is not None: info['debtToEquity'] = v_debt * 100
-            if (v := parse_finviz_val(data_dict.get('Current Ratio', '-'))) is not None: info['currentRatio'] = v
-            if (v := parse_finviz_val(data_dict.get('Quick Ratio', '-'))) is not None: info['quickRatio'] = v
+            if (v := parse_finviz_val(data_dict.get('P/E', '-'))) is not None:             result['trailingPE'] = v
+            if (v := parse_finviz_val(data_dict.get('Forward P/E', '-'))) is not None:     result['forwardPE'] = v
+            if (v := parse_finviz_val(data_dict.get('P/B', '-'))) is not None:             result['priceToBook'] = v
+            if (v := parse_finviz_val(data_dict.get('P/S', '-'))) is not None:             result['priceToSalesTrailing12Months'] = v
+            if (v := parse_finviz_val(data_dict.get('PEG', '-'))) is not None:             result['pegRatio'] = v
+            if (v := parse_finviz_val(data_dict.get('ROE', '-'), True)) is not None:       result['returnOnEquity'] = v
+            if (v := parse_finviz_val(data_dict.get('ROA', '-'), True)) is not None:       result['returnOnAssets'] = v
+            if (v := parse_finviz_val(data_dict.get('ROI', '-'), True)) is not None:       result['returnOnCapitalEmployed'] = v
+            if (v := parse_finviz_val(data_dict.get('Gross Margin', '-'), True)) is not None:  result['grossMargins'] = v
+            if (v := parse_finviz_val(data_dict.get('Oper. Margin', '-'), True)) is not None:  result['operatingMargins'] = v
+            if (v := parse_finviz_val(data_dict.get('Profit Margin', '-'), True)) is not None: result['profitMargins'] = v
+            if (v := parse_finviz_val(data_dict.get('Dividend %', '-'), True)) is not None:
+                result['dividendYield'] = v
+                result['finviz_div_yield'] = v
+            if (v_debt := parse_finviz_val(data_dict.get('Debt/Eq', '-'))) is not None:   result['debtToEquity'] = v_debt * 100
+            if (v := parse_finviz_val(data_dict.get('Current Ratio', '-'))) is not None:  result['currentRatio'] = v
+            if (v := parse_finviz_val(data_dict.get('Quick Ratio', '-'))) is not None:    result['quickRatio'] = v
     except:
         pass
+    return result
+
+def augment_us_fundamentals(ticker, info):
+    if ticker.endswith('.KS') or ticker.endswith('.KQ'):
+        return info
+    info.update(_fetch_us_augment(ticker))
     return info
 
 def get_article_text(url):
@@ -986,7 +984,9 @@ if user_input:
             if pd.isna(op_inc_val) or pd.isna(int_exp_val) or int_exp_val == 0:
                 interest_cov = 'N/A'
             else:
-                interest_cov = fmt_flt(abs(op_inc_val / int_exp_val))
+                # abs()는 분모(이자비용)에만 적용: yfinance가 음수/양수 둘 다 반환하므로 부호 통일
+                # 분자(영업이익)는 부호 유지: 적자 기업은 이자보상배율이 음수로 표시되어야 함
+                interest_cov = fmt_flt(op_inc_val / abs(int_exp_val))
         except:
             interest_cov = 'N/A'
         
@@ -1380,13 +1380,10 @@ if user_input:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("AI 재무 건전성 평가 실행"):
                 with st.spinner("재무 데이터를 분석하는 중입니다..."):
-                    prompt = f"""종목 {display_name}({ticker})의 상세 재무 데이터 및 최신 동향 텍스트입니다.
-
-[최신 동향 데이터]
-{news_context}
+                    prompt = f"""종목 {display_name}({ticker})의 상세 재무 데이터를 분석하여 재무 건전성을 평가해주세요.
 
 [가치 및 수익성 지표]
-시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PSR: {fmt_flt(psr)}, PEG: {fmt_flt(peg)}, EV/EBITDA: {fmt_flt(ev_ebitda)}
+시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}, Trailing PER: {fmt_flt(trailing_pe, is_per=True)}, Forward PER: {fmt_flt(forward_pe, is_per=True)}, PBR: {fmt_flt(pb)}, PSR: {fmt_flt(psr)}, PEG: {fmt_flt(peg)}, EV/EBITDA: {fmt_flt(ev_ebitda)}
 ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장률: {fmt_pct(rev_growth)}, 배당 수익률: {fmt_pct(div_yield)}
 매출총이익률: {fmt_pct(gross_margin)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}
 [안정성 지표]
@@ -1394,8 +1391,8 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 [손익계산서]
 매출액: {v_rev}, 매출원가: {v_cogs}, 매출총이익: {v_gp}, 판매관리비: {v_sga}, 영업이익: {v_op}, 법인세차감전순이익: {v_pretax}, 당기순이익: {v_net}, 기타포괄손익: {v_oci}
 [재무상태표]
-자산총계: {v_tot_assets} 
-부채총계: {v_tot_liab} 
+자산총계: {v_tot_assets}, 유동자산: {v_cur_assets}, 현금및현금성자산: {v_cash}
+부채총계: {v_tot_liab}, 유동부채: {v_cur_liab}, 단기차입금: {v_s_debt}, 장기차입금: {v_l_debt}
 자본총계: {v_tot_eq}
 [현금흐름표]
 기초현금: {v_cf_beg}, 영업활동현금흐름: {v_cf_op}, 투자활동현금흐름: {v_cf_inv}, 재무활동현금흐름: {v_cf_fin}, 배당금지급: {v_dividend}, 기말현금: {v_cf_end}
@@ -1409,10 +1406,12 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 - 정중체 사용. 깔끔한 전문가 톤 유지.
 - 각 평가 항목은 마크다운 헤딩(###)으로 작성.
 - 분석 내용 중 핵심 문장은 반드시 **굵은 글씨(**)**로 강조해서 한눈에 들어오게 하세요. 단, 폰트 크기나 색상은 임의로 변경하지 마세요.
-- 뉴스 데이터는 재무 수치의 배경 설명에만 제한적으로 활용하세요. 예: '부채비율이 급등한 것은 최근 대규모 설비투자 때문입니다'처럼 재무 지표를 직접 설명하는 용도로만 사용.
-- 재무 수치와 무관한 최신 동향(신제품, 파트너십, 인사, 시장 전망 등)은 절대 언급하지 마세요. 재무건전성 평가 범위를 벗어납니다.
-- [기사 번호 괄호 표기 절대 금지]: (예: 1, 12, 50), (60) 등 문장 끝이나 중간에 기사 번호를 괄호로 넣는 짓을 절대 하지 마세요. 출처 번호는 완전히 생략하고 자연스러운 문장으로만 작성하세요.\n- 뉴스 헤드라인 직접 인용 절대 금지: 기사 제목이나 헤드라인을 따옴표로 그대로 쓰지 마세요.
+- [기사 번호 괄호 표기 절대 금지]: (예: 1, 12, 50), (60) 등 문장 끝이나 중간에 기사 번호를 괄호로 넣는 짓을 절대 하지 마세요. 출처 번호는 완전히 생략하고 자연스러운 문장으로만 작성하세요.
+- 뉴스 헤드라인 직접 인용 절대 금지: 기사 제목이나 헤드라인을 따옴표로 그대로 쓰지 마세요.
 - 달러 기호 금지. (금액은 '{currency}'으로 표기할 것).
+
+[최신 동향 — 재무 수치 배경 설명에만 제한적 활용. 재무와 무관한 뉴스(신제품·파트너십·인사 등)는 언급 금지]
+{news_context}
 """
                     try:
                         response = client.models.generate_content(
@@ -1631,8 +1630,9 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
                     {_report_weekly_csv}
                     
                     [2. 주요 재무 및 펀더멘털 지표]
-                    - 시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}, Trailing PER: {trailing_pe}, Forward PER: {forward_pe}, PBR: {pb}, PEG: {fmt_flt(peg)}
-                    - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 부채비율: {debt_str}
+                    - 시가총액: {format_large_number(market_cap, currency) if market_cap else 'N/A'}, Trailing PER: {fmt_flt(trailing_pe, is_per=True)}, Forward PER: {fmt_flt(forward_pe, is_per=True)}, PBR: {fmt_flt(pb)}, PEG: {fmt_flt(peg)}
+                    - ROE: {fmt_pct(roe)}, 영업이익률: {fmt_pct(op_margin)}, 순이익률: {fmt_pct(net_margin)}, 매출 성장률: {fmt_pct(rev_growth)}
+                    - 부채비율: {debt_str}, 유동비율: {fmt_flt(current_ratio)}, 이자보상배율: {interest_cov}
                     - 매출액: {v_rev}, 영업이익: {v_op}, 당기순이익: {v_net}, 영업활동현금흐름: {v_cf_op}
                     - 배당 수익률: {fmt_pct(div_yield)}
                     
@@ -1838,10 +1838,13 @@ ROE: {fmt_pct(roe)}, ROA: {fmt_pct(roa)}, ROIC: {fmt_pct(roic)}, 매출 성장�
 else:
     st.markdown("""
     <div style="margin-top: 50px; font-size: 13px; color: #9ca3af; line-height: 1.8;">
-        <strong>업데이트 내용 (2026.03.21)</strong><br>
-        • 미국 주식 검색 정확도 대폭 개선<br>
-        • Yahoo Finance API quoteType 키 버그 수정 (NGM/NCM/PCX 거래소 누락 보완)<br>
-        • 기타 자잘한 버그, 디자인 수정<br>
-        • 아무튼 100배쯤 똑똑해짐
+        <strong>업데이트 내용 (2026.03.22)</strong><br>
+        • 미국 주식 검색 정확도 대폭 개선 (Yahoo Finance API quoteType 키 버그 수정)<br>
+        • AI 차트 분석 대폭 강화: 유동성 풀·오더블록·FVG·피보나치·차트 패턴 등 SMC 기반 심층 분석<br>
+        • 종합 리포트 차트 분석도 동일하게 강화, 가격 제시 근거를 기술적 구조 기반으로 개선<br>
+        • 재무 건전성 평가 데이터 보강: 재무상태표 세부 항목 추가, 지표 포맷 통일<br>
+        • 이자보상배율 계산 오류 수정 (적자 기업 음수 표시)<br>
+        • 네이버·Finviz 크롤링 캐시 적용으로 탭 전환 속도 개선<br>
+        • 기타 안정성 개선 (현재가 조회 로직, 뉴스 토큰 최적화 등)
     </div>
     """, unsafe_allow_html=True)
